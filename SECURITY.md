@@ -60,6 +60,7 @@ We take security seriously. If you discover a security vulnerability, please fol
 ### 1. Do Not Disclose Publicly
 
 **Please do not:**
+
 - Open a public GitHub issue
 - Post on social media or forums
 - Discuss publicly until fixed
@@ -71,6 +72,7 @@ We take security seriously. If you discover a security vulnerability, please fol
 **Subject:** `[SECURITY] Brief description of vulnerability`
 
 **Include:**
+
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
@@ -80,16 +82,19 @@ We take security seriously. If you discover a security vulnerability, please fol
 ### 3. What to Expect
 
 **Within 24 hours:**
+
 - Acknowledgment of your report
 - Initial assessment of severity
 
 **Within 7 days:**
+
 - Detailed response with:
   - Confirmation or rejection of vulnerability
   - Estimated timeline for fix
   - Planned disclosure date
 
 **Timeline:**
+
 - **Critical vulnerabilities:** Fixed within 7 days
 - **High severity:** Fixed within 30 days
 - **Medium/Low severity:** Fixed in next regular release
@@ -128,6 +133,7 @@ After a fix is released, we will:
 ### Credential Management
 
 **✅ Do:**
+
 - Use environment variables or config files for credentials
 - Use `.env` files with restrictive permissions (600)
 - Store credentials in secure password managers
@@ -135,6 +141,7 @@ After a fix is released, we will:
 - Limit OAuth app scopes to minimum required
 
 **❌ Don't:**
+
 - Pass credentials via command line arguments
 - Commit credentials to version control
 - Share credentials via email or chat
@@ -245,18 +252,21 @@ dlzoom 123456789 --output-dir ~/zoom-recordings
 Our CI/CD pipeline runs multiple security scans:
 
 #### 1. Dependency Scanning
+
 - **Tool:** Trivy (filesystem scan)
 - **Frequency:** Every push/PR
 - **Scope:** Python dependencies in requirements
 - **Results:** Uploaded to GitHub Security tab
 
 #### 2. Docker Image Scanning
+
 - **Tool:** Trivy (container scan)
 - **Frequency:** Every build
 - **Scope:** OS packages, Python dependencies, misconfigurations
 - **Results:** Uploaded to GitHub Security tab
 
 #### 3. Code Scanning
+
 - **Tool:** GitHub CodeQL (planned)
 - **Frequency:** Every push/PR
 - **Scope:** Source code vulnerabilities
@@ -266,7 +276,7 @@ Our CI/CD pipeline runs multiple security scans:
 
 **GitHub Security Tab:**
 
-1. Go to repository: https://github.com/yaniv-golan/dlzoom
+1. Go to repository: <https://github.com/yaniv-golan/dlzoom>
 2. Click **Security** tab
 3. View **Dependabot alerts** and **Code scanning alerts**
 
@@ -287,12 +297,14 @@ docker run --rm aquasec/trivy image dlzoom:test
 ### Critical Vulnerabilities
 
 **Definition:**
+
 - Remote code execution
 - Authentication bypass
 - Credential exposure
 - Data loss
 
 **Response:**
+
 - Immediate assessment (< 24 hours)
 - Emergency patch (< 7 days)
 - Public advisory and CVE
@@ -300,12 +312,14 @@ docker run --rm aquasec/trivy image dlzoom:test
 ### High Severity Vulnerabilities
 
 **Definition:**
+
 - Local privilege escalation
 - Denial of service
 - Information disclosure
 - CSRF/XSS (if applicable)
 
 **Response:**
+
 - Assessment within 48 hours
 - Patch within 30 days
 - Security advisory
@@ -313,18 +327,20 @@ docker run --rm aquasec/trivy image dlzoom:test
 ### Medium/Low Severity
 
 **Definition:**
+
 - Minor information disclosure
 - Non-exploitable bugs
 - Defense-in-depth improvements
 
 **Response:**
+
 - Included in next regular release
 - Documented in CHANGELOG
 
 ## Security Contacts
 
 - **Primary:** [yaniv@golan.name](mailto:yaniv@golan.name)
-- **GitHub Security:** https://github.com/yaniv-golan/dlzoom/security
+- **GitHub Security:** <https://github.com/yaniv-golan/dlzoom/security>
 
 ## PGP Key
 

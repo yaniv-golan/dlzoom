@@ -18,6 +18,7 @@ First public release of dlzoom - a production-ready CLI tool for downloading Zoo
 ### Added
 
 #### Core Features
+
 - Download Zoom cloud recordings via meeting ID
 - Automatic audio extraction from video files (MP4 → M4A)
 - Support for audio-only recordings (M4A)
@@ -27,6 +28,7 @@ First public release of dlzoom - a production-ready CLI tool for downloading Zoo
 - Server-to-Server OAuth authentication
 
 #### Recording Management
+
 - Check recording availability before downloading
 - List all recordings for a meeting (recurring/PMI support)
 - Wait for recording processing with timeout
@@ -35,6 +37,7 @@ First public release of dlzoom - a production-ready CLI tool for downloading Zoo
 - Manual recording selection by UUID
 
 #### Output & Configuration
+
 - Multiple output formats (human-readable, JSON)
 - Custom output directory and filename
 - Template-based filename generation
@@ -42,6 +45,7 @@ First public release of dlzoom - a production-ready CLI tool for downloading Zoo
 - Configuration via `.env`, JSON, or YAML files
 
 #### User Experience
+
 - Verbose and debug logging modes
 - Progress bars for downloads
 - Clear error messages with troubleshooting hints
@@ -49,6 +53,7 @@ First public release of dlzoom - a production-ready CLI tool for downloading Zoo
 - Rich terminal output with colors and formatting
 
 #### Distribution & Installation
+
 - **PyPI package** - Published to PyPI (`pip install dlzoom`)
 - **uv/uvx support** - Instant run without installation (`uvx dlzoom`)
 - **uv tool install** - Isolated installation (`uv tool install dlzoom`)
@@ -60,6 +65,7 @@ First public release of dlzoom - a production-ready CLI tool for downloading Zoo
   - Multi-stage build (optimized image size ~200MB)
 
 #### CI/CD Pipeline
+
 - **GitHub Actions CI** - Automated testing on every push/PR
   - Matrix testing: 3 OSes × 2 Python versions (3.11, 3.12)
   - Platforms: Ubuntu, macOS, Windows
@@ -76,6 +82,7 @@ First public release of dlzoom - a production-ready CLI tool for downloading Zoo
   - Release asset uploads
 
 #### Security Features
+
 - **Credential Protection**
   - Credentials never logged or exposed
   - Masked in debug output and error messages
@@ -106,6 +113,7 @@ First public release of dlzoom - a production-ready CLI tool for downloading Zoo
   - SBOM generation
 
 #### Documentation
+
 - **README.md** - Comprehensive user documentation
 - **CONTRIBUTING.md** - Contributor guidelines
   - Development setup instructions
@@ -124,6 +132,7 @@ First public release of dlzoom - a production-ready CLI tool for downloading Zoo
 - **LICENSE** - MIT License
 
 #### Testing
+
 - Comprehensive test suite (119 tests)
 - 44% code coverage
 - Type hints throughout codebase
@@ -165,21 +174,25 @@ First public release of dlzoom - a production-ready CLI tool for downloading Zoo
 ## Installation
 
 ### From PyPI
+
 ```bash
 pip install dlzoom
 ```
 
 ### With uvx (no installation)
+
 ```bash
 uvx dlzoom 123456789 --check-availability
 ```
 
 ### Docker
+
 ```bash
 docker run --rm yanivgolan1/dlzoom:latest --help
 ```
 
 ### From Source
+
 ```bash
 git clone https://github.com/yaniv-golan/dlzoom
 cd dlzoom
@@ -191,11 +204,12 @@ pip install -e .
 ## Release Notes
 
 This is the first stable release of dlzoom. The tool is production-ready for:
+
 - Downloading individual meeting recordings
 - Automation and scripting (JSON output)
 - Integration with transcription pipelines
 - Containerized deployments
 
-Report issues at: https://github.com/yaniv-golan/dlzoom/issues
+Report issues at: <https://github.com/yaniv-golan/dlzoom/issues>
 
 [0.1.0]: https://github.com/yaniv-golan/dlzoom/releases/tag/v0.1.0
