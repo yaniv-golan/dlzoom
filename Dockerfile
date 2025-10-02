@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
+# Upgrade pip and setuptools for security
+RUN pip install --no-cache-dir --upgrade pip setuptools>=78.1.1
+
 # Set working directory
 WORKDIR /build
 
@@ -27,6 +30,9 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and setuptools for security
+RUN pip install --no-cache-dir --upgrade pip setuptools>=78.1.1
 
 # Create non-root user
 RUN useradd -m -u 1000 dlzoom
