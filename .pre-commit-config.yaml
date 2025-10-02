@@ -38,3 +38,8 @@ repos:
         args: ['--ignore-missing-imports', '--no-error-summary']
         # Only run on src/dlzoom files
         files: ^src/dlzoom/
+
+  # Note: pytest is NOT included in pre-commit hooks
+  # Tests are run in CI to avoid dependency/installation issues
+  # Run manually with: pytest tests/ -v
+  # Or add to pre-commit if you want: see .pre-commit-setup.md
