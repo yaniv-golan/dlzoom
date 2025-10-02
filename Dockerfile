@@ -41,11 +41,12 @@ COPY --from=builder /build/dist/*.whl /tmp/
 RUN pip install --no-cache-dir /tmp/*.whl && \
     rm /tmp/*.whl
 
+# Create directory for downloads and set ownership
+RUN mkdir -p /app/downloads && \
+    chown -R dlzoom:dlzoom /app/downloads
+
 # Switch to non-root user
 USER dlzoom
-
-# Create directory for downloads
-RUN mkdir -p /app/downloads
 
 # Set default working directory for downloads
 WORKDIR /app/downloads

@@ -56,9 +56,9 @@ class TestCredentialProtection:
         # Call __del__ manually
         client.__del__()
 
-        assert client.account_id is None
-        assert client.client_id is None
-        assert client.client_secret is None
+        assert client.account_id == ""
+        assert client.client_id == ""
+        assert client.client_secret == ""
         assert client._access_token is None
 
 
