@@ -115,7 +115,7 @@ winget install ffmpeg
 
 ### 1. Get Zoom API Credentials
 
-> **Coming in v0.3:** One-click authentication! No more manual app setup. See [Roadmap](#roadmap).
+> **Coming in v0.2:** One-click authentication! No more manual app setup. See [Roadmap](#roadmap).
 
 **Current method (Server-to-Server OAuth):**
 
@@ -130,7 +130,7 @@ winget install ffmpeg
    - `recording:read:admin`
    - `meeting:read:admin`
 
-**Why this is temporary:** This approach requires manual OAuth app creation and credential management. In v0.3, we're adding one-click OAuth authentication (like `gh auth login`) where you just authorize dlzoom in your browser and you're done!
+**Why this is temporary:** This approach requires manual OAuth app creation and credential management. In v0.2, we're adding one-click OAuth authentication (like `gh auth login`) where you just authorize dlzoom in your browser and you're done!
 
 ### 2. Configure Credentials
 
@@ -545,7 +545,7 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 Planned for future releases:
 
-### v0.3 (Next) - OAuth Authentication 🚀
+### v0.2 (Next) - OAuth Authentication 🚀
 
 - 🔐 **One-click authentication** - No more manual OAuth app setup!
 
@@ -559,16 +559,11 @@ Planned for future releases:
 - 🔑 Secure token storage in `~/.dlzoom/credentials`
 - 📱 Multiple profiles support
 
-See [docs/OAUTH_PROPOSAL.md](docs/OAUTH_PROPOSAL.md) for detailed design.
+### v0.3
 
-### v0.4
-
-- 📊 List all recordings across meetings
 - 📅 Batch download by date range
 - 🎨 More output formats (CSV, TSV)
 - 🔐 Token encryption (system keychain)
-
-See [PLAN.md](PLAN.md) for complete implementation plan.
 
 ## Known Limitations
 
@@ -578,8 +573,6 @@ See [PLAN.md](PLAN.md) for complete implementation plan.
 - Audio quality parameter not exposed via CLI (internal only)
 - No batch download by date range
 - No listing of all meetings/recordings
-
-> **Note:** These features are planned for future releases.
 
 ## License
 
