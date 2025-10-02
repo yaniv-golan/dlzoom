@@ -231,7 +231,7 @@ jobs:
       uses: docker/metadata-action@v5
       with:
         images: |
-          yanivgolan/dlzoom
+          yanivgolan1/dlzoom
           ghcr.io/yaniv-golan/dlzoom
         tags: |
           type=ref,event=branch

@@ -179,17 +179,17 @@ config.yaml
 
 ```bash
 # dlzoom Docker images already run as non-root (UID 1000)
-docker run --rm yanivgolan/dlzoom:latest --help
+docker run --rm yanivgolan1/dlzoom:latest --help
 ```
 
 **Use specific version tags:**
 
 ```bash
 # ✅ Good: Specific version
-docker run --rm yanivgolan/dlzoom:0.1.0 --help
+docker run --rm yanivgolan1/dlzoom:0.1.0 --help
 
 # ❌ Avoid: latest tag (changes without notice)
-docker run --rm yanivgolan/dlzoom:latest --help
+docker run --rm yanivgolan1/dlzoom:latest --help
 ```
 
 **Mount volumes read-only when possible:**
@@ -200,7 +200,7 @@ docker run --rm \
   -v $(pwd)/config.yaml:/app/config.yaml:ro \
   -v $(pwd)/downloads:/app/downloads \
   -e ZOOM_ACCOUNT_ID="$ZOOM_ACCOUNT_ID" \
-  yanivgolan/dlzoom:0.1.0 123456789```
+  yanivgolan1/dlzoom:0.1.0 123456789```
 
 ### Network Security
 

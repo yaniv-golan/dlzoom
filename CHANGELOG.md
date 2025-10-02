@@ -53,7 +53,7 @@ First public release of dlzoom - a production-ready CLI tool for downloading Zoo
 - **uv/uvx support** - Instant run without installation (`uvx dlzoom`)
 - **uv tool install** - Isolated installation (`uv tool install dlzoom`)
 - **Docker image** - Multi-arch containers (amd64, arm64)
-  - Published to Docker Hub: `yanivgolan/dlzoom:latest`
+  - Published to Docker Hub: `yanivgolan1/dlzoom:latest`
   - Published to GitHub Container Registry: `ghcr.io/yaniv-golan/dlzoom:latest`
   - Includes Python 3.11 + ffmpeg (zero local dependencies)
   - Non-root user (security hardened)
@@ -176,7 +176,7 @@ uvx dlzoom 123456789 --check-availability
 
 ### Docker
 ```bash
-docker run --rm yanivgolan/dlzoom:latest --help
+docker run --rm yanivgolan1/dlzoom:latest --help
 ```
 
 ### From Source

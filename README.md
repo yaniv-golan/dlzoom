@@ -60,7 +60,7 @@ docker run -it --rm \
   -e ZOOM_ACCOUNT_ID="your_account_id" \
   -e ZOOM_CLIENT_ID="your_client_id" \
   -e ZOOM_CLIENT_SECRET="your_secret" \
-  yanivgolan/dlzoom:latest \
+  yanivgolan1/dlzoom:latest \
   123456789```
 
 **Or use GitHub Container Registry:**
