@@ -196,7 +196,7 @@ class TestFolderTemplates:
         }
 
         result = parser.apply_folder_template(meeting_data)
-        assert str(result) == "2025/09"
+        assert result.as_posix() == "2025/09"
 
     def test_folder_template_with_topic(self):
         """Should create folder paths with topics"""
