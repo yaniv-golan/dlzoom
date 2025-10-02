@@ -3,6 +3,7 @@ Unit tests for recorder selector module
 """
 
 import pytest
+
 from dlzoom.recorder_selector import RecordingSelector
 
 

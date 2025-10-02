@@ -2,8 +2,9 @@
 Tests for CLI input validation and security
 """
 
-import pytest
 import click
+import pytest
+
 from dlzoom.cli import validate_meeting_id
 
 

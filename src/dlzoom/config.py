@@ -2,18 +2,20 @@
 Configuration management for dlzoom
 """
 
-import os
 import json
+import os
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
+
 from dotenv import load_dotenv
 
 from dlzoom.exceptions import ConfigError
 
 # Check YAML availability at module level
 try:
-    import yaml
-    YAML_AVAILABLE = True
+    from importlib.util import find_spec
+
+    YAML_AVAILABLE = find_spec("yaml") is not None
 except ImportError:
     YAML_AVAILABLE = False
 
@@ -26,10 +28,10 @@ class Config:
     OPTIONAL_FIELDS = {
         "output_dir": ".",
         "log_level": "INFO",
-        "zoom_api_base_url": "https://api.zoom.us/v2"
+        "zoom_api_base_url": "https://api.zoom.us/v2",
     }
 
-    def __init__(self, env_file: Optional[str] = None):
+    def __init__(self, env_file: str | None = None):
         # Configuration priority:
         # 1. Config file (JSON/YAML)
         # 2. Environment variables
@@ -49,30 +51,30 @@ class Config:
         # Store in private variables to prevent accidental exposure in logs/tracebacks
         self._zoom_account_id = config_data.get("zoom_account_id") or os.getenv("ZOOM_ACCOUNT_ID")
         self._zoom_client_id = config_data.get("zoom_client_id") or os.getenv("ZOOM_CLIENT_ID")
-        self._zoom_client_secret = config_data.get("zoom_client_secret") or os.getenv("ZOOM_CLIENT_SECRET")
+        self._zoom_client_secret = config_data.get("zoom_client_secret") or os.getenv(
+            "ZOOM_CLIENT_SECRET"
+        )
 
         # Optional settings
-        self.output_dir = Path(
-            config_data.get("output_dir") or os.getenv("OUTPUT_DIR", ".")
-        )
+        output_dir_val = config_data.get("output_dir") or os.getenv("OUTPUT_DIR", ".")
+        self.output_dir = Path(str(output_dir_val))
         self.log_level = config_data.get("log_level") or os.getenv("LOG_LEVEL", "INFO")
-        self.zoom_api_base_url = (
-            config_data.get("zoom_api_base_url") or
-            os.getenv("ZOOM_API_BASE_URL", "https://api.zoom.us/v2")
+        self.zoom_api_base_url = config_data.get("zoom_api_base_url") or os.getenv(
+            "ZOOM_API_BASE_URL", "https://api.zoom.us/v2"
         )
 
     @property
-    def zoom_account_id(self) -> Optional[str]:
+    def zoom_account_id(self) -> str | None:
         """Zoom account ID (read-only property)"""
         return self._zoom_account_id
 
     @property
-    def zoom_client_id(self) -> Optional[str]:
+    def zoom_client_id(self) -> str | None:
         """Zoom client ID (read-only property)"""
         return self._zoom_client_id
 
     @property
-    def zoom_client_secret(self) -> Optional[str]:
+    def zoom_client_secret(self) -> str | None:
         """Zoom client secret (read-only property)"""
         return self._zoom_client_secret
 
@@ -91,16 +93,16 @@ class Config:
             f")"
         )
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Zero out credentials when object is destroyed"""
-        if hasattr(self, '_zoom_account_id'):
+        if hasattr(self, "_zoom_account_id"):
             self._zoom_account_id = None
-        if hasattr(self, '_zoom_client_id'):
+        if hasattr(self, "_zoom_client_id"):
             self._zoom_client_id = None
-        if hasattr(self, '_zoom_client_secret'):
+        if hasattr(self, "_zoom_client_secret"):
             self._zoom_client_secret = None
 
-    def _load_config_file(self, config_path: str) -> Dict[str, Any]:
+    def _load_config_file(self, config_path: str) -> dict[str, Any]:
         """
         Load configuration from JSON or YAML file
 
@@ -128,7 +130,7 @@ class Config:
             )
 
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 if path.suffix.lower() == ".json":
                     data = json.load(f)
                 elif path.suffix.lower() in [".yaml", ".yml"]:
@@ -140,14 +142,14 @@ class Config:
 
             # Validate schema
             self._validate_schema(data, path)
-            return data
+            return dict(data)
 
         except json.JSONDecodeError as e:
             raise ConfigError(f"Invalid JSON in config file {config_path}: {e}")
         except Exception as e:
             raise ConfigError(f"Failed to load config file {config_path}: {e}")
 
-    def _load_yaml(self, file_obj) -> Dict[str, Any]:
+    def _load_yaml(self, file_obj: Any) -> dict[str, Any]:
         """
         Load YAML configuration
 
@@ -162,15 +164,15 @@ class Config:
         """
         try:
             import yaml
-            return yaml.safe_load(file_obj)
+
+            result = yaml.safe_load(file_obj)
+            return dict(result) if result else {}
         except ImportError:
-            raise ConfigError(
-                "PyYAML not installed. Install with: pip install pyyaml"
-            )
+            raise ConfigError("PyYAML not installed. Install with: pip install pyyaml")
         except yaml.YAMLError as e:
             raise ConfigError(f"Invalid YAML: {e}")
 
-    def _validate_schema(self, data: Dict[str, Any], path: Path) -> None:
+    def _validate_schema(self, data: dict[str, Any], path: Path) -> None:
         """
         Validate configuration schema
 
@@ -201,9 +203,7 @@ class Config:
         if "log_level" in data:
             valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
             if data["log_level"].upper() not in valid_levels:
-                raise ConfigError(
-                    f"log_level must be one of {valid_levels} in {path}"
-                )
+                raise ConfigError(f"log_level must be one of {valid_levels} in {path}")
 
         if "zoom_api_base_url" in data and not isinstance(data["zoom_api_base_url"], str):
             raise ConfigError(f"zoom_api_base_url must be a string in {path}")

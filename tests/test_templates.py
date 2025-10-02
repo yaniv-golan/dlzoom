@@ -2,15 +2,15 @@
 Tests for template parsing with error visibility
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
 from dlzoom.templates import TemplateParser
 
 
 class TestTemplateErrorVisibility:
     """Test that template parsing errors are visible (not silent)"""
 
-    @patch('logging.getLogger')
+    @patch("logging.getLogger")
     def test_invalid_date_logs_warning(self, mock_logger):
         """Invalid date should log warning and use empty string"""
         mock_log = Mock()
@@ -19,10 +19,7 @@ class TestTemplateErrorVisibility:
         parser = TemplateParser(filename_template="{start_time:%Y%m%d}")
 
         # Invalid date format
-        meeting_data = {
-            "start_time": "invalid-date-format",
-            "meeting_id": "123"
-        }
+        meeting_data = {"start_time": "invalid-date-format", "meeting_id": "123"}
 
         result = parser.apply_filename_template(meeting_data)
 
@@ -35,7 +32,7 @@ class TestTemplateErrorVisibility:
         # Should use empty string (not silent failure)
         assert result == ""  # No date, no other content
 
-    @patch('logging.getLogger')
+    @patch("logging.getLogger")
     def test_missing_start_time_logs_warning(self, mock_logger):
         """Missing start_time should leave placeholder unchanged"""
         mock_log = Mock()
@@ -55,19 +52,14 @@ class TestTemplateErrorVisibility:
         """Valid date should format correctly"""
         parser = TemplateParser(filename_template="{start_time:%Y%m%d}")
 
-        meeting_data = {
-            "start_time": "2025-09-30T12:00:35Z",
-            "meeting_id": "123"
-        }
+        meeting_data = {"start_time": "2025-09-30T12:00:35Z", "meeting_id": "123"}
 
         result = parser.apply_filename_template(meeting_data)
         assert result == "20250930"
 
     def test_multiple_date_formats(self):
         """Multiple date placeholders should all work"""
-        parser = TemplateParser(
-            filename_template="{start_time:%Y}/{start_time:%m}/{start_time:%d}"
-        )
+        parser = TemplateParser(filename_template="{start_time:%Y}/{start_time:%m}/{start_time:%d}")
 
         meeting_data = {
             "start_time": "2025-09-30T12:00:35Z",
@@ -110,14 +102,9 @@ class TestSimplePlaceholders:
 
     def test_multiple_placeholders(self):
         """Should handle multiple placeholders"""
-        parser = TemplateParser(
-            filename_template="{topic}_{meeting_id}"
-        )
+        parser = TemplateParser(filename_template="{topic}_{meeting_id}")
 
-        meeting_data = {
-            "topic": "Team Meeting",
-            "meeting_id": "123"
-        }
+        meeting_data = {"topic": "Team Meeting", "meeting_id": "123"}
 
         result = parser.apply_filename_template(meeting_data)
         assert "Team" in result
@@ -202,9 +189,7 @@ class TestFolderTemplates:
 
     def test_folder_template_with_date(self):
         """Should create folder paths with dates"""
-        parser = TemplateParser(
-            folder_template="{start_time:%Y}/{start_time:%m}"
-        )
+        parser = TemplateParser(folder_template="{start_time:%Y}/{start_time:%m}")
 
         meeting_data = {
             "start_time": "2025-09-30T12:00:35Z",
@@ -259,14 +244,12 @@ class TestComplexTemplates:
 
     def test_complex_filename_template(self):
         """Should handle complex filename template"""
-        parser = TemplateParser(
-            filename_template="{start_time:%Y%m%d}_{topic}_{meeting_id}"
-        )
+        parser = TemplateParser(filename_template="{start_time:%Y%m%d}_{topic}_{meeting_id}")
 
         meeting_data = {
             "start_time": "2025-09-30T12:00:35Z",
             "topic": "Weekly Sync",
-            "meeting_id": "123"
+            "meeting_id": "123",
         }
 
         result = parser.apply_filename_template(meeting_data)
@@ -276,14 +259,9 @@ class TestComplexTemplates:
 
     def test_complex_folder_template(self):
         """Should handle complex folder template"""
-        parser = TemplateParser(
-            folder_template="{start_time:%Y}/{start_time:%m}/{topic}"
-        )
+        parser = TemplateParser(folder_template="{start_time:%Y}/{start_time:%m}/{topic}")
 
-        meeting_data = {
-            "start_time": "2025-09-30T12:00:35Z",
-            "topic": "Team Meeting"
-        }
+        meeting_data = {"start_time": "2025-09-30T12:00:35Z", "topic": "Team Meeting"}
 
         result = parser.apply_folder_template(meeting_data)
         path_str = str(result)

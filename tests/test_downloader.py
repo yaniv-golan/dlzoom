@@ -2,11 +2,12 @@
 Tests for Downloader robustness: atomic operations, disk space, size validation
 """
 
-import pytest
 import os
 import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
 from dlzoom.downloader import Downloader
 from dlzoom.exceptions import DiskSpaceError
 
@@ -16,58 +17,42 @@ class TestDiskSpaceCheck:
 
     def test_check_disk_space_sufficient(self, tmp_path):
         """Should pass when sufficient disk space available"""
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        downloader = Downloader(output_dir=tmp_path, access_token="test_token")
 
         # Request 1 MB (should be available on any system)
         result = downloader.check_disk_space(1024 * 1024)
         assert result is True
 
-    @patch('shutil.disk_usage')
+    @patch("shutil.disk_usage")
     def test_check_disk_space_insufficient(self, mock_disk_usage, tmp_path):
         """Should raise DiskSpaceError when insufficient space"""
         # Mock 50 MB available
-        mock_disk_usage.return_value = Mock(
-            free=50 * 1024 * 1024
-        )
+        mock_disk_usage.return_value = Mock(free=50 * 1024 * 1024)
 
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        downloader = Downloader(output_dir=tmp_path, access_token="test_token")
 
         # Request 1 GB (with 100 MB buffer = 1.1 GB total needed)
         with pytest.raises(DiskSpaceError, match="Insufficient disk space"):
             downloader.check_disk_space(1024 * 1024 * 1024)
 
-    @patch('shutil.disk_usage')
+    @patch("shutil.disk_usage")
     def test_check_disk_space_includes_buffer(self, mock_disk_usage, tmp_path):
         """Should include 100 MB buffer in calculation"""
         # Mock exactly 200 MB available
-        mock_disk_usage.return_value = Mock(
-            free=200 * 1024 * 1024
-        )
+        mock_disk_usage.return_value = Mock(free=200 * 1024 * 1024)
 
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        downloader = Downloader(output_dir=tmp_path, access_token="test_token")
 
         # Request 150 MB (with 100 MB buffer = 250 MB needed, but only 200 MB available)
         with pytest.raises(DiskSpaceError):
             downloader.check_disk_space(150 * 1024 * 1024)
 
-    @patch('shutil.disk_usage')
+    @patch("shutil.disk_usage")
     def test_check_disk_space_oserror_proceeds(self, mock_disk_usage, tmp_path):
         """Should proceed optimistically if disk_usage fails"""
         mock_disk_usage.side_effect = OSError("Permission denied")
 
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        downloader = Downloader(output_dir=tmp_path, access_token="test_token")
 
         # Should return True and log warning instead of failing
         result = downloader.check_disk_space(1024 * 1024 * 1024)
@@ -77,8 +62,8 @@ class TestDiskSpaceCheck:
 class TestENOSPCHandling:
     """Test ENOSPC (disk full) error handling during writes"""
 
-    @patch('builtins.open')
-    @patch('requests.get')
+    @patch("builtins.open")
+    @patch("requests.get")
     def test_enospc_during_download_with_progress(self, mock_get, mock_open, tmp_path):
         """Should raise DiskSpaceError when ENOSPC occurs during download"""
         # Mock response
@@ -95,21 +80,18 @@ class TestENOSPCHandling:
         mock_file.write.side_effect = OSError(28, "No space left on device")
         mock_open.return_value.__enter__.return_value = mock_file
 
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        downloader = Downloader(output_dir=tmp_path, access_token="test_token")
 
         with pytest.raises(DiskSpaceError, match="Disk full"):
             downloader._download_with_progress(
                 response=mock_response,
                 output_path=tmp_path / "test.mp4",
                 total_size=1000,
-                filename="test.mp4"
+                filename="test.mp4",
             )
 
-    @patch('builtins.open')
-    @patch('requests.get')
+    @patch("builtins.open")
+    @patch("requests.get")
     def test_other_oserror_reraises(self, mock_get, mock_open, tmp_path):
         """Should re-raise other OSErrors (not ENOSPC)"""
         # Mock response
@@ -126,10 +108,7 @@ class TestENOSPCHandling:
         mock_file.write.side_effect = OSError(13, "Permission denied")
         mock_open.return_value.__enter__.return_value = mock_file
 
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        downloader = Downloader(output_dir=tmp_path, access_token="test_token")
 
         # Should raise original OSError, not DiskSpaceError
         with pytest.raises(OSError, match="Permission denied"):
@@ -137,15 +116,15 @@ class TestENOSPCHandling:
                 response=mock_response,
                 output_path=tmp_path / "test.mp4",
                 total_size=1000,
-                filename="test.mp4"
+                filename="test.mp4",
             )
 
 
 class TestAtomicFileOperations:
     """Test atomic file operations with os.replace() and fallback"""
 
-    @patch('os.replace')
-    @patch('shutil.move')
+    @patch("os.replace")
+    @patch("shutil.move")
     def test_atomic_replace_success(self, mock_move, mock_replace, tmp_path):
         """Should use os.replace() for atomic move (POSIX)"""
         # Create real temp file
@@ -154,10 +133,7 @@ class TestAtomicFileOperations:
 
         final_file = tmp_path / "test.mp4"
 
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        Downloader(output_dir=tmp_path, access_token="test_token")
 
         # Mock successful os.replace
         mock_replace.return_value = None
@@ -172,8 +148,8 @@ class TestAtomicFileOperations:
         mock_replace.assert_called_once()
         mock_move.assert_not_called()
 
-    @patch('os.replace')
-    @patch('shutil.move')
+    @patch("os.replace")
+    @patch("shutil.move")
     def test_atomic_replace_fallback(self, mock_move, mock_replace, tmp_path):
         """Should fallback to shutil.move() if os.replace() fails"""
         temp_file = tmp_path / ".tmp.test.mp4"
@@ -183,10 +159,7 @@ class TestAtomicFileOperations:
         mock_replace.side_effect = OSError("Cross-device link")
         mock_move.return_value = None
 
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        Downloader(output_dir=tmp_path, access_token="test_token")
 
         # Simulate the fallback code
         try:
@@ -204,10 +177,7 @@ class TestAdaptiveSizeValidation:
 
     def test_size_validation_small_file_within_tolerance(self, tmp_path):
         """Small file (<10MB) within 2% tolerance should pass"""
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        Downloader(output_dir=tmp_path, access_token="test_token")
 
         # 5 MB file, 1% difference = 51.2 KB (within 2%)
         expected_size = 5 * 1024 * 1024  # 5 MB
@@ -221,10 +191,7 @@ class TestAdaptiveSizeValidation:
 
     def test_size_validation_small_file_exceeds_tolerance(self, tmp_path):
         """Small file (<10MB) exceeding 2% tolerance should warn"""
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        Downloader(output_dir=tmp_path, access_token="test_token")
 
         # 5 MB file, 3% difference (exceeds 2% tolerance)
         expected_size = 5 * 1024 * 1024  # 5 MB
@@ -238,10 +205,7 @@ class TestAdaptiveSizeValidation:
 
     def test_size_validation_large_file_within_tolerance(self, tmp_path):
         """Large file (>=10MB) within 5% tolerance should pass"""
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        Downloader(output_dir=tmp_path, access_token="test_token")
 
         # 50 MB file, 4% difference = 2 MB (within 5%)
         expected_size = 50 * 1024 * 1024  # 50 MB
@@ -255,10 +219,7 @@ class TestAdaptiveSizeValidation:
 
     def test_size_validation_large_file_exceeds_tolerance(self, tmp_path):
         """Large file (>=10MB) exceeding 5% tolerance should warn"""
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        Downloader(output_dir=tmp_path, access_token="test_token")
 
         # 50 MB file, 6% difference (exceeds 5% tolerance)
         expected_size = 50 * 1024 * 1024  # 50 MB
@@ -272,10 +233,7 @@ class TestAdaptiveSizeValidation:
 
     def test_size_validation_boundary_10mb(self, tmp_path):
         """Test boundary at exactly 10 MB"""
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        Downloader(output_dir=tmp_path, access_token="test_token")
 
         # File at exactly 10 MB threshold
         expected_size_below = 10_000_000 - 1  # Just under 10 MB
@@ -301,31 +259,19 @@ class TestFilenameGeneration:
     def test_generate_filename_with_output_name(self, tmp_path):
         """Should use output_name when provided"""
         downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token",
-            output_name="my_recording"
+            output_dir=tmp_path, access_token="test_token", output_name="my_recording"
         )
 
-        file_info = {
-            "file_type": "audio_only",
-            "file_extension": "M4A"
-        }
+        file_info = {"file_type": "audio_only", "file_extension": "M4A"}
 
         filename = downloader.generate_filename(file_info, "Meeting Topic")
         assert filename == "my_recording.m4a"
 
     def test_generate_filename_sanitizes_topic(self, tmp_path):
         """Should sanitize meeting topic for filename"""
-        downloader = Downloader(
-            output_dir=tmp_path,
-            access_token="test_token"
-        )
+        downloader = Downloader(output_dir=tmp_path, access_token="test_token")
 
-        file_info = {
-            "file_type": "audio_only",
-            "file_extension": "M4A",
-            "id": "rec123"
-        }
+        file_info = {"file_type": "audio_only", "file_extension": "M4A", "id": "rec123"}
 
         # Meeting topic with special characters
         filename = downloader.generate_filename(file_info, "Meeting/Topic: Test@2024!")

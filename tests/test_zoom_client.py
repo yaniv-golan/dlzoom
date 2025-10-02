@@ -2,15 +2,13 @@
 Tests for ZoomClient network resilience and credential protection
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-import time
-from unittest.mock import Mock, patch, MagicMock
 import requests
-from dlzoom.zoom_client import ZoomClient, ZoomAPIError
-from dlzoom.exceptions import (
-    AuthenticationError,
-    RateLimitedError
-)
+
+from dlzoom.exceptions import AuthenticationError, RateLimitedError
+from dlzoom.zoom_client import ZoomAPIError, ZoomClient
 
 
 class TestCredentialProtection:
@@ -19,9 +17,7 @@ class TestCredentialProtection:
     def test_repr_excludes_credentials(self):
         """__repr__ should not expose credentials"""
         client = ZoomClient(
-            account_id="secret_account",
-            client_id="secret_client",
-            client_secret="very_secret"
+            account_id="secret_account", client_id="secret_client", client_secret="very_secret"
         )
 
         repr_str = repr(client)
@@ -69,7 +65,7 @@ class TestCredentialProtection:
 class TestNetworkTimeouts:
     """Test timeout handling for OAuth and API requests"""
 
-    @patch('requests.post')
+    @patch("requests.post")
     def test_oauth_timeout(self, mock_post):
         """OAuth request should timeout after 30 seconds"""
         mock_post.side_effect = requests.exceptions.Timeout()
@@ -82,17 +78,16 @@ class TestNetworkTimeouts:
         # Verify timeout was set to 30 seconds
         mock_post.assert_called_once()
         call_kwargs = mock_post.call_args.kwargs
-        assert call_kwargs['timeout'] == 30
+        assert call_kwargs["timeout"] == 30
 
-    @patch('time.sleep')  # Mock sleep to avoid delays
-    @patch('requests.post')
-    @patch('requests.request')
+    @patch("time.sleep")  # Mock sleep to avoid delays
+    @patch("requests.post")
+    @patch("requests.request")
     def test_api_request_timeout(self, mock_request, mock_post, mock_sleep):
         """API request should timeout after 30 seconds"""
         # Mock OAuth token
         mock_post.return_value = Mock(
-            status_code=200,
-            json=lambda: {"access_token": "token", "expires_in": 3600}
+            status_code=200, json=lambda: {"access_token": "token", "expires_in": 3600}
         )
 
         # Mock API timeout - will retry 3 times
@@ -104,7 +99,7 @@ class TestNetworkTimeouts:
             client._make_request("GET", "meetings/123")
 
         # Verify timeout was set
-        assert mock_request.call_args.kwargs['timeout'] == 30
+        assert mock_request.call_args.kwargs["timeout"] == 30
         # Should have tried 3 times (default retry_count)
         assert mock_request.call_count == 3
 
@@ -112,22 +107,21 @@ class TestNetworkTimeouts:
 class TestRetryLogic:
     """Test exponential backoff retry logic"""
 
-    @patch('requests.post')
-    @patch('requests.request')
-    @patch('time.sleep')
+    @patch("requests.post")
+    @patch("requests.request")
+    @patch("time.sleep")
     def test_retry_on_rate_limit_429(self, mock_sleep, mock_request, mock_post):
         """Should retry on 429 rate limit with exponential backoff"""
         # Mock OAuth
         mock_post.return_value = Mock(
-            status_code=200,
-            json=lambda: {"access_token": "token", "expires_in": 3600}
+            status_code=200, json=lambda: {"access_token": "token", "expires_in": 3600}
         )
 
         # Mock API: 429 twice, then success
         mock_request.side_effect = [
             Mock(status_code=429),
             Mock(status_code=429),
-            Mock(status_code=200, json=lambda: {"data": "success"})
+            Mock(status_code=200, json=lambda: {"data": "success"}),
         ]
 
         client = ZoomClient("acc", "cli", "sec")
@@ -142,21 +136,20 @@ class TestRetryLogic:
         assert sleep_times[0] == 1.0  # backoff_factor * (2 ** 0)
         assert sleep_times[1] == 2.0  # backoff_factor * (2 ** 1)
 
-    @patch('requests.post')
-    @patch('requests.request')
-    @patch('time.sleep')
+    @patch("requests.post")
+    @patch("requests.request")
+    @patch("time.sleep")
     def test_retry_on_server_error_503(self, mock_sleep, mock_request, mock_post):
         """Should retry on 503 server error with exponential backoff"""
         # Mock OAuth
         mock_post.return_value = Mock(
-            status_code=200,
-            json=lambda: {"access_token": "token", "expires_in": 3600}
+            status_code=200, json=lambda: {"access_token": "token", "expires_in": 3600}
         )
 
         # Mock API: 503 once, then success
         mock_request.side_effect = [
             Mock(status_code=503),
-            Mock(status_code=200, json=lambda: {"data": "success"})
+            Mock(status_code=200, json=lambda: {"data": "success"}),
         ]
 
         client = ZoomClient("acc", "cli", "sec")
@@ -166,15 +159,14 @@ class TestRetryLogic:
         assert mock_request.call_count == 2
         mock_sleep.assert_called_once_with(1.0)
 
-    @patch('requests.post')
-    @patch('requests.request')
-    @patch('time.sleep')
+    @patch("requests.post")
+    @patch("requests.request")
+    @patch("time.sleep")
     def test_retry_exhausted_429(self, mock_sleep, mock_request, mock_post):
         """Should raise RateLimitedError after max retries"""
         # Mock OAuth
         mock_post.return_value = Mock(
-            status_code=200,
-            json=lambda: {"access_token": "token", "expires_in": 3600}
+            status_code=200, json=lambda: {"access_token": "token", "expires_in": 3600}
         )
 
         # Mock API: always 429
@@ -190,15 +182,14 @@ class TestRetryLogic:
         # Should sleep 2 times (between attempts)
         assert mock_sleep.call_count == 2
 
-    @patch('requests.post')
-    @patch('requests.request')
-    @patch('time.sleep')
+    @patch("requests.post")
+    @patch("requests.request")
+    @patch("time.sleep")
     def test_retry_exhausted_server_error(self, mock_sleep, mock_request, mock_post):
         """Should raise ZoomAPIError after max retries on server error"""
         # Mock OAuth
         mock_post.return_value = Mock(
-            status_code=200,
-            json=lambda: {"access_token": "token", "expires_in": 3600}
+            status_code=200, json=lambda: {"access_token": "token", "expires_in": 3600}
         )
 
         # Mock API: always 503
@@ -209,21 +200,20 @@ class TestRetryLogic:
         with pytest.raises(ZoomAPIError, match="Zoom API server error"):
             client._make_request("GET", "meetings/123", retry_count=3)
 
-    @patch('requests.post')
-    @patch('requests.request')
-    @patch('time.sleep')
+    @patch("requests.post")
+    @patch("requests.request")
+    @patch("time.sleep")
     def test_retry_on_network_error(self, mock_sleep, mock_request, mock_post):
         """Should retry on network errors (ConnectionError)"""
         # Mock OAuth
         mock_post.return_value = Mock(
-            status_code=200,
-            json=lambda: {"access_token": "token", "expires_in": 3600}
+            status_code=200, json=lambda: {"access_token": "token", "expires_in": 3600}
         )
 
         # Mock API: ConnectionError once, then success
         mock_request.side_effect = [
             requests.exceptions.ConnectionError("Connection failed"),
-            Mock(status_code=200, json=lambda: {"data": "success"})
+            Mock(status_code=200, json=lambda: {"data": "success"}),
         ]
 
         client = ZoomClient("acc", "cli", "sec")
@@ -233,15 +223,14 @@ class TestRetryLogic:
         assert mock_request.call_count == 2
         mock_sleep.assert_called_once_with(1.0)
 
-    @patch('requests.post')
-    @patch('requests.request')
-    @patch('time.sleep')
+    @patch("requests.post")
+    @patch("requests.request")
+    @patch("time.sleep")
     def test_retry_exhausted_network_error(self, mock_sleep, mock_request, mock_post):
         """Should raise ZoomAPIError after max retries on network error"""
         # Mock OAuth
         mock_post.return_value = Mock(
-            status_code=200,
-            json=lambda: {"access_token": "token", "expires_in": 3600}
+            status_code=200, json=lambda: {"access_token": "token", "expires_in": 3600}
         )
 
         # Mock API: always ConnectionError
@@ -258,12 +247,11 @@ class TestRetryLogic:
 class TestTokenCaching:
     """Test OAuth token caching"""
 
-    @patch('requests.post')
+    @patch("requests.post")
     def test_token_cached(self, mock_post):
         """Token should be cached and reused"""
         mock_post.return_value = Mock(
-            status_code=200,
-            json=lambda: {"access_token": "token123", "expires_in": 3600}
+            status_code=200, json=lambda: {"access_token": "token123", "expires_in": 3600}
         )
 
         client = ZoomClient("acc", "cli", "sec")
@@ -278,20 +266,20 @@ class TestTokenCaching:
         assert token2 == "token123"
         assert mock_post.call_count == 1  # No additional request
 
-    @patch('requests.post')
-    @patch('time.time')
+    @patch("requests.post")
+    @patch("time.time")
     def test_token_refresh_when_expired(self, mock_time, mock_post):
         """Token should be refreshed when expired"""
         # Different tokens for each request
         mock_post.side_effect = [
             Mock(status_code=200, json=lambda: {"access_token": "token1", "expires_in": 3600}),
-            Mock(status_code=200, json=lambda: {"access_token": "token2", "expires_in": 3600})
+            Mock(status_code=200, json=lambda: {"access_token": "token2", "expires_in": 3600}),
         ]
 
         # Mock time progression
         mock_time.side_effect = [
             1000.0,  # First _get_access_token() call - current time
-            5000.0   # Second _get_access_token() call - expired (5000 > 4600-60=4540)
+            5000.0,  # Second _get_access_token() call - expired (5000 > 4600-60=4540)
         ]
 
         client = ZoomClient("acc", "cli", "sec")

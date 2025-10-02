@@ -70,12 +70,35 @@ pip install -e ".[dev]"
 ```
 
 This installs:
+
 - All runtime dependencies
 - Testing tools (pytest, pytest-cov)
 - Linting tools (ruff, black, mypy)
+- Pre-commit hooks
 - Build tools
 
-### 3. Install ffmpeg
+### 3. Set Up Pre-commit Hooks (Recommended)
+
+Pre-commit hooks automatically check your code before each commit, ensuring it matches our CI standards:
+
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# Optional: Run on all files to verify setup
+pre-commit run --all-files
+```
+
+**Why use pre-commit hooks?**
+
+- Catches issues before you push to GitHub
+- Saves CI time and reduces failed builds
+- Ensures consistent code quality
+- All tool versions match CI exactly (no surprises!)
+
+See [.pre-commit-setup.md](.pre-commit-setup.md) for more details.
+
+### 4. Install ffmpeg
 
 ```bash
 # macOS
@@ -88,7 +111,7 @@ sudo apt install ffmpeg
 choco install ffmpeg
 ```
 
-### 4. Set Up Zoom API Credentials (Optional)
+### 5. Set Up Zoom API Credentials (Optional)
 
 For testing with real API calls, create a `.env` file:
 
@@ -127,6 +150,7 @@ git checkout -b docs/update-installation-guide
 ```
 
 **Prefixes:**
+
 - `feature/` - New features
 - `fix/` - Bug fixes
 - `docs/` - Documentation changes
@@ -137,6 +161,7 @@ git checkout -b docs/update-installation-guide
 ### Development Workflow
 
 1. **Pull latest changes:**
+
    ```bash
    git fetch upstream
    git rebase upstream/main
@@ -145,11 +170,13 @@ git checkout -b docs/update-installation-guide
 2. **Make your changes**
 
 3. **Run tests locally:**
+
    ```bash
    pytest tests/ -v --cov=src/dlzoom
    ```
 
 4. **Check code quality:**
+
    ```bash
    # Format code
    black src/ tests/
@@ -164,6 +191,7 @@ git checkout -b docs/update-installation-guide
 5. **Commit changes** (see [Commit Messages](#commit-messages))
 
 6. **Push to your fork:**
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -315,6 +343,7 @@ We follow the **Conventional Commits** specification for clear commit history an
 ### Examples
 
 **New feature:**
+
 ```
 feat(downloader): add support for CSV export
 
@@ -325,6 +354,7 @@ Closes #42
 ```
 
 **Bug fix:**
+
 ```
 fix(auth): handle expired OAuth tokens correctly
 
@@ -335,6 +365,7 @@ Fixes #38
 ```
 
 **Breaking change:**
+
 ```
 feat(api)!: change recording download API signature
 
@@ -347,6 +378,7 @@ Migrating:
 ```
 
 **Simple fix:**
+
 ```
 fix: correct typo in error message
 ```
@@ -369,6 +401,7 @@ Scope is optional but recommended. Common scopes:
 ### Before Submitting
 
 1. **Ensure all tests pass:**
+
    ```bash
    pytest tests/ -v
    ```
@@ -379,6 +412,7 @@ Scope is optional but recommended. Common scopes:
    - CHANGELOG.md will be updated automatically
 
 3. **Ensure code quality:**
+
    ```bash
    black src/ tests/
    ruff check src/ tests/
@@ -386,6 +420,7 @@ Scope is optional but recommended. Common scopes:
    ```
 
 4. **Rebase on latest main:**
+
    ```bash
    git fetch upstream
    git rebase upstream/main
@@ -394,6 +429,7 @@ Scope is optional but recommended. Common scopes:
 ### Creating a Pull Request
 
 1. **Push to your fork:**
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -447,11 +483,13 @@ Describe how you tested your changes:
 
 - Your branch will be deleted automatically
 - Delete your local branch:
+
   ```bash
   git branch -d feature/your-feature-name
   ```
 
 - Pull the latest changes:
+
   ```bash
   git checkout main
   git pull upstream main
@@ -475,13 +513,13 @@ Before you can publish releases, configure these prerequisites:
 
 #### 1. Docker Hub Repository
 
-1. Create repository at https://hub.docker.com/repositories
+1. Create repository at <https://hub.docker.com/repositories>
 2. Set **Name:** `dlzoom`, **Visibility:** Public
 3. Note your Docker Hub username (e.g., `yourusername`)
 
 #### 2. Docker Hub Access Token
 
-1. Go to https://hub.docker.com/settings/security
+1. Go to <https://hub.docker.com/settings/security>
 2. Create **New Access Token** with **Read, Write, Delete** permissions
 3. Save the token securely (you won't see it again)
 
@@ -494,7 +532,7 @@ Add these secrets at `https://github.com/OWNER/REPO/settings/secrets/actions`:
 
 #### 4. PyPI Trusted Publishing (Test PyPI)
 
-1. Go to https://test.pypi.org/manage/account/publishing/
+1. Go to <https://test.pypi.org/manage/account/publishing/>
 2. Click **Add a new publisher**
 3. Fill in:
    - **PyPI Project Name:** `dlzoom`
@@ -507,7 +545,7 @@ Add these secrets at `https://github.com/OWNER/REPO/settings/secrets/actions`:
 
 **⚠️ Configure BEFORE creating your first release tag**
 
-1. Go to https://pypi.org/manage/account/publishing/
+1. Go to <https://pypi.org/manage/account/publishing/>
 2. Add publisher with same settings as Test PyPI
 3. **Note:** Must be done before project exists on PyPI
 
@@ -524,12 +562,14 @@ Add these secrets at `https://github.com/OWNER/REPO/settings/secrets/actions`:
 **No setup needed** - GHCR is automatically available for public repos.
 
 Images will be published to:
+
 - `ghcr.io/OWNER/dlzoom:latest`
 - `ghcr.io/OWNER/dlzoom:VERSION`
 
 #### What Runs When
 
 **On Every Push to Main:**
+
 - ✅ Tests, linting, security scans
 - ✅ Build Python package and test wheel
 - ✅ Publish to **Test PyPI**
@@ -537,10 +577,12 @@ Images will be published to:
 - ❌ Does NOT publish Docker (only on tags)
 
 **On Pull Requests:**
+
 - ✅ Tests, linting, security scans
 - ❌ Does NOT publish anywhere
 
 **On Version Tags (v*):**
+
 - ✅ All CI checks
 - ✅ Publish to **Production PyPI**
 - ✅ Build multi-arch Docker images
@@ -550,31 +592,37 @@ Images will be published to:
 #### Common Issues
 
 **PyPI Publish Fails: "Invalid or non-existent authentication"**
+
 - Cause: Trusted publishing not configured
 - Fix: Complete steps 4 & 5 above
 
 **Docker Publish Fails: "denied: requested access to the resource is denied"**
+
 - Cause: Docker Hub credentials not configured
 - Fix: Complete steps 2 & 3 above
 
 **Docker Publish to GHCR Fails: "insufficient_scope"**
+
 - Cause: Workflow permissions not set
 - Fix: Complete step 6 above
 
 ### Release Steps
 
 1. **Ensure main is clean:**
+
    ```bash
    git checkout main
    git pull upstream main
    ```
 
 2. **Run full test suite:**
+
    ```bash
    pytest tests/ --cov=src/dlzoom --cov-report=term-missing
    ```
 
 3. **Update version in pyproject.toml:**
+
    ```toml
    [project]
    version = "0.3.0"
@@ -583,6 +631,7 @@ Images will be published to:
 4. **Update CHANGELOG.md** with release notes
 
 5. **Commit version bump:**
+
    ```bash
    git add pyproject.toml CHANGELOG.md
    git commit -m "chore: bump version to 0.3.0"
@@ -590,6 +639,7 @@ Images will be published to:
    ```
 
 6. **Create and push tag:**
+
    ```bash
    git tag -a v0.3.0 -m "Release version 0.3.0"
    git push upstream v0.3.0
@@ -605,7 +655,7 @@ Images will be published to:
    - Create GitHub Release
 
 8. **Verify the release:**
-   - Check PyPI: https://pypi.org/project/dlzoom/
+   - Check PyPI: <https://pypi.org/project/dlzoom/>
    - Check Docker Hub: `https://hub.docker.com/r/YOUR_DOCKERHUB_USERNAME/dlzoom`
    - Check GHCR: `https://github.com/OWNER/dlzoom/pkgs/container/dlzoom`
    - Check GitHub Release: `https://github.com/OWNER/dlzoom/releases`
@@ -628,6 +678,7 @@ pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://
 ## Recognition
 
 Contributors are recognized in:
+
 - GitHub contributors list
 - Release notes
 - Project README (for significant contributions)

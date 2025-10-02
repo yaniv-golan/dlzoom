@@ -2,12 +2,13 @@
 Tests for AudioExtractor: atomic operations and audio quality control
 """
 
-import pytest
 import os
 import shutil
 import subprocess
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+
+import pytest
+
 from dlzoom.audio_extractor import AudioExtractor
 from dlzoom.exceptions import AudioExtractionError
 
@@ -15,8 +16,8 @@ from dlzoom.exceptions import AudioExtractionError
 class TestAudioQualityControl:
     """Test audio quality parameter and validation"""
 
-    @patch('subprocess.run')
-    @patch('shutil.which')
+    @patch("subprocess.run")
+    @patch("shutil.which")
     def test_audio_quality_none_copies_codec(self, mock_which, mock_run, tmp_path):
         """audio_quality=None should copy audio codec (no re-encoding)"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -42,8 +43,8 @@ class TestAudioQualityControl:
         copy_index = call_args.index("-acodec") + 1
         assert call_args[copy_index] == "copy"
 
-    @patch('subprocess.run')
-    @patch('shutil.which')
+    @patch("subprocess.run")
+    @patch("shutil.which")
     def test_audio_quality_0_highest(self, mock_which, mock_run, tmp_path):
         """audio_quality=0 should use AAC with quality 0 (highest)"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -71,8 +72,8 @@ class TestAudioQualityControl:
         quality_index = call_args.index("-q:a") + 1
         assert call_args[quality_index] == "0"
 
-    @patch('subprocess.run')
-    @patch('shutil.which')
+    @patch("subprocess.run")
+    @patch("shutil.which")
     def test_audio_quality_9_lowest(self, mock_which, mock_run, tmp_path):
         """audio_quality=9 should use AAC with quality 9 (lowest)"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -96,7 +97,7 @@ class TestAudioQualityControl:
         quality_index = call_args.index("-q:a") + 1
         assert call_args[quality_index] == "9"
 
-    @patch('shutil.which')
+    @patch("shutil.which")
     def test_audio_quality_negative_invalid(self, mock_which, tmp_path):
         """audio_quality < 0 should raise error"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -109,7 +110,7 @@ class TestAudioQualityControl:
         with pytest.raises(AudioExtractionError, match="audio_quality must be between 0-9"):
             extractor.extract_audio(input_file, audio_quality=-1)
 
-    @patch('shutil.which')
+    @patch("shutil.which")
     def test_audio_quality_too_high_invalid(self, mock_which, tmp_path):
         """audio_quality > 9 should raise error"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -122,8 +123,8 @@ class TestAudioQualityControl:
         with pytest.raises(AudioExtractionError, match="audio_quality must be between 0-9"):
             extractor.extract_audio(input_file, audio_quality=10)
 
-    @patch('subprocess.run')
-    @patch('shutil.which')
+    @patch("subprocess.run")
+    @patch("shutil.which")
     def test_audio_quality_mid_range(self, mock_which, mock_run, tmp_path):
         """audio_quality=4 should work (mid-range quality)"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -151,10 +152,10 @@ class TestAudioQualityControl:
 class TestAtomicFileOperations:
     """Test atomic file operations in audio extraction"""
 
-    @patch('os.replace')
-    @patch('shutil.move')
-    @patch('subprocess.run')
-    @patch('shutil.which')
+    @patch("os.replace")
+    @patch("shutil.move")
+    @patch("subprocess.run")
+    @patch("shutil.which")
     def test_atomic_replace_success(self, mock_which, mock_run, mock_move, mock_replace, tmp_path):
         """Should use os.replace() for atomic move"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -188,10 +189,10 @@ class TestAtomicFileOperations:
         # Should attempt os.replace
         # Note: The actual code might not call our mock if it errors earlier
 
-    @patch('os.replace')
-    @patch('shutil.move')
-    @patch('subprocess.run')
-    @patch('shutil.which')
+    @patch("os.replace")
+    @patch("shutil.move")
+    @patch("subprocess.run")
+    @patch("shutil.which")
     def test_atomic_replace_fallback(self, mock_which, mock_run, mock_move, mock_replace, tmp_path):
         """Should fallback to shutil.move() if os.replace() fails"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -206,8 +207,8 @@ class TestAtomicFileOperations:
         mock_replace.side_effect = OSError("Cross-device link")
         mock_move.return_value = None
 
-        extractor = AudioExtractor()
-        output_file = tmp_path / "output.m4a"
+        AudioExtractor()
+        tmp_path / "output.m4a"
 
         # The actual implementation will call os.replace, then shutil.move on failure
         # Let's test the fallback pattern directly
@@ -226,7 +227,7 @@ class TestAtomicFileOperations:
 class TestFFmpegAvailability:
     """Test ffmpeg availability checking"""
 
-    @patch('shutil.which')
+    @patch("shutil.which")
     def test_ffmpeg_not_available(self, mock_which, tmp_path):
         """Should raise error if ffmpeg not found"""
         mock_which.return_value = None
@@ -239,7 +240,7 @@ class TestFFmpegAvailability:
         with pytest.raises(AudioExtractionError, match="ffmpeg not found"):
             extractor.extract_audio(input_file)
 
-    @patch('shutil.which')
+    @patch("shutil.which")
     def test_ffmpeg_available(self, mock_which):
         """Should detect ffmpeg when available"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -248,7 +249,7 @@ class TestFFmpegAvailability:
         assert extractor.check_ffmpeg_available() is True
         assert extractor._ffmpeg_path == "/usr/bin/ffmpeg"
 
-    @patch('shutil.which')
+    @patch("shutil.which")
     def test_ffmpeg_path_cached(self, mock_which):
         """Should cache ffmpeg path after first check"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -269,8 +270,8 @@ class TestFFmpegAvailability:
 class TestErrorHandling:
     """Test error handling and cleanup"""
 
-    @patch('subprocess.run')
-    @patch('shutil.which')
+    @patch("subprocess.run")
+    @patch("shutil.which")
     def test_cleanup_temp_file_on_error(self, mock_which, mock_run, tmp_path):
         """Should clean up temp file if ffmpeg fails"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -292,7 +293,7 @@ class TestErrorHandling:
         temp_file = tmp_path / ".tmp.input.m4a"
         assert not temp_file.exists()
 
-    @patch('shutil.which')
+    @patch("shutil.which")
     def test_input_file_not_found(self, mock_which, tmp_path):
         """Should raise error if input file doesn't exist"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -318,8 +319,8 @@ class TestExtractAudioIfNeeded:
 
         assert result == m4a_file
 
-    @patch('subprocess.run')
-    @patch('shutil.which')
+    @patch("subprocess.run")
+    @patch("shutil.which")
     def test_mp4_extracts_audio(self, mock_which, mock_run, tmp_path):
         """MP4 file should trigger extraction"""
         mock_which.return_value = "/usr/bin/ffmpeg"
@@ -335,7 +336,7 @@ class TestExtractAudioIfNeeded:
         extractor = AudioExtractor()
 
         try:
-            result = extractor.extract_audio_if_needed(mp4_file)
+            extractor.extract_audio_if_needed(mp4_file)
             # Should attempt to extract and return m4a path
         except Exception:
             pass  # Mock may cause issues

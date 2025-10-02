@@ -3,21 +3,23 @@ Template parsing for custom filenames and folders
 """
 
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
-import re
+from typing import Any
 
 
 class TemplateParser:
     """Parse and apply filename/folder templates"""
 
-    def __init__(self, filename_template: Optional[str] = None, folder_template: Optional[str] = None):
+    def __init__(self, filename_template: str | None = None, folder_template: str | None = None):
         self.filename_template = filename_template
         self.folder_template = folder_template
         self.logger = logging.getLogger(__name__)
 
-    def apply_filename_template(self, meeting_data: Dict[str, Any], file_type: str = "audio") -> str:
+    def apply_filename_template(
+        self, meeting_data: dict[str, Any], file_type: str = "audio"
+    ) -> str:
         """
         Apply filename template to meeting data
 
@@ -30,11 +32,11 @@ class TemplateParser:
         """
         if not self.filename_template:
             # Default: meeting_id
-            return meeting_data.get("meeting_id", "recording")
+            return str(meeting_data.get("meeting_id", "recording"))
 
         return self._format_template(self.filename_template, meeting_data)
 
-    def apply_folder_template(self, meeting_data: Dict[str, Any]) -> Path:
+    def apply_folder_template(self, meeting_data: dict[str, Any]) -> Path:
         """
         Apply folder template to meeting data
 
@@ -51,7 +53,7 @@ class TemplateParser:
         folder_str = self._format_template(self.folder_template, meeting_data)
         return Path(folder_str)
 
-    def _format_template(self, template: str, data: Dict[str, Any]) -> str:
+    def _format_template(self, template: str, data: dict[str, Any]) -> str:
         """
         Format template string with data
 
@@ -72,7 +74,7 @@ class TemplateParser:
         result = template
 
         # Handle datetime formatting: {start_time:%Y%m%d}
-        datetime_pattern = r'\{start_time:([^}]+)\}'
+        datetime_pattern = r"\{start_time:([^}]+)\}"
         for match in re.finditer(datetime_pattern, result):
             format_str = match.group(1)
             start_time = data.get("start_time", "")
@@ -95,9 +97,7 @@ class TemplateParser:
                     self.logger.error(
                         f"Unexpected error parsing template date placeholder {match.group(0)}: {e}"
                     )
-                    raise RuntimeError(
-                        f"Template parsing failed for date placeholder: {e}"
-                    ) from e
+                    raise RuntimeError(f"Template parsing failed for date placeholder: {e}") from e
 
         # Handle simple placeholders
         simple_placeholders = {
@@ -132,7 +132,7 @@ class TemplateParser:
         safe_name = re.sub(unsafe_chars, "_", name)
 
         # Collapse multiple underscores/spaces
-        safe_name = re.sub(r'[_\s]+', '_', safe_name)
+        safe_name = re.sub(r"[_\s]+", "_", safe_name)
 
         # Remove leading/trailing underscores/dots
         safe_name = safe_name.strip("_. ")
@@ -142,4 +142,5 @@ class TemplateParser:
 
 class TemplateError(Exception):
     """Template parsing error"""
+
     pass

@@ -2,8 +2,6 @@
 Custom exception classes with error codes
 """
 
-from typing import Dict
-
 
 class DlzoomError(Exception):
     """Base exception for dlzoom errors"""
@@ -14,7 +12,7 @@ class DlzoomError(Exception):
         self.code = code
         self.details = details
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> dict[str, str]:
         """Convert to dictionary for JSON output"""
         return {"code": self.code, "message": self.message, "details": self.details}
 

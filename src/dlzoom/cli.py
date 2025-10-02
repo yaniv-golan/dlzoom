@@ -2,31 +2,32 @@
 CLI interface for dlzoom
 """
 
-import sys
 import json
 import logging
 import re
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Any
+
 import rich_click as click
 from rich.console import Console
 
 from dlzoom import __version__
+from dlzoom.audio_extractor import AudioExtractionError, AudioExtractor
 from dlzoom.config import Config, ConfigError
-from dlzoom.zoom_client import ZoomClient, ZoomAPIError
-from dlzoom.recorder_selector import RecordingSelector
-from dlzoom.audio_extractor import AudioExtractor, AudioExtractionError
 from dlzoom.downloader import Downloader, DownloadError
-from dlzoom.output import OutputFormatter
-from dlzoom.logger import setup_logging
-from dlzoom.templates import TemplateParser
 from dlzoom.exceptions import (
     DlzoomError,
-    RecordingNotFoundError,
+    FFmpegNotFoundError,
     NoAudioAvailableError,
-    FFmpegNotFoundError
+    RecordingNotFoundError,
 )
+from dlzoom.logger import setup_logging
+from dlzoom.output import OutputFormatter
+from dlzoom.recorder_selector import RecordingSelector
+from dlzoom.templates import TemplateParser
+from dlzoom.zoom_client import ZoomAPIError, ZoomClient
 
 # Rich-click configuration
 click.rich_click.USE_RICH_MARKUP = True
@@ -36,7 +37,7 @@ click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
 console = Console()
 
 
-def validate_meeting_id(ctx, param, value):
+def validate_meeting_id(ctx: click.Context, param: click.Parameter, value: str) -> str:
     """
     Validate meeting ID format to prevent injection attacks
 
@@ -75,7 +76,7 @@ def validate_meeting_id(ctx, param, value):
 
     # Check if UUID format (alphanumeric plus base64 characters)
     # Zoom UUIDs can contain: a-z, A-Z, 0-9, +, /, =, _, -
-    uuid_pattern = r'^[a-zA-Z0-9+/=_-]+$'
+    uuid_pattern = r"^[a-zA-Z0-9+/=_-]+$"
     if re.match(uuid_pattern, value):
         if len(value) <= 100:  # Reasonable max length for UUID
             return value
@@ -93,124 +94,88 @@ def validate_meeting_id(ctx, param, value):
 @click.argument("meeting_id", callback=validate_meeting_id)
 @click.version_option(version=__version__)
 @click.option(
-    "--output-dir", "-o",
-    type=click.Path(path_type=Path),
-    help="Output directory (default: current directory)"
+    "--output-dir",
+    "-o",
+    type=click.Path(exists=False),
+    help="Output directory (default: current directory)",
+)
+@click.option("--output-name", "-n", help="Base filename for output files (default: meeting_id)")
+@click.option(
+    "--verbose", "-v", is_flag=True, help="Verbose mode - show detailed operation information"
 )
 @click.option(
-    "--output-name", "-n",
-    help="Base filename for output files (default: meeting_id)"
+    "--debug", "-d", is_flag=True, help="Debug mode - show full API responses and detailed trace"
 )
 @click.option(
-    "--verbose", "-v",
-    is_flag=True,
-    help="Verbose mode - show detailed operation information"
+    "--json", "-j", "json_mode", is_flag=True, help="JSON output mode - machine-readable output"
 )
 @click.option(
-    "--debug", "-d",
-    is_flag=True,
-    help="Debug mode - show full API responses and detailed trace"
-)
-@click.option(
-    "--json", "-j",
-    "json_mode",
-    is_flag=True,
-    help="JSON output mode - machine-readable output"
-)
-@click.option(
-    "--list", "-l",
+    "--list",
+    "-l",
     "list_mode",
     is_flag=True,
-    help="List all recordings for this meeting with timestamps and UUIDs"
+    help="List all recordings for this meeting with timestamps and UUIDs",
 )
 @click.option(
-    "--check-availability", "-c",
+    "--check-availability",
+    "-c",
     is_flag=True,
-    help="Check if recording is ready (without downloading)"
+    help="Check if recording is ready (without downloading)",
 )
+@click.option("--recording-id", help="Select specific recording instance by UUID")
 @click.option(
-    "--recording-id",
-    help="Select specific recording instance by UUID"
-)
-@click.option(
-    "--wait",
-    type=int,
-    metavar="MINUTES",
-    help="Wait for recording processing (timeout in minutes)"
+    "--wait", type=int, metavar="MINUTES", help="Wait for recording processing (timeout in minutes)"
 )
 @click.option(
     "--skip-transcript",
     is_flag=True,
-    help="Skip transcript download (transcripts downloaded by default)"
+    help="Skip transcript download (transcripts downloaded by default)",
 )
 @click.option(
-    "--skip-chat",
-    is_flag=True,
-    help="Skip chat log download (chat logs downloaded by default)"
+    "--skip-chat", is_flag=True, help="Skip chat log download (chat logs downloaded by default)"
 )
 @click.option(
-    "--skip-timeline",
-    is_flag=True,
-    help="Skip timeline download (timelines downloaded by default)"
+    "--skip-timeline", is_flag=True, help="Skip timeline download (timelines downloaded by default)"
 )
-@click.option(
-    "--dry-run",
-    is_flag=True,
-    help="Show what would be downloaded without downloading"
-)
-@click.option(
-    "--password", "-p",
-    help="Password for password-protected recordings"
-)
+@click.option("--dry-run", is_flag=True, help="Show what would be downloaded without downloading")
+@click.option("--password", "-p", help="Password for password-protected recordings")
 @click.option(
     "--log-file",
-    type=click.Path(path_type=Path),
-    help="Write structured download log to specified file (JSONL format)"
+    type=click.Path(exists=False),
+    help="Write structured download log to specified file (JSONL format)",
+)
+@click.option("--config", type=click.Path(exists=True), help="Path to config file")
+@click.option(
+    "--filename-template", help='Custom filename template (e.g., "{topic}_{start_time:%Y%m%d}")'
 )
 @click.option(
-    "--config",
-    type=click.Path(path_type=Path),
-    help="Path to config file"
+    "--folder-template", help='Custom folder structure template (e.g., "{start_time:%Y/%m}")'
 )
-@click.option(
-    "--filename-template",
-    help='Custom filename template (e.g., "{topic}_{start_time:%Y%m%d}")'
-)
-@click.option(
-    "--folder-template",
-    help='Custom folder structure template (e.g., "{start_time:%Y/%m}")'
-)
-@click.option(
-    "--from-date",
-    help="Start date for batch downloads (YYYY-MM-DD)"
-)
-@click.option(
-    "--to-date",
-    help="End date for batch downloads (YYYY-MM-DD)"
-)
+@click.option("--from-date", help="Start date for batch downloads (YYYY-MM-DD)")
+@click.option("--to-date", help="End date for batch downloads (YYYY-MM-DD)")
 def main(
     meeting_id: str,
-    output_dir: Optional[Path],
-    output_name: Optional[str],
+    output_dir: str | None,
+    output_name: str | None,
     verbose: bool,
     debug: bool,
     json_mode: bool,
     list_mode: bool,
     check_availability: bool,
-    recording_id: Optional[str],
-    wait: Optional[int],
+    recording_id: str | None,
+    wait: int | None,
     skip_transcript: bool,
     skip_chat: bool,
     skip_timeline: bool,
     dry_run: bool,
-    password: Optional[str],
-    log_file: Optional[Path],
-    config: Optional[Path],
-    filename_template: Optional[str],
-    folder_template: Optional[str],
-    from_date: Optional[str],
-    to_date: Optional[str]
-):
+    password: str | None,
+    log_file: str | None,
+    config: str | None,
+    filename_template: str | None,
+    folder_template: str | None,
+    from_date: str | None,
+    to_date: str | None,
+) -> None:
     """
     [bold cyan]dlzoom[/bold cyan] - Download Zoom cloud recordings
 
@@ -233,17 +198,15 @@ def main(
 
         # Override output dir if specified
         if output_dir:
-            cfg.output_dir = output_dir
+            cfg.output_dir = Path(output_dir)
 
         # Default output name to meeting_id
         if not output_name:
             output_name = meeting_id
 
-        # Initialize clients
+        # Initialize clients (cfg.validate() ensures these are not None)
         client = ZoomClient(
-            cfg.zoom_account_id,
-            cfg.zoom_client_id,
-            cfg.zoom_client_secret
+            str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret)
         )
         selector = RecordingSelector()
 
@@ -263,7 +226,7 @@ def main(
                 debug=debug,
                 json_mode=json_mode,
                 filename_template=filename_template,
-                folder_template=folder_template
+                folder_template=folder_template,
             )
             return
 
@@ -274,7 +237,9 @@ def main(
 
         # Handle --check-availability mode
         if check_availability:
-            _handle_check_availability(client, selector, meeting_id, recording_id, formatter, wait, json_mode)
+            _handle_check_availability(
+                client, selector, meeting_id, recording_id, formatter, wait, json_mode
+            )
             return
 
         # Default: Download mode
@@ -290,14 +255,14 @@ def main(
             skip_timeline=skip_timeline,
             dry_run=dry_run,
             password=password,
-            log_file=log_file,
+            log_file=Path(log_file) if log_file else None,
             formatter=formatter,
             verbose=verbose,
             debug=debug,
             json_mode=json_mode,
             wait=wait,
             filename_template=filename_template,
-            folder_template=folder_template
+            folder_template=folder_template,
         )
 
     except DlzoomError as e:
@@ -308,8 +273,8 @@ def main(
         if json_mode:
             error_result = {
                 "status": "error",
-                "meeting_id": meeting_id if 'meeting_id' in locals() else None,
-                "error": e.to_dict()
+                "meeting_id": meeting_id if "meeting_id" in locals() else None,
+                "error": e.to_dict(),
             }
             print(json.dumps(error_result, indent=2))
         else:
@@ -331,8 +296,8 @@ def main(
                 "error": {
                     "code": "CONFIG_ERROR",
                     "message": str(e),
-                    "details": "Check configuration file or environment variables"
-                }
+                    "details": "Check configuration file or environment variables",
+                },
             }
             print(json.dumps(error_result, indent=2))
         else:
@@ -349,12 +314,8 @@ def main(
         if json_mode:
             error_result = {
                 "status": "error",
-                "meeting_id": meeting_id if 'meeting_id' in locals() else None,
-                "error": {
-                    "code": "ZOOM_API_ERROR",
-                    "message": str(e),
-                    "details": ""
-                }
+                "meeting_id": meeting_id if "meeting_id" in locals() else None,
+                "error": {"code": "ZOOM_API_ERROR", "message": str(e), "details": ""},
             }
             print(json.dumps(error_result, indent=2))
         else:
@@ -365,19 +326,16 @@ def main(
 
     except (DownloadError, AudioExtractionError) as e:
         # Always log full traceback at DEBUG level for debugging
-        logging.getLogger(__name__).debug(
-            f"{type(e).__name__} exception caught:", exc_info=True
-        )
+        logging.getLogger(__name__).debug(f"{type(e).__name__} exception caught:", exc_info=True)
 
         if json_mode:
+            error_code = (
+                "DOWNLOAD_ERROR" if isinstance(e, DownloadError) else "AUDIO_EXTRACTION_ERROR"
+            )
             error_result = {
                 "status": "error",
-                "meeting_id": meeting_id if 'meeting_id' in locals() else None,
-                "error": {
-                    "code": "DOWNLOAD_ERROR" if isinstance(e, DownloadError) else "AUDIO_EXTRACTION_ERROR",
-                    "message": str(e),
-                    "details": ""
-                }
+                "meeting_id": meeting_id if "meeting_id" in locals() else None,
+                "error": {"code": error_code, "message": str(e), "details": ""},
             }
             print(json.dumps(error_result, indent=2))
         else:
@@ -396,8 +354,8 @@ def main(
                 "error": {
                     "code": "UNEXPECTED_ERROR",
                     "message": str(e),
-                    "details": "An unexpected error occurred"
-                }
+                    "details": "An unexpected error occurred",
+                },
             }
             print(json.dumps(error_result, indent=2))
         else:
@@ -411,10 +369,10 @@ def _handle_list_mode(
     client: ZoomClient,
     selector: RecordingSelector,
     meeting_id: str,
-    recording_id: Optional[str],
+    recording_id: str | None,
     formatter: OutputFormatter,
-    json_mode: bool = False
-):
+    json_mode: bool = False,
+) -> None:
     """Handle --list mode: List all recordings for meeting"""
 
     # Enable silent mode if JSON to suppress intermediate messages
@@ -437,6 +395,7 @@ def _handle_list_mode(
     # Output as JSON if json_mode
     if json_mode:
         import json
+
         result = {
             "status": "success",
             "command": "list",
@@ -456,10 +415,10 @@ def _handle_list_mode(
                     "recording_files": [
                         f.get("recording_type") or f.get("file_type")
                         for f in m.get("recording_files", [])
-                    ]
+                    ],
                 }
                 for m in meetings
-            ]
+            ],
         }
         print(json.dumps(result, indent=2))
         return
@@ -481,14 +440,14 @@ def _handle_check_availability(
     client: ZoomClient,
     selector: RecordingSelector,
     meeting_id: str,
-    recording_id: Optional[str],
+    recording_id: str | None,
     formatter: OutputFormatter,
-    wait: Optional[int],
-    json_mode: bool = False
-):
+    wait: int | None,
+    json_mode: bool = False,
+) -> None:
     """Handle --check-availability mode: Check if recording is ready"""
-    import time
     import json
+    import time
 
     # Enable silent mode if JSON to suppress intermediate messages
     if json_mode:
@@ -521,14 +480,14 @@ def _handle_check_availability(
                     recording_uuid = instance.get("uuid")
 
                     # Check if all files are completed
-                    all_completed = all(
-                        f.get("status") == "completed" for f in recording_files
-                    )
+                    all_completed = all(f.get("status") == "completed" for f in recording_files)
 
                     # Find audio file info
                     audio_file = selector.select_best_audio(recording_files)
                     has_audio = audio_file is not None
-                    audio_type = audio_file.get("file_extension", "").upper() if audio_file else None
+                    audio_type = (
+                        audio_file.get("file_extension", "").upper() if audio_file else None
+                    )
 
                     if all_completed:
                         if json_mode:
@@ -542,11 +501,13 @@ def _handle_check_availability(
                                 "has_audio": has_audio,
                                 "audio_type": audio_type,
                                 "processing_time_remaining": 0,
-                                "ready_to_download": True
+                                "ready_to_download": True,
                             }
                             print(json.dumps(result, indent=2))
                         else:
-                            formatter.output_success(f"Recording is ready ({len(recording_files)} files)")
+                            formatter.output_success(
+                                f"Recording is ready ({len(recording_files)} files)"
+                            )
                         return
                     else:
                         # Still processing
@@ -561,7 +522,7 @@ def _handle_check_availability(
                                 "has_audio": has_audio,
                                 "audio_type": audio_type,
                                 "processing_time_remaining": None,
-                                "ready_to_download": False
+                                "ready_to_download": False,
                             }
                             print(json.dumps(result, indent=2))
                             sys.exit(1)
@@ -581,8 +542,8 @@ def _handle_check_availability(
                         "error": {
                             "code": "RECORDING_NOT_FOUND",
                             "message": "Recording not found",
-                            "details": str(e)
-                        }
+                            "details": str(e),
+                        },
                     }
                     print(json.dumps(result, indent=2))
                     sys.exit(1)
@@ -603,8 +564,10 @@ def _handle_check_availability(
                         "error": {
                             "code": "TIMEOUT",
                             "message": f"Timeout after {wait} minutes",
-                            "details": "Recording did not become available within the specified wait time"
-                        }
+                            "details": (
+                                "Recording did not become available within the specified wait time"
+                            ),
+                        },
                     }
                     print(json.dumps(result, indent=2))
                 else:
@@ -621,8 +584,8 @@ def _handle_check_availability(
 def _handle_batch_download(
     client: ZoomClient,
     selector: RecordingSelector,
-    from_date: Optional[str],
-    to_date: Optional[str],
+    from_date: str | None,
+    to_date: str | None,
     output_dir: Path,
     skip_transcript: bool,
     skip_chat: bool,
@@ -631,9 +594,9 @@ def _handle_batch_download(
     verbose: bool,
     debug: bool,
     json_mode: bool,
-    filename_template: Optional[str] = None,
-    folder_template: Optional[str] = None
-):
+    filename_template: str | None = None,
+    folder_template: str | None = None,
+) -> None:
     """Handle batch download mode: Download multiple meetings by date range"""
     import json
 
@@ -644,20 +607,18 @@ def _handle_batch_download(
     # Initialize results tracking for JSON output
     results = []
 
-    formatter.output_info(f"Fetching recordings from {from_date or 'beginning'} to {to_date or 'now'}...")
+    formatter.output_info(
+        f"Fetching recordings from {from_date or 'beginning'} to {to_date or 'now'}..."
+    )
 
     # Fetch all recordings in date range
-    recordings_data = client.get_user_recordings(
-        user_id="me",
-        from_date=from_date,
-        to_date=to_date
-    )
+    recordings_data = client.get_user_recordings(user_id="me", from_date=from_date, to_date=to_date)
 
     meetings = recordings_data.get("meetings", [])
 
     if not meetings:
         if json_mode:
-            result = {
+            result: dict[str, Any] = {
                 "status": "success",
                 "command": "batch-download",
                 "from_date": from_date,
@@ -665,7 +626,7 @@ def _handle_batch_download(
                 "total_meetings": 0,
                 "successful": 0,
                 "failed": 0,
-                "results": []
+                "results": [],
             }
             print(json.dumps(result, indent=2))
         else:
@@ -686,7 +647,9 @@ def _handle_batch_download(
         start_time = meeting.get("start_time", "")
 
         if not json_mode:
-            console.print(f"[cyan]Downloading meeting {idx}/{total_meetings}:[/cyan] {meeting_topic}")
+            console.print(
+                f"[cyan]Downloading meeting {idx}/{total_meetings}:[/cyan] {meeting_topic}"
+            )
 
         try:
             # Use meeting_id as output_name for batch downloads (unless template overrides)
@@ -710,34 +673,39 @@ def _handle_batch_download(
                 json_mode=False,  # Always False in batch mode to suppress individual JSON
                 wait=None,
                 filename_template=filename_template,
-                folder_template=folder_template
+                folder_template=folder_template,
             )
             success_count += 1
 
             if json_mode:
-                results.append({
-                    "meeting_id": str(meeting_id),
-                    "meeting_topic": meeting_topic,
-                    "start_time": start_time,
-                    "status": "success"
-                })
+                results.append(
+                    {
+                        "meeting_id": str(meeting_id),
+                        "meeting_topic": meeting_topic,
+                        "start_time": start_time,
+                        "status": "success",
+                    }
+                )
         except Exception as e:
             failed_count += 1
 
             if json_mode:
                 from dlzoom.exceptions import DlzoomError
+
                 error_info = {
                     "code": e.code if isinstance(e, DlzoomError) else "UNKNOWN_ERROR",
                     "message": str(e),
-                    "details": e.details if isinstance(e, DlzoomError) else ""
+                    "details": e.details if isinstance(e, DlzoomError) else "",
                 }
-                results.append({
-                    "meeting_id": str(meeting_id),
-                    "meeting_topic": meeting_topic,
-                    "start_time": start_time,
-                    "status": "error",
-                    "error": error_info
-                })
+                results.append(
+                    {
+                        "meeting_id": str(meeting_id),
+                        "meeting_topic": meeting_topic,
+                        "start_time": start_time,
+                        "status": "error",
+                        "error": error_info,
+                    }
+                )
             else:
                 formatter.output_error(f"Failed to download meeting {meeting_id}: {e}")
 
@@ -746,20 +714,27 @@ def _handle_batch_download(
 
     # Output final results
     if json_mode:
+        if failed_count == 0:
+            status = "success"
+        elif success_count > 0:
+            status = "partial_success"
+        else:
+            status = "error"
+
         batch_result = {
-            "status": "success" if failed_count == 0 else "partial_success" if success_count > 0 else "error",
+            "status": status,
             "command": "batch-download",
             "from_date": from_date,
             "to_date": to_date,
             "total_meetings": total_meetings,
             "successful": success_count,
             "failed": failed_count,
-            "results": results
+            "results": results,
         }
         print(json.dumps(batch_result, indent=2))
     else:
         # Print summary
-        console.print(f"\n[bold]Batch download complete:[/bold]")
+        console.print("\n[bold]Batch download complete:[/bold]")
         console.print(f"  Success: {success_count}/{total_meetings}")
         if failed_count > 0:
             console.print(f"  Failed: {failed_count}/{total_meetings}")
@@ -769,33 +744,30 @@ def _handle_download_mode(
     client: ZoomClient,
     selector: RecordingSelector,
     meeting_id: str,
-    recording_id: Optional[str],
+    recording_id: str | None,
     output_dir: Path,
     output_name: str,
     skip_transcript: bool,
     skip_chat: bool,
     skip_timeline: bool,
     dry_run: bool,
-    password: Optional[str],
-    log_file: Optional[Path],
+    password: str | None,
+    log_file: Path | None,
     formatter: OutputFormatter,
     verbose: bool,
     debug: bool,
     json_mode: bool,
-    wait: Optional[int],
-    filename_template: Optional[str] = None,
-    folder_template: Optional[str] = None
-):
+    wait: int | None,
+    filename_template: str | None = None,
+    folder_template: str | None = None,
+) -> None:
     """Handle download mode: Download recordings"""
-    import time
     import json as json_lib
+    import time
 
     # Initialize result dictionary for JSON output
-    result = {
-        "status": "success",
-        "meeting_id": meeting_id
-    }
-    warnings = []
+    result: dict[str, Any] = {"status": "success", "meeting_id": meeting_id}
+    warnings: list[str] = []
 
     # Enable silent mode for JSON output to suppress intermediate messages
     if json_mode:
@@ -803,7 +775,9 @@ def _handle_download_mode(
 
     # Wait for recording if --wait specified
     if wait:
-        _handle_check_availability(client, selector, meeting_id, recording_id, formatter, wait, json_mode)
+        _handle_check_availability(
+            client, selector, meeting_id, recording_id, formatter, wait, json_mode
+        )
 
     formatter.output_info(f"Fetching recording info for meeting {meeting_id}...")
     recordings = client.get_meeting_recordings(meeting_id)
@@ -820,22 +794,27 @@ def _handle_download_mode(
         else:
             raise RecordingNotFoundError(
                 "No recording files found",
-                details="The meeting may not have been recorded or the recording was deleted"
+                details="The meeting may not have been recorded or the recording was deleted",
             )
     else:
         # Multiple instances
         if recording_id:
-            instance = selector.filter_by_uuid(meetings, recording_id)
+            found_instance = selector.filter_by_uuid(meetings, recording_id)
             selection_method = "user_specified"
-            if not instance:
+            if not found_instance:
                 formatter.output_error(f"Instance with UUID {recording_id} not found")
                 sys.exit(1)
+            instance = found_instance
         elif len(meetings) > 1:
-            formatter.output_info(
-                f"Multiple instances found ({len(meetings)}), using most recent"
-            )
-            instance = selector.select_most_recent_instance(meetings)
+            formatter.output_info(f"Multiple instances found ({len(meetings)}), using most recent")
+            found_instance = selector.select_most_recent_instance(meetings)
             selection_method = "most_recent"
+            if not found_instance:
+                raise RecordingNotFoundError(
+                    "Could not select most recent instance",
+                    details="No valid recording found among multiple instances",
+                )
+            instance = found_instance
         else:
             instance = meetings[0]
             selection_method = "only_instance"
@@ -845,7 +824,7 @@ def _handle_download_mode(
     if not recording_files:
         raise RecordingNotFoundError(
             "No recording files found",
-            details="The meeting may not have been recorded or the recording was deleted"
+            details="The meeting may not have been recorded or the recording was deleted",
         )
 
     meeting_topic = instance.get("topic", "Zoom Recording")
@@ -864,7 +843,7 @@ def _handle_download_mode(
             "start_time": instance_start,
             "host_email": instance.get("host_email"),
             "host_id": instance.get("host_id"),
-            "duration": instance.get("duration")
+            "duration": instance.get("duration"),
         }
 
         # Apply filename template
@@ -889,27 +868,31 @@ def _handle_download_mode(
             total_size += file_size
 
             # Check if would be skipped
-            will_skip = (
-                (file_type in ["TRANSCRIPT", "CC"] and skip_transcript) or
-                (file_type == "CHAT" and skip_chat)
+            will_skip = (file_type in ["TRANSCRIPT", "CC"] and skip_transcript) or (
+                file_type == "CHAT" and skip_chat
             )
 
             if json_mode:
-                files_list.append({
-                    "file_type": file_type,
-                    "file_extension": file_ext,
-                    "file_size_bytes": file_size,
-                    "file_size_mb": round(file_size / 1024 / 1024, 2),
-                    "will_skip": will_skip
-                })
+                files_list.append(
+                    {
+                        "file_type": file_type,
+                        "file_extension": file_ext,
+                        "file_size_bytes": file_size,
+                        "file_size_mb": round(file_size / 1024 / 1024, 2),
+                        "will_skip": will_skip,
+                    }
+                )
             else:
                 if will_skip:
-                    console.print(f"  [dim]- {file_type} ({file_ext}): {file_size / 1024 / 1024:.2f} MB (skipped)[/dim]")
+                    console.print(
+                        f"  [dim]- {file_type} ({file_ext}): "
+                        f"{file_size / 1024 / 1024:.2f} MB (skipped)[/dim]"
+                    )
                 else:
                     console.print(f"  - {file_type} ({file_ext}): {file_size / 1024 / 1024:.2f} MB")
 
         if json_mode:
-            result = {
+            dry_run_result: dict[str, Any] = {
                 "status": "success",
                 "command": "download",
                 "dry_run": True,
@@ -919,15 +902,15 @@ def _handle_download_mode(
                 "output_directory": str(output_dir.absolute()),
                 "files_to_download": files_list,
                 "total_size_bytes": total_size,
-                "total_size_mb": round(total_size / 1024 / 1024, 2)
+                "total_size_mb": round(total_size / 1024 / 1024, 2),
             }
-            print(json_lib.dumps(result, indent=2))
+            print(json_lib.dumps(dry_run_result, indent=2))
         else:
             console.print(f"\n[bold]Dry Run: Would download for meeting {meeting_id}[/bold]")
             console.print(f"Topic: {meeting_topic}")
             console.print(f"Output name: {output_name}")
             console.print(f"Output directory: {output_dir}")
-            console.print(f"\n[bold]Files to download:[/bold]")
+            console.print("\n[bold]Files to download:[/bold]")
             console.print(f"\n[bold]Total size: {total_size / 1024 / 1024:.2f} MB[/bold]")
 
         return
@@ -937,7 +920,7 @@ def _handle_download_mode(
         output_dir,
         client._get_access_token(),
         output_name=output_name,
-        overwrite=True  # Always overwrite per PLAN.md
+        overwrite=True,  # Always overwrite per PLAN.md
     )
     extractor = AudioExtractor()
 
@@ -950,7 +933,7 @@ def _handle_download_mode(
     if not audio_file:
         raise NoAudioAvailableError(
             "No audio file available for this recording",
-            details="Neither M4A (audio_only) nor MP4 (video) file found"
+            details="Neither M4A (audio_only) nor MP4 (video) file found",
         )
 
     # Track recording details for metadata and JSON output
@@ -965,12 +948,16 @@ def _handle_download_mode(
 
     if audio_file:
         # Download audio file
+        audio_download_url = audio_file.get("download_url")
+        if not audio_download_url:
+            raise DownloadError("Audio file has no download URL")
+
         audio_path = downloader.download_file(
-            audio_file.get("download_url"),
+            str(audio_download_url),
             audio_file,
             meeting_topic,
             instance_start,
-            show_progress=not json_mode
+            show_progress=not json_mode,
         )
         downloaded_files.append(audio_path)
 
@@ -979,7 +966,7 @@ def _handle_download_mode(
             if not extractor.check_ffmpeg_available():
                 raise FFmpegNotFoundError(
                     "ffmpeg not found",
-                    details="Install ffmpeg to extract audio from MP4 files: https://ffmpeg.org/download.html"
+                    details="Install ffmpeg to extract audio from MP4 files: https://ffmpeg.org/download.html",
                 )
 
             formatter.output_info("Extracting audio from MP4...")
@@ -1002,7 +989,7 @@ def _handle_download_mode(
             show_progress=not json_mode,
             skip_transcript=skip_transcript,
             skip_chat=skip_chat,
-            skip_timeline=skip_timeline
+            skip_timeline=skip_timeline,
         )
         downloaded_files.extend([f for f in transcript_files.values() if f])
 
@@ -1052,7 +1039,7 @@ def _handle_download_mode(
             "download_url": audio_file.get("download_url"),
             "audio_only_available": audio_only_available,
             "audio_extracted_from_video": audio_extracted_from_video,
-            "source_file_type": source_file_type
+            "source_file_type": source_file_type,
         },
         "participants": [
             {
@@ -1060,7 +1047,7 @@ def _handle_download_mode(
                 "user_email": p.get("user_email"),
                 "join_time": p.get("join_time"),
                 "leave_time": p.get("leave_time"),
-                "duration": p.get("duration")
+                "duration": p.get("duration"),
             }
             for p in participants
         ],
@@ -1073,10 +1060,10 @@ def _handle_download_mode(
                 "file_extension": f.get("file_extension"),
                 "file_size": f.get("file_size"),
                 "download_url": f.get("download_url"),
-                "status": f.get("status")
+                "status": f.get("status"),
             }
             for f in recording_files
-        ]
+        ],
     }
 
     # Add multiple instances info if applicable
@@ -1092,7 +1079,7 @@ def _handle_download_mode(
                 "uuid": m.get("uuid"),
                 "start_time": m.get("start_time"),
                 "duration": m.get("duration"),
-                "has_recording": bool(m.get("recording_files"))
+                "has_recording": bool(m.get("recording_files")),
             }
             for m in meetings
         ]
@@ -1113,7 +1100,7 @@ def _handle_download_mode(
                     "file_path": str(file_path.absolute()),
                     "size_bytes": file_path.stat().st_size if file_path.exists() else 0,
                     "timestamp": time.time(),
-                    "status": "completed"
+                    "status": "completed",
                 }
                 f.write(json_lib.dumps(log_entry) + "\n")
 
@@ -1122,9 +1109,7 @@ def _handle_download_mode(
     # Output structured JSON if json_mode
     if json_mode:
         # Build files dictionary with absolute paths
-        files_dict = {
-            "metadata": str(metadata_path.absolute())
-        }
+        files_dict = {"metadata": str(metadata_path.absolute())}
 
         # Find audio file (m4a)
         audio_files = [f for f in downloaded_files if f.suffix.lower() == ".m4a"]
@@ -1132,12 +1117,14 @@ def _handle_download_mode(
             files_dict["audio"] = str(audio_files[0].absolute())
 
         # Find transcript file (vtt)
-        transcript_files = [f for f in downloaded_files if f.suffix.lower() == ".vtt"]
-        if transcript_files:
-            files_dict["transcript"] = str(transcript_files[0].absolute())
+        transcript_files_list = [f for f in downloaded_files if f.suffix.lower() == ".vtt"]
+        if transcript_files_list:
+            files_dict["transcript"] = str(transcript_files_list[0].absolute())
 
         # Find chat file (txt)
-        chat_files = [f for f in downloaded_files if f.suffix.lower() == ".txt" and "chat" in f.name.lower()]
+        chat_files = [
+            f for f in downloaded_files if f.suffix.lower() == ".txt" and "chat" in f.name.lower()
+        ]
         if chat_files:
             files_dict["chat"] = str(chat_files[0].absolute())
 
@@ -1151,24 +1138,25 @@ def _handle_download_mode(
             "audio_format": "M4A",
             "audio_size_bytes": audio_file_size,
             "audio_extracted_from_video": audio_extracted_from_video,
-            "source_video_format": source_file_type if audio_extracted_from_video else None
+            "source_video_format": source_file_type if audio_extracted_from_video else None,
         }
 
         # Build final result with required top-level fields
-        result["recording_uuid"] = recording_uuid
-        result["output_name"] = output_name
+        result["recording_uuid"] = str(recording_uuid) if recording_uuid else ""
+        result["output_name"] = str(output_name)
         result["files"] = files_dict
         result["metadata_summary"] = metadata_summary
 
         # Add multiple_instances section ONLY if multiple exist
         if len(meetings) > 1:
-            result["multiple_instances"] = {
+            multi_inst: dict[str, Any] = {
                 "has_multiple": True,
                 "total_count": len(meetings),
-                "selected": selection_method,
-                "selected_timestamp": instance.get("start_time"),
-                "note": "Multiple recordings exist for this meeting. Use --list to see all."
+                "selected": str(selection_method) if selection_method else "",
+                "selected_timestamp": str(instance.get("start_time", "")),
+                "note": "Multiple recordings exist for this meeting. Use --list to see all.",
             }
+            result["multiple_instances"] = multi_inst
 
         # Add warnings if any
         if warnings:

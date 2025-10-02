@@ -7,7 +7,6 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 from dlzoom.exceptions import AudioExtractionError
 
@@ -15,9 +14,9 @@ from dlzoom.exceptions import AudioExtractionError
 class AudioExtractor:
     """Extract audio from video files (MP4 -> M4A)"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
-        self._ffmpeg_path: Optional[str] = None
+        self._ffmpeg_path: str | None = None
 
     def check_ffmpeg_available(self) -> bool:
         """Check if ffmpeg is available in system PATH"""
@@ -28,9 +27,9 @@ class AudioExtractor:
     def extract_audio(
         self,
         input_path: Path,
-        output_path: Optional[Path] = None,
+        output_path: Path | None = None,
         verbose: bool = False,
-        audio_quality: Optional[int] = None
+        audio_quality: int | None = None,
     ) -> Path:
         """
         Extract audio from MP4 video to M4A format
@@ -85,21 +84,30 @@ class AudioExtractor:
                         f"audio_quality must be between 0-9, got {audio_quality}"
                     )
                 # Re-encode with AAC and specified quality
-                cmd.extend([
-                    "-acodec", "aac",  # AAC codec
-                    "-q:a", str(audio_quality),  # VBR quality
-                ])
+                cmd.extend(
+                    [
+                        "-acodec",
+                        "aac",  # AAC codec
+                        "-q:a",
+                        str(audio_quality),  # VBR quality
+                    ]
+                )
                 self.logger.info(f"Re-encoding audio with AAC quality {audio_quality}")
             else:
                 # Copy audio codec without re-encoding (faster)
-                cmd.extend([
-                    "-acodec", "copy",  # Copy audio codec (no re-encoding)
-                ])
+                cmd.extend(
+                    [
+                        "-acodec",
+                        "copy",  # Copy audio codec (no re-encoding)
+                    ]
+                )
 
-            cmd.extend([
-                "-y",  # Overwrite output
-                str(temp_output),
-            ])
+            cmd.extend(
+                [
+                    "-y",  # Overwrite output
+                    str(temp_output),
+                ]
+            )
 
             # Run ffmpeg
             if verbose:

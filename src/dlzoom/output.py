@@ -3,7 +3,8 @@ Output formatters for different output modes (JSON, TSV, human-readable)
 """
 
 import json
-from typing import Any, Dict, List
+from typing import Any
+
 from rich.console import Console
 from rich.table import Table
 
@@ -22,7 +23,7 @@ class OutputFormatter:
         self.console = Console()
         self.silent = False  # Silent mode flag for JSON output
 
-    def set_silent(self, silent: bool):
+    def set_silent(self, silent: bool) -> None:
         """
         Set silent mode (suppress all output)
 
@@ -31,7 +32,7 @@ class OutputFormatter:
         """
         self.silent = silent
 
-    def output_recordings(self, recordings: List[Dict[str, Any]]) -> None:
+    def output_recordings(self, recordings: list[dict[str, Any]]) -> None:
         """
         Output list of recordings
 
@@ -46,9 +47,7 @@ class OutputFormatter:
             self._output_human_recordings(recordings)
 
     def output_download_summary(
-        self,
-        downloaded_files: List[Dict[str, Any]],
-        meeting_topic: str
+        self, downloaded_files: list[dict[str, Any]], meeting_topic: str
     ) -> None:
         """
         Output download summary
@@ -61,7 +60,7 @@ class OutputFormatter:
             summary = {
                 "meeting_topic": meeting_topic,
                 "files": downloaded_files,
-                "total_files": len(downloaded_files)
+                "total_files": len(downloaded_files),
             }
             self._output_json(summary)
         elif self.mode == "tsv":
@@ -100,13 +99,13 @@ class OutputFormatter:
         """Output as JSON"""
         print(json.dumps(data, indent=2))
 
-    def _output_tsv(self, data: List[Dict[str, Any]]) -> None:
+    def _output_tsv(self, data: list[dict[str, Any]]) -> None:
         """Output as TSV"""
         if not data:
             return
 
         # Get all unique keys
-        keys = set()
+        keys: set[str] = set()
         for item in data:
             keys.update(item.keys())
 
@@ -118,7 +117,7 @@ class OutputFormatter:
             values = [str(item.get(key, "")) for key in sorted(keys)]
             print("\t".join(values))
 
-    def _output_human_recordings(self, recordings: List[Dict[str, Any]]) -> None:
+    def _output_human_recordings(self, recordings: list[dict[str, Any]]) -> None:
         """Output recordings in human-readable format"""
         if not recordings:
             self.console.print("[yellow]No recordings found[/yellow]")
@@ -138,20 +137,12 @@ class OutputFormatter:
             duration = recording.get("duration", 0)
             file_count = len(recording.get("recording_files", []))
 
-            table.add_row(
-                meeting_id,
-                topic,
-                start_time,
-                str(duration),
-                str(file_count)
-            )
+            table.add_row(meeting_id, topic, start_time, str(duration), str(file_count))
 
         self.console.print(table)
 
     def _output_human_download_summary(
-        self,
-        downloaded_files: List[Dict[str, Any]],
-        meeting_topic: str
+        self, downloaded_files: list[dict[str, Any]], meeting_topic: str
     ) -> None:
         """Output download summary in human-readable format"""
         self.console.print(f"\n[bold]Meeting:[/bold] {meeting_topic}")

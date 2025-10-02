@@ -2,9 +2,10 @@
 Unit tests for config module
 """
 
-import os
-import pytest
 from pathlib import Path
+
+import pytest
+
 from dlzoom.config import Config, ConfigError
 
 
@@ -143,11 +144,12 @@ def test_yaml_dependency_check_yaml_not_available(tmp_path, monkeypatch):
 
     # Mock YAML as not available
     import dlzoom.config
+
     original_yaml_available = dlzoom.config.YAML_AVAILABLE
     dlzoom.config.YAML_AVAILABLE = False
 
     try:
-        config = Config(env_file=str(yaml_file))
+        Config(env_file=str(yaml_file))
         # Should raise ConfigError with helpful message
         pytest.fail("Should have raised ConfigError")
     except ConfigError as e:
@@ -163,10 +165,13 @@ def test_yaml_dependency_check_json_works_without_yaml(tmp_path, monkeypatch):
     """Test that JSON config still works when PyYAML not installed"""
     # Create a JSON config file
     json_file = tmp_path / "config.json"
-    json_file.write_text('{"zoom_account_id": "test", "zoom_client_id": "client", "zoom_client_secret": "secret"}')
+    json_file.write_text(
+        '{"zoom_account_id": "test", "zoom_client_id": "client", "zoom_client_secret": "secret"}'
+    )
 
     # Mock YAML as not available
     import dlzoom.config
+
     original_yaml_available = dlzoom.config.YAML_AVAILABLE
     dlzoom.config.YAML_AVAILABLE = False
 

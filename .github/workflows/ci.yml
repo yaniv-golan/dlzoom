@@ -82,7 +82,7 @@ jobs:
     - name: Run mypy
       run: |
         mypy src/dlzoom/ --ignore-missing-imports --no-error-summary
-      continue-on-error: true  # Don't fail on type errors for now
+      # Type checking enforced - fix type errors before merging
 
   security:
     name: Security Scan

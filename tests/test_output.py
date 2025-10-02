@@ -2,8 +2,8 @@
 Tests for output formatting, specifically success icon display
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock
+
 from dlzoom.output import OutputFormatter
 
 
