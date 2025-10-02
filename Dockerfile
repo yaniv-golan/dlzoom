@@ -1,0 +1,66 @@
+# Multi-stage Dockerfile for dlzoom
+# Supports both amd64 and arm64 architectures
+
+# Stage 1: Builder
+FROM python:3.11-slim as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /build
+
+# Copy dependency files
+COPY pyproject.toml ./
+COPY src/ ./src/
+
+# Install dependencies and build wheel
+RUN pip install --no-cache-dir build && \
+    python -m build --wheel
+
+# Stage 2: Runtime
+FROM python:3.11-slim
+
+# Install runtime dependencies (ffmpeg)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 dlzoom
+
+# Set working directory
+WORKDIR /app
+
+# Copy wheel from builder
+COPY --from=builder /build/dist/*.whl /tmp/
+
+# Install the wheel
+RUN pip install --no-cache-dir /tmp/*.whl && \
+    rm /tmp/*.whl
+
+# Switch to non-root user
+USER dlzoom
+
+# Create directory for downloads
+RUN mkdir -p /app/downloads
+
+# Set default working directory for downloads
+WORKDIR /app/downloads
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+
+# Default command (show help)
+ENTRYPOINT ["dlzoom"]
+CMD ["--help"]
+
+# Metadata
+LABEL org.opencontainers.image.title="dlzoom"
+LABEL org.opencontainers.image.description="CLI tool to download Zoom cloud recordings"
+LABEL org.opencontainers.image.url="https://github.com/yaniv-golan/dlzoom"
+LABEL org.opencontainers.image.source="https://github.com/yaniv-golan/dlzoom"
+LABEL org.opencontainers.image.version="0.1.0"
+LABEL org.opencontainers.image.licenses="MIT"

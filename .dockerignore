@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (not needed in image)
+*.md
+docs/
+PLAN.md
+*_COMPLETE.md
+*_TODO.md
+*_GAPS*.md
+*_REPORT*.md
+*_PROGRESS.md
+*_STATUS.md
+*_VALIDATION.md
+
+# Test files (not needed in runtime image)
+tests/
+.pytest_cache/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Benchmarks
+.benchmarks/
+
+# Credentials (NEVER include)
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+config.yaml
+config.json
+
+# Temp files
+*.tmp
+*.log
+tmp/
+temp/
+
+# Claude
+.claude/

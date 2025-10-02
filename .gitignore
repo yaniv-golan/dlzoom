@@ -1,0 +1,79 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment Variables (CRITICAL - Contains Secrets)
+.env
+credentials.json
+config.yaml
+
+# OAuth Credentials (CRITICAL - Contains Zoom OAuth tokens)
+.dlzoom/
+.dlzoom-dev/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Recordings (test downloads)
+recordings/
+*.m4a
+*.mp4
+*.vtt
+*.txt
+*_metadata.json
+*.tmp
+
+# Logs
+*.log
+downloads.jsonl
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Internal Development Files (planning, research, tracking)
+internal-docs/
+.history/
+
+# IDE/Editor Configuration
+.claude/
+
