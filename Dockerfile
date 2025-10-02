@@ -4,6 +4,10 @@
 # Stage 1: Builder
 FROM python:3.11-slim as builder
 
+# Exclude documentation to speed up builds
+RUN echo 'path-exclude /usr/share/man/*' > /etc/dpkg/dpkg.cfg.d/01_nodoc && \
+    echo 'path-exclude /usr/share/doc/*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc
+
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
@@ -25,6 +29,10 @@ RUN pip install --no-cache-dir build && \
 
 # Stage 2: Runtime
 FROM python:3.11-slim
+
+# Exclude documentation to speed up builds
+RUN echo 'path-exclude /usr/share/man/*' > /etc/dpkg/dpkg.cfg.d/01_nodoc && \
+    echo 'path-exclude /usr/share/doc/*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc
 
 # Install runtime dependencies (ffmpeg)
 RUN apt-get update && apt-get install -y --no-install-recommends \
