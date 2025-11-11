@@ -64,7 +64,7 @@ def main(auth_url: Optional[str]) -> None:
     while True:
         elapsed = time.time() - start_time
         if elapsed > 600:
-            console.print("[red]Login timed out. Please run: dlzoom-login again[/red]")
+            console.print("[red]Login timed out. Please run: dlzoom login again[/red]")
             raise SystemExit(1)
 
         poll_url = f"{base_auth}/zoom/auth/poll?id={session_id}"
@@ -97,7 +97,7 @@ def main(auth_url: Optional[str]) -> None:
             return
 
         if pr is not None and pr.status_code == 410:
-            console.print("[red]Session expired. Please run: dlzoom-login again[/red]")
+            console.print("[red]Session expired. Please run: dlzoom login again[/red]")
             raise SystemExit(1)
 
         # sleep according to schedule
@@ -107,4 +107,3 @@ def main(auth_url: Optional[str]) -> None:
             time.sleep(2)
         else:
             time.sleep(5)
-

@@ -9,7 +9,7 @@ Simple CLI tool to download audio recordings and metadata from Zoom meetings usi
 - 🎵 Download audio recordings (M4A format)
 - 📝 Download transcripts, chat logs, and timelines
 - 🔄 Automatic audio extraction from video files (MP4 → M4A)
-- 🔐 Server-to-Server OAuth authentication
+- 🔐 Authentication: Hosted user OAuth (default) or Server-to-Server OAuth
 - 📋 JSON output for automation
 - 🎯 Support for recurring meetings and PMI
 - ⏳ Wait for recording processing with `--wait`
@@ -31,7 +31,7 @@ Choose your preferred method:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Run dlzoom instantly (no installation needed!)
-uvx dlzoom 123456789 --check-availability
+uvx dlzoom download 123456789 --check-availability
 ```
 
 ### 📦 PyPI Install (Recommended for Regular Use)
@@ -61,7 +61,7 @@ docker run -it --rm \
   -e ZOOM_CLIENT_ID="your_client_id" \
   -e ZOOM_CLIENT_SECRET="your_secret" \
   yanivgolan1/dlzoom:latest \
-  123456789```
+  download 123456789```
 
 **Or use GitHub Container Registry:**
 ```bash
@@ -71,7 +71,7 @@ docker run -it --rm \
   -e ZOOM_CLIENT_ID="your_client_id" \
   -e ZOOM_CLIENT_SECRET="your_secret" \
   ghcr.io/yaniv-golan/dlzoom:latest \
-  123456789```
+  download 123456789```
 
 ### 🔧 From Source (Development)
 
@@ -113,26 +113,19 @@ winget install ffmpeg
 
 ## Quick Start
 
-### 1. Get Zoom API Credentials
+### 1. Sign In (Recommended)
 
-> **Coming in v0.2:** One-click authentication! No more manual app setup. See [Roadmap](#roadmap).
+Use our hosted authentication service to connect your Zoom account (no secrets required):
 
-**Current method (Server-to-Server OAuth):**
+```bash
+dlzoom login
+```
 
-1. Go to [Zoom Marketplace](https://marketplace.zoom.us/)
-2. Sign in → **Develop** → **Build App**
-3. Create a **Server-to-Server OAuth** app
-4. Copy your credentials:
-   - Account ID
-   - Client ID
-   - Client Secret
-5. Add required scopes:
-   - `recording:read:admin`
-   - `meeting:read:admin`
+This opens your browser to approve access and stores a short‑lived token locally (refreshed automatically).
 
-**Why this is temporary:** This approach requires manual OAuth app creation and credential management. In v0.2, we're adding one-click OAuth authentication (like `gh auth login`) where you just authorize dlzoom in your browser and you're done!
+Alternatively, organizational users can configure Server‑to‑Server (S2S) OAuth using environment variables or a config file.
 
-### 2. Configure Credentials
+### 2. Configure S2S Credentials (Optional)
 
 Create a `.env` file in your working directory:
 
@@ -163,7 +156,7 @@ log_level: "INFO"
 ### 3. Download a Recording
 
 ```bash
-dlzoom 123456789
+dlzoom download 123456789
 ```
 
 ## Usage
@@ -173,43 +166,43 @@ dlzoom 123456789
 **Check if recording is available:**
 
 ```bash
-dlzoom 123456789 --check-availability
+dlzoom download 123456789 --check-availability
 ```
 
 **List all recordings for a meeting:**
 
 ```bash
-dlzoom 123456789 --list
+dlzoom download 123456789 --list
 ```
 
 **Download recording (audio + transcript + chat + timeline):**
 
 ```bash
-dlzoom 123456789
+dlzoom download 123456789
 ```
 
 **Download with custom output name:**
 
 ```bash
-dlzoom 123456789 --output-name "my_meeting"
+dlzoom download 123456789 --output-name "my_meeting"
 ```
 
 **Download to specific directory:**
 
 ```bash
-dlzoom 123456789 --output-dir ~/Downloads/zoom
+dlzoom download 123456789 --output-dir ~/Downloads/zoom
 ```
 
 **Wait for recording to finish processing:**
 
 ```bash
-dlzoom 123456789 --wait 30
+dlzoom download 123456789 --wait 30
 ```
 
 **Password-protected recordings:**
 
 ```bash
-dlzoom 123456789 --password "meeting_password"
+dlzoom download 123456789 --password "meeting_password"
 ```
 
 ### Advanced Options
@@ -217,25 +210,39 @@ dlzoom 123456789 --password "meeting_password"
 **Use config file:**
 
 ```bash
-dlzoom 123456789 --config config.yaml
+dlzoom download 123456789 --config config.yaml
 ```
 
 **Verbose output (see detailed logs):**
 
 ```bash
-dlzoom 123456789 --verbose
+dlzoom download 123456789 --verbose
 ```
 
 **Debug mode (full API responses):**
 
 ```bash
-dlzoom 123456789 --debug
+dlzoom download 123456789 --debug
 ```
 
 **JSON output (for automation):**
 
 ```bash
-dlzoom 123456789 --json
+dlzoom download 123456789 --json
+
+### Other Commands
+
+- Show current account (S2S mode currently):
+
+```bash
+dlzoom whoami
+```
+
+- Sign out and remove local tokens:
+
+```bash
+dlzoom logout
+```
 ```
 
 **Dry run (see what would be downloaded):**
