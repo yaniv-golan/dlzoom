@@ -232,9 +232,23 @@ class ZoomClient:
         raise ZoomAPIError("Max retries exceeded")
 
     def get_meeting_recordings(self, meeting_id: str) -> dict[str, Any]:
-        """Get recording info for a meeting (handles both ID and UUID)"""
-        # Try as meeting ID first, then as UUID if needed
-        endpoint = f"meetings/{meeting_id}/recordings"
+        """Get recording info for a meeting (handles both ID and UUID)
+
+        Args:
+            meeting_id: Numeric meeting ID (9-12 digits) or Meeting UUID
+
+        Note:
+            UUIDs containing special characters (/, +, =) are automatically
+            double-URL-encoded as required by Zoom's API.
+        """
+        # If it looks like a UUID (not purely numeric), encode it
+        if not str(meeting_id).isdigit():
+            # UUID detected - use double encoding
+            encoded_id = self.encode_uuid(meeting_id)
+            endpoint = f"meetings/{encoded_id}/recordings"
+        else:
+            # Numeric ID - use as-is
+            endpoint = f"meetings/{meeting_id}/recordings"
         return self._make_request("GET", endpoint)
 
     def get_past_meeting(self, uuid: str) -> dict[str, Any]:
@@ -309,6 +323,11 @@ class ZoomClient:
             params["next_page_token"] = next_page_token
 
         return self._make_request("GET", endpoint, params=params)
+
+    def get_current_user(self) -> dict[str, Any]:
+        """Get information about the current Zoom user ("users/me")."""
+        endpoint = "users/me"
+        return self._make_request("GET", endpoint)
 
 
 class ZoomAPIError(Exception):

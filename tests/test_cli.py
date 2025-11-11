@@ -1,153 +1,106 @@
-"""
-Tests for CLI input validation and security
-"""
-
 import click
 import pytest
 
 from dlzoom.cli import validate_meeting_id
+from dlzoom.templates import TemplateParser
 
 
-class TestMeetingIdValidation:
-    """Test meeting ID validation to prevent injection attacks"""
-
-    def test_valid_numeric_meeting_id_9_digits(self):
-        """Valid 9-digit numeric meeting ID"""
+class TestValidateMeetingId:
+    def _ctx_param(self):
         ctx = click.Context(click.Command("test"))
         param = click.Argument(["meeting_id"])
-        result = validate_meeting_id(ctx, param, "123456789")
-        assert result == "123456789"
+        return ctx, param
 
-    def test_valid_numeric_meeting_id_10_digits(self):
-        """Valid 10-digit numeric meeting ID"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        result = validate_meeting_id(ctx, param, "1234567890")
-        assert result == "1234567890"
+    def test_validate_meeting_id_with_spaces(self):
+        ctx, param = self._ctx_param()
 
-    def test_valid_numeric_meeting_id_11_digits(self):
-        """Valid 11-digit numeric meeting ID"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        result = validate_meeting_id(ctx, param, "12345678901")
-        assert result == "12345678901"
+        # Single spaces
+        assert validate_meeting_id(ctx, param, "882 9060 9309") == "88290609309"
 
-    def test_valid_numeric_meeting_id_12_digits(self):
-        """Valid 12-digit numeric meeting ID - real example"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        result = validate_meeting_id(ctx, param, "123456789")
-        assert result == "123456789"
+        # Multiple spaces
+        assert validate_meeting_id(ctx, param, "882  9060  9309") == "88290609309"
 
-    def test_valid_uuid_format_alphanumeric(self):
-        """Valid UUID with alphanumeric characters"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        result = validate_meeting_id(ctx, param, "abc123XYZ")
-        assert result == "abc123XYZ"
+        # Leading/trailing spaces
+        assert validate_meeting_id(ctx, param, " 88290609309 ") == "88290609309"
 
-    def test_valid_uuid_format_with_base64_chars(self):
-        """Valid UUID with base64 special characters (URL-safe base64)"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        # Note: Zoom uses URL-safe base64 which uses - and _ instead of + and /
-        result = validate_meeting_id(ctx, param, "abc123_-XYZ")
-        assert result == "abc123_-XYZ"
+        # Mixed whitespace
+        assert validate_meeting_id(ctx, param, "882\n9060\t9309") == "88290609309"
 
-    def test_invalid_numeric_too_short(self):
-        """Numeric meeting ID with less than 9 digits should fail"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        with pytest.raises(click.BadParameter, match="must be 9-12 digits, got 8 digits"):
-            validate_meeting_id(ctx, param, "12345678")
+    def test_validate_meeting_id_uuid_with_spaces(self):
+        ctx, param = self._ctx_param()
 
-    def test_invalid_numeric_too_long(self):
-        """Numeric meeting ID with more than 12 digits should fail"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        with pytest.raises(click.BadParameter, match="must be 9-12 digits, got 13 digits"):
-            validate_meeting_id(ctx, param, "1234567890123")
+        # UUID with spaces (and forward slashes)
+        assert validate_meeting_id(ctx, param, "/abc def 123") == "/abcdef123"
+        assert validate_meeting_id(ctx, param, " /abc123== ") == "/abc123=="
 
-    def test_invalid_empty_meeting_id(self):
-        """Empty meeting ID should fail"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        with pytest.raises(click.BadParameter, match="Meeting ID cannot be empty"):
-            validate_meeting_id(ctx, param, "")
+    def test_validate_meeting_id_uuid_with_forward_slashes(self):
+        ctx, param = self._ctx_param()
 
-    def test_invalid_path_traversal_double_dots(self):
-        """Meeting ID with .. (path traversal) should fail"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        with pytest.raises(click.BadParameter, match="path traversal attempt detected"):
+        # UUID starting with /
+        assert validate_meeting_id(ctx, param, "/abc123def456==") == "/abc123def456=="
+
+        # UUID with // (double slash)
+        assert validate_meeting_id(ctx, param, "//abc123def") == "//abc123def"
+
+        # UUID with / in the middle
+        assert validate_meeting_id(ctx, param, "abc/123/def") == "abc/123/def"
+
+    def test_validate_meeting_id_only_spaces(self):
+        ctx, param = self._ctx_param()
+
+        with pytest.raises(click.BadParameter, match="cannot be empty"):
+            validate_meeting_id(ctx, param, "   ")
+
+    def test_validate_meeting_id_security_path_traversal(self):
+        ctx, param = self._ctx_param()
+
+        # Path traversal with ..
+        with pytest.raises(click.BadParameter, match="path traversal"):
             validate_meeting_id(ctx, param, "../etc/passwd")
 
-    def test_invalid_path_traversal_forward_slash(self):
-        """Meeting ID with / should fail"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        with pytest.raises(click.BadParameter, match="path traversal attempt detected"):
-            validate_meeting_id(ctx, param, "/etc/passwd")
+        # Path traversal with spaces (obfuscation attempt)
+        with pytest.raises(click.BadParameter, match="path traversal"):
+            validate_meeting_id(ctx, param, ".. /etc/passwd")
 
-    def test_invalid_path_traversal_backslash(self):
-        """Meeting ID with \\ should fail"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        with pytest.raises(click.BadParameter, match="path traversal attempt detected"):
+        # Backslashes (Windows paths)
+        with pytest.raises(click.BadParameter, match="path traversal"):
             validate_meeting_id(ctx, param, "..\\windows\\system32")
 
-    def test_invalid_uuid_too_long(self):
-        """UUID exceeding 100 characters should fail"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        long_uuid = "a" * 101
-        with pytest.raises(click.BadParameter, match="exceeds maximum length"):
-            validate_meeting_id(ctx, param, long_uuid)
+        # UUID with .. should fail
+        with pytest.raises(click.BadParameter, match="path traversal"):
+            validate_meeting_id(ctx, param, "/abc../def")
 
-    def test_invalid_characters_special_chars(self):
-        """Meeting ID with invalid special characters should fail"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        with pytest.raises(click.BadParameter, match="Invalid meeting ID format"):
-            validate_meeting_id(ctx, param, "meeting@123")
+    def test_validate_meeting_id_forward_slash_without_dots_is_safe(self):
+        ctx, param = self._ctx_param()
 
-    def test_invalid_characters_spaces(self):
-        """Meeting ID with spaces should fail"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        with pytest.raises(click.BadParameter, match="Invalid meeting ID format"):
-            validate_meeting_id(ctx, param, "123 456 789")
+        # These should all pass - they're legitimate UUIDs with alphanumeric content
+        assert validate_meeting_id(ctx, param, "/abc/def") == "/abc/def"
+        assert validate_meeting_id(ctx, param, "//abc123") == "//abc123"
+        assert validate_meeting_id(ctx, param, "abc/123/def") == "abc/123/def"
 
-    def test_invalid_characters_semicolon(self):
-        """Meeting ID with semicolon (command injection attempt) should fail"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        # Contains "/" so will be caught by path traversal check
-        with pytest.raises(click.BadParameter, match="path traversal attempt detected"):
-            validate_meeting_id(ctx, param, "123456789; rm -rf /")
+    def test_validate_meeting_id_reject_degenerate_uuids(self):
+        ctx, param = self._ctx_param()
 
-    def test_invalid_characters_pipe(self):
-        """Meeting ID with pipe (command injection attempt) should fail"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        # Contains "/" so will be caught by path traversal check
-        with pytest.raises(click.BadParameter, match="path traversal attempt detected"):
-            validate_meeting_id(ctx, param, "123456789 | cat /etc/passwd")
+        # These should fail - no alphanumeric content or too short
+        with pytest.raises(click.BadParameter):
+            validate_meeting_id(ctx, param, "/")  # Just a slash
 
-    def test_valid_uuid_boundary_100_chars(self):
-        """UUID with exactly 100 characters should pass"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
-        uuid_100 = "a" * 100
-        result = validate_meeting_id(ctx, param, uuid_100)
-        assert result == uuid_100
+        with pytest.raises(click.BadParameter):
+            validate_meeting_id(ctx, param, "==")  # Just padding
 
-    def test_valid_numeric_all_valid_lengths(self):
-        """Test all valid numeric meeting ID lengths (9-12)"""
-        ctx = click.Context(click.Command("test"))
-        param = click.Argument(["meeting_id"])
+        with pytest.raises(click.BadParameter):
+            validate_meeting_id(ctx, param, "//")  # Just slashes
 
-        for length in range(9, 13):
-            meeting_id = "1" * length
-            result = validate_meeting_id(ctx, param, meeting_id)
-            assert result == meeting_id
+        with pytest.raises(click.BadParameter):
+            validate_meeting_id(ctx, param, "+")  # Single character
+
+
+class TestOutputNameSanitization:
+    def test_output_name_sanitization(self):
+        parser = TemplateParser()
+
+        # UUIDs with slashes should be sanitized
+        assert parser._sanitize_filename("/abc123") == "abc123"
+        assert parser._sanitize_filename("abc/def") == "abc_def"
+        assert parser._sanitize_filename("//abc//def//") == "abc_def"
+

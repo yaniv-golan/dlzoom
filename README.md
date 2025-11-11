@@ -668,3 +668,9 @@ Built with:
 ## Acknowledgments
 
 Thanks to all contributors and the open source community.
+Meeting IDs can be pasted directly from Zoom (spaces are automatically removed):
+
+```bash
+dlzoom "882 9060 9309"  # Works! Spaces are removed automatically
+dlzoom 88290609309      # Also works
+```

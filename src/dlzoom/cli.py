@@ -28,6 +28,8 @@ from dlzoom.output import OutputFormatter
 from dlzoom.recorder_selector import RecordingSelector
 from dlzoom.templates import TemplateParser
 from dlzoom.zoom_client import ZoomAPIError, ZoomClient
+from dlzoom.zoom_user_client import ZoomUserClient
+from dlzoom.token_store import load as load_tokens, exists as tokens_exist
 
 # Rich-click configuration
 click.rich_click.USE_RICH_MARKUP = True
@@ -56,36 +58,43 @@ def validate_meeting_id(ctx: click.Context, param: click.Parameter, value: str) 
     Raises:
         click.BadParameter: If meeting ID format is invalid
     """
-    if not value:
+    # Normalize: remove all whitespace (spaces, tabs, newlines)
+    if value is None:
+        raise click.BadParameter("Meeting ID cannot be empty")
+    normalized_value = "".join(str(value).split())
+
+    if not normalized_value:
         raise click.BadParameter("Meeting ID cannot be empty")
 
-    # Check for path traversal attempts
-    if ".." in value or "/" in value or "\\" in value:
+    # Check for path traversal attempts on normalized value
+    # Allow forward slashes for UUIDs, but block .. and backslashes
+    if ".." in normalized_value or "\\" in normalized_value:
         raise click.BadParameter(
             "Meeting ID contains invalid characters (path traversal attempt detected)"
         )
 
     # Check if numeric meeting ID (9-12 digits)
-    if value.isdigit():
-        if 9 <= len(value) <= 12:
-            return value
+    if normalized_value.isdigit():
+        if 9 <= len(normalized_value) <= 12:
+            return normalized_value
         else:
             raise click.BadParameter(
-                f"Numeric meeting ID must be 9-12 digits, got {len(value)} digits"
+                f"Numeric meeting ID must be 9-12 digits, got {len(normalized_value)} digits"
             )
 
     # Check if UUID format (alphanumeric plus base64 characters)
     # Zoom UUIDs can contain: a-z, A-Z, 0-9, +, /, =, _, -
-    uuid_pattern = r"^[a-zA-Z0-9+/=_-]+$"
-    if re.match(uuid_pattern, value):
-        if len(value) <= 100:  # Reasonable max length for UUID
-            return value
+    # Require at least one alphanumeric and minimum length
+    uuid_pattern = r"^(?=.*[A-Za-z0-9])[A-Za-z0-9+/=_-]{2,100}$"
+    if re.match(uuid_pattern, normalized_value):
+        if len(normalized_value) <= 100:  # Reasonable max length for UUID
+            return normalized_value
         else:
             raise click.BadParameter("Meeting ID exceeds maximum length (100 characters)")
 
     # Invalid format
     raise click.BadParameter(
-        f"Invalid meeting ID format: {value!r}. "
+        f"Invalid meeting ID format: {normalized_value!r}. "
         "Expected numeric ID (9-12 digits) or UUID (alphanumeric with +/=_- characters)"
     )
 
@@ -194,20 +203,45 @@ def main(
     try:
         # Load config
         cfg = Config(env_file=config) if config else Config()
-        cfg.validate()
+
+        # Choose auth mode: S2S takes precedence if configured
+        use_s2s = bool(cfg.zoom_account_id and cfg.zoom_client_id and cfg.zoom_client_secret)
+        user_tokens = None if use_s2s else load_tokens(cfg.tokens_path)
+        if not use_s2s and user_tokens is None:
+            # If neither S2S nor user tokens are available, raise config error
+            raise ConfigError(
+                "Missing Zoom credentials. Either set S2S env vars (ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET) or sign in with: dlzoom-login"
+            )
 
         # Override output dir if specified
         if output_dir:
             cfg.output_dir = Path(output_dir)
 
-        # Default output name to meeting_id
+        # Default output name to meeting_id, then sanitize for filesystem safety
         if not output_name:
             output_name = meeting_id
+            try:
+                from dlzoom.templates import TemplateParser
 
-        # Initialize clients (cfg.validate() ensures these are not None)
-        client = ZoomClient(
-            str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret)
-        )
+                parser = TemplateParser()
+                output_name = parser._sanitize_filename(output_name)
+            except Exception:
+                # Fallback minimal sanitization if TemplateParser isn't available
+                import re as _re
+
+                unsafe_chars = r'[<>:"/\\|?*]'
+                safe_name = _re.sub(unsafe_chars, "_", str(output_name))
+                safe_name = _re.sub(r"[_\s]+", "_", safe_name).strip("_. ")
+                output_name = safe_name
+
+        # Initialize client per auth mode
+        if use_s2s:
+            cfg.validate()
+            client = ZoomClient(
+                str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret)
+            )
+        else:
+            client = ZoomUserClient(user_tokens, str(cfg.tokens_path))  # type: ignore[arg-type]
         selector = RecordingSelector()
 
         # Handle batch download mode (from_date/to_date)

@@ -9,6 +9,7 @@ import requests
 
 from dlzoom.exceptions import AuthenticationError, RateLimitedError
 from dlzoom.zoom_client import ZoomAPIError, ZoomClient
+from unittest.mock import patch
 
 
 class TestCredentialProtection:
@@ -312,3 +313,36 @@ class TestUUIDEncoding:
         # First encode: + -> %2B, / -> %2F, = -> %3D
         # Second encode: % -> %25
         assert "%252B" in result or "%2B" in result  # Depends on safe parameter
+
+
+class TestGetMeetingRecordingsEndpointEncoding:
+    @patch.object(ZoomClient, "_make_request")
+    def test_numeric_meeting_id_not_encoded(self, mock_make_request):
+        client = ZoomClient("acc", "cli", "sec")
+        mock_make_request.return_value = {"ok": True}
+
+        client.get_meeting_recordings("88290609309")
+
+        # Ensure endpoint not encoded for numeric IDs
+        args, kwargs = mock_make_request.call_args
+        assert args[0] == "GET"
+        assert args[1].endswith("meetings/88290609309/recordings")
+
+    @patch.object(ZoomClient, "_make_request")
+    def test_uuid_meeting_id_is_double_encoded(self, mock_make_request):
+        client = ZoomClient("acc", "cli", "sec")
+        mock_make_request.return_value = {"ok": True}
+
+        uuid = "/abc+123/xyz="
+        client.get_meeting_recordings(uuid)
+
+        args, kwargs = mock_make_request.call_args
+        endpoint = args[1]
+        # Expect double-encoded within the ID segment: "/" -> %252F, "+" -> %252B, "=" -> %253D
+        assert endpoint.startswith("meetings/") and endpoint.endswith("/recordings")
+        encoded_id = endpoint[len("meetings/") : -len("/recordings")]
+        # No raw slashes inside the encoded ID segment
+        assert "/" not in encoded_id
+        assert "%252F" in encoded_id
+        assert "%252B" in encoded_id
+        assert "%253D" in encoded_id

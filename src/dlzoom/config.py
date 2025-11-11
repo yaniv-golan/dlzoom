@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+from platformdirs import user_config_dir
 
 from dlzoom.exceptions import ConfigError
 
@@ -29,6 +30,10 @@ class Config:
         "output_dir": ".",
         "log_level": "INFO",
         "zoom_api_base_url": "https://api.zoom.us/v2",
+        # End-user auth via hosted service
+        "auth_url": "https://zoom-broker.dlzoom.workers.dev",
+        # Token storage path (resolved at runtime using platformdirs)
+        "tokens_path": None,
     }
 
     def __init__(self, env_file: str | None = None):
@@ -62,6 +67,19 @@ class Config:
         self.zoom_api_base_url = config_data.get("zoom_api_base_url") or os.getenv(
             "ZOOM_API_BASE_URL", "https://api.zoom.us/v2"
         )
+
+        # Hosted auth service URL (flag/env/config/default precedence handled in CLI commands)
+        self.auth_url = config_data.get("auth_url") or os.getenv(
+            "DLZOOM_AUTH_URL", self.OPTIONAL_FIELDS["auth_url"]
+        )
+
+        # Token file path: default under platform-specific user config directory
+        configured_tokens_path = config_data.get("tokens_path") or os.getenv("DLZOOM_TOKENS_PATH")
+        if configured_tokens_path:
+            self.tokens_path = Path(str(configured_tokens_path))
+        else:
+            base_dir = Path(user_config_dir("dlzoom"))
+            self.tokens_path = base_dir / "tokens.json"
 
     @property
     def zoom_account_id(self) -> str | None:
@@ -207,6 +225,10 @@ class Config:
 
         if "zoom_api_base_url" in data and not isinstance(data["zoom_api_base_url"], str):
             raise ConfigError(f"zoom_api_base_url must be a string in {path}")
+        if "auth_url" in data and not isinstance(data["auth_url"], str):
+            raise ConfigError(f"auth_url must be a string in {path}")
+        if "tokens_path" in data and not isinstance(data["tokens_path"], str):
+            raise ConfigError(f"tokens_path must be a string in {path}")
 
     def validate(self) -> None:
         """Validate required configuration"""
