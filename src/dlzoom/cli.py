@@ -1,5 +1,11 @@
 """
-CLI interface for dlzoom
+dlzoom – unified CLI entrypoint (Click group)
+
+Subcommands:
+- download: previous main functionality to list/check/download recordings
+- login: authenticate via hosted auth service
+- logout: remove local tokens
+- whoami: show authenticated Zoom user (S2S for now)
 """
 
 import json
@@ -30,6 +36,9 @@ from dlzoom.templates import TemplateParser
 from dlzoom.zoom_client import ZoomAPIError, ZoomClient
 from dlzoom.zoom_user_client import ZoomUserClient
 from dlzoom.token_store import load as load_tokens, exists as tokens_exist
+from dlzoom.login import main as login_main
+from dlzoom.logout import main as logout_main
+from dlzoom.whoami import main as whoami_main
 
 # Rich-click configuration
 click.rich_click.USE_RICH_MARKUP = True
@@ -99,9 +108,20 @@ def validate_meeting_id(ctx: click.Context, param: click.Parameter, value: str) 
     )
 
 
-@click.command()
-@click.argument("meeting_id", callback=validate_meeting_id)
+@click.group(help="dlzoom – Download Zoom cloud recordings")
 @click.version_option(version=__version__)
+def cli() -> None:
+    """Top-level Click group."""
+    pass
+
+# Register subcommands from other modules
+cli.add_command(login_main, name="login")
+cli.add_command(logout_main, name="logout")
+cli.add_command(whoami_main, name="whoami")
+
+
+@cli.command(name="download", help="Download Zoom cloud recordings")
+@click.argument("meeting_id", callback=validate_meeting_id)
 @click.option(
     "--output-dir",
     "-o",
@@ -162,7 +182,7 @@ def validate_meeting_id(ctx: click.Context, param: click.Parameter, value: str) 
 )
 @click.option("--from-date", help="Start date for batch downloads (YYYY-MM-DD)")
 @click.option("--to-date", help="End date for batch downloads (YYYY-MM-DD)")
-def main(
+def download(
     meeting_id: str,
     output_dir: str | None,
     output_name: str | None,
@@ -186,12 +206,7 @@ def main(
     to_date: str | None,
 ) -> None:
     """
-    [bold cyan]dlzoom[/bold cyan] - Download Zoom cloud recordings
-
-    Download audio recordings and metadata from Zoom meetings.
-
-    MEETING_ID: Zoom meeting ID or UUID
-    """
+    Download audio recordings and metadata from Zoom meetings."""
     # Setup logging
     log_level = "DEBUG" if debug else ("INFO" if verbose else "WARNING")
     setup_logging(level=log_level, verbose=debug or verbose)
@@ -210,7 +225,7 @@ def main(
         if not use_s2s and user_tokens is None:
             # If neither S2S nor user tokens are available, raise config error
             raise ConfigError(
-                "Missing Zoom credentials. Either set S2S env vars (ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET) or sign in with: dlzoom-login"
+                "Missing Zoom credentials. Either set S2S env vars (ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET) or sign in with: dlzoom login"
             )
 
         # Override output dir if specified

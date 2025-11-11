@@ -53,10 +53,7 @@ dev = [
 ]
 
 [project.scripts]
-dlzoom = "dlzoom.cli:main"
-dlzoom-whoami = "dlzoom.whoami:main"
-dlzoom-login = "dlzoom.login:main"
-dlzoom-logout = "dlzoom.logout:main"
+dlzoom = "dlzoom.cli:cli"
 
 [project.urls]
 Homepage = "https://github.com/yaniv-golan/dlzoom"
