@@ -141,6 +141,11 @@ class ZoomUserClient:
             params["next_page_token"] = next_page_token
         return self._request("GET", endpoint, params=params)
 
+    def get_current_user(self) -> dict[str, Any]:
+        """Get the current Zoom user using user OAuth tokens."""
+        endpoint = "users/me"
+        return self._request("GET", endpoint)
+
     def get_past_meeting(self, uuid: str) -> dict[str, Any]:
         encoded_uuid = self.encode_uuid(uuid)
         endpoint = f"past_meetings/{encoded_uuid}"

@@ -1,7 +1,8 @@
 """
 dlzoom whoami command: prints authenticated Zoom user information.
 
-Currently uses Server-to-Server OAuth credentials from Config.
+Prefers Server-to-Server OAuth if configured; otherwise uses user OAuth
+tokens saved by `dlzoom login`.
 """
 
 import json
@@ -15,6 +16,8 @@ from dlzoom.config import Config, ConfigError
 from dlzoom.exceptions import DlzoomError
 from dlzoom.output import OutputFormatter
 from dlzoom.zoom_client import ZoomAPIError, ZoomClient
+from dlzoom.zoom_user_client import ZoomUserClient
+from dlzoom.token_store import load as load_tokens
 
 
 console = Console()
@@ -36,24 +39,36 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
 
     try:
         cfg = Config()
-        cfg.validate()
 
-        client = ZoomClient(
-            str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret)
-        )
+        # Prefer S2S if configured; else try user tokens
+        use_s2s = bool(cfg.zoom_account_id and cfg.zoom_client_id and cfg.zoom_client_secret)
+        if use_s2s:
+            client: Any = ZoomClient(
+                str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret)
+            )
+            mode = "Server-to-Server OAuth"
+        else:
+            tokens = load_tokens(cfg.tokens_path)
+            if not tokens:
+                raise ConfigError(
+                    "Not signed in. Run 'dlzoom login' or configure S2S credentials in your environment."
+                )
+            client = ZoomUserClient(tokens, str(cfg.tokens_path))
+            mode = "User OAuth"
 
         user = client.get_current_user()
 
         if json_mode:
-            print(json.dumps({"status": "success", "user": user}, indent=2))
+            print(json.dumps({"status": "success", "mode": mode, "user": user}, indent=2))
             return
 
-        console.print("[bold]Zoom account:[/bold] Server-to-Server OAuth")
+        console.print(f"[bold]Auth:[/bold] {mode}")
         name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or "N/A"
         console.print(f"[bold]Name:[/bold] {name}")
         console.print(f"[bold]Email:[/bold] {user.get('email', 'N/A')}")
         console.print(f"[bold]User ID:[/bold] {user.get('id', 'N/A')}")
-        console.print(f"[bold]Account ID:[/bold] {user.get('account_id', 'N/A')}")
+        if use_s2s:
+            console.print(f"[bold]Account ID:[/bold] {user.get('account_id', 'N/A')}")
 
     except ConfigError as e:
         if json_mode:
@@ -86,4 +101,3 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
             formatter.output_error(f"Unexpected error: {e}")
         if debug:
             raise
-
