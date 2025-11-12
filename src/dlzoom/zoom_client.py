@@ -166,6 +166,7 @@ class ZoomClient:
         """Make authenticated API request with retry logic"""
         url = f"{self.base_url}/{endpoint}"
         from dlzoom import __version__
+
         headers = {
             "Authorization": f"Bearer {self._get_access_token()}",
             "Accept": "application/json",

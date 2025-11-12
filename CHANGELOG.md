@@ -66,7 +66,7 @@ User‑facing release focused on a clearer CLI, optional user OAuth, and safer d
 
 ### New
 - Unified CLI with subcommands: `dlzoom [recordings|download|login|logout|whoami]`.
-- User OAuth login/logout using a minimal hosted broker (`dlzoom login`, `dlzoom logout`). **Note** This is inactive at the the time of the release - pending approval of the Zoom App by Zoom. 
+- User OAuth login/logout using a minimal hosted broker (`dlzoom login`, `dlzoom logout`). **Note** This is inactive at the the time of the release - pending approval of the Zoom App by Zoom.
 - `dlzoom recordings` command:
   - Browse by date: `--range` (today, yesterday, last-7-days, last-30-days) or `--from-date/--to-date`.
   - Meeting‑scoped listing: `--meeting-id <id_or_uuid>` with instance count and file types.

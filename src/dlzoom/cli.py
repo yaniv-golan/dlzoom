@@ -52,6 +52,7 @@ def _autoload_dotenv() -> None:
     - Searches from the current working directory upwards for a .env file.
     """
     import os
+
     try:
         if os.getenv("DLZOOM_NO_DOTENV"):
             return
@@ -63,6 +64,7 @@ def _autoload_dotenv() -> None:
     except Exception:
         # Best-effort only; never fail CLI due to dotenv load issues
         pass
+
 
 # Module logger for warnings/info
 logger = logging.getLogger(__name__)
