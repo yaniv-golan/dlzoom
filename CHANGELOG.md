@@ -215,20 +215,30 @@ Report issues at: <https://github.com/yaniv-golan/dlzoom/issues>
 [0.1.0]: https://github.com/yaniv-golan/dlzoom/releases/tag/v0.1.0
 ## [0.2.0] - 2025-11-12
 
-### Breaking Changes
-- Removed: `dlzoom download --list`. Use `dlzoom recordings --meeting-id <id_or_uuid>` to list instances for a specific meeting.
+User‑facing release focused on a clearer CLI, optional user OAuth, and safer downloads.
 
-### Added
-- New `dlzoom recordings` command:
-  - User-wide browse with `--range` (today|yesterday|last-7-days|last-30-days) or `--from-date/--to-date`.
-  - Meeting-scoped mode with `--meeting-id <id_or_uuid>` (replaces `download --list`).
-  - `--limit` cap (default 1000; `0` = unlimited), `--page-size` (advanced, default 300).
-  - Recurring indicator via heuristic; optional enrichment when additional scopes are available.
-- Retry/backoff parity for user-token client (429/5xx) and `get_meeting()` support in both clients.
+### Breaking
+- Removed: `dlzoom download --list`.
+  - Use: `dlzoom recordings --meeting-id <id_or_uuid>` to list instances for a meeting.
 
-### Optional Permissions (Advanced)
-- `meeting:read`: enables definitive recurring detection in recordings listing.
-- `user:read`: enables `whoami` to show name/email with user tokens.
+### New
+- Unified CLI with subcommands: `dlzoom [recordings|download|login|logout|whoami]`.
+- User OAuth login/logout using a minimal hosted broker (`dlzoom login`, `dlzoom logout`).
+- `dlzoom recordings` command:
+  - Browse by date: `--range` (today, yesterday, last-7-days, last-30-days) or `--from-date/--to-date`.
+  - Meeting‑scoped listing: `--meeting-id <id_or_uuid>` with instance count and file types.
+  - JSON output (`--json`), topic filter (`--topic`), and result limits (`--limit`, `--page-size`).
+- Batch by date window: `dlzoom download --from-date YYYY-MM-DD --to-date YYYY-MM-DD`.
+- `dlzoom whoami` to confirm auth mode (S2S vs user OAuth) and token validity.
+
+### Improvements
+- Safer download host allow‑list (HTTPS, Zoom domains only) and clearer errors.
+- Stricter meeting ID/UUID normalization (handles URL/percent‑encoded UUIDs; blocks traversal).
+- More robust networking (retries/backoff), filename sanitization, and structured JSON errors.
+- Local metadata JSON saved with each download (meeting details, selected instance, files, notes).
+
+### Docs
+- New Privacy/Terms/Support pages; expanded README and architecture overview.
 
 ### Migration
-- Replace `dlzoom download <id> --list` with `dlzoom recordings --meeting-id <id>`.
+- Replace any `dlzoom download <id> --list` usage with `dlzoom recordings --meeting-id <id>`.
