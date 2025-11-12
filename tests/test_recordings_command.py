@@ -17,27 +17,38 @@ class FakeUserClient:
         page_size: int = 300,
         next_page_token: str | None = None,
     ):
-        # Return a single page with two meetings sharing the same id (recurring heuristic)
-        return {
-            "meetings": [
-                {
-                    "id": "123456789",
-                    "uuid": "AAA+BBB/CCC==",
-                    "topic": "Weekly Standup",
-                    "start_time": "2025-01-15T10:00:00Z",
-                    "duration": 30,
-                    "recording_files": [{"recording_type": "MP4"}],
-                },
-                {
-                    "id": "123456789",
-                    "uuid": "DDD+EEE/FFF==",
-                    "topic": "Weekly Standup",
-                    "start_time": "2025-01-22T10:00:00Z",
-                    "duration": 30,
-                    "recording_files": [{"recording_type": "MP4"}, {"recording_type": "M4A"}],
-                },
-            ]
-        }
+        # Simulate two pages when no token, then stop
+        if next_page_token is None:
+            return {
+                "meetings": [
+                    {
+                        "id": "123456789",
+                        "uuid": "AAA+BBB/CCC==",
+                        "topic": "Weekly Standup",
+                        "start_time": "2025-01-15T10:00:00Z",
+                        "duration": 30,
+                        "recording_files": [{"recording_type": "MP4"}],
+                    }
+                ],
+                "next_page_token": "PAGE2",
+            }
+        elif next_page_token == "PAGE2":
+            return {
+                "meetings": [
+                    {
+                        "id": "123456789",
+                        "uuid": "DDD+EEE/FFF==",
+                        "topic": "Weekly Standup",
+                        "start_time": "2025-01-22T10:00:00Z",
+                        "duration": 30,
+                        "recording_files": [
+                            {"recording_type": "MP4"},
+                            {"recording_type": "M4A"},
+                        ],
+                    }
+                ]
+            }
+        return {"meetings": []}
 
     def get_meeting(self, meeting_id: str):
         # Simulate absence of meeting:read scope (fallback to heuristic)
@@ -87,7 +98,7 @@ def test_recordings_user_wide_json(monkeypatch):
     data = json.loads(result.output)
     assert data["status"] == "success"
     assert data["command"] == "recordings"
-    # Two meetings returned, recurring should be true by heuristic
+    # Two meetings across two pages; recurring should be true by heuristic
     assert data["total_count"] == 2
     assert all(r.get("recurring") is True for r in data["recordings"])
 
@@ -141,3 +152,49 @@ def test_recordings_invalid_date_rejected(monkeypatch):
     assert result.exit_code != 0
     assert "YYYY-MM-DD" in result.output or "Invalid date" in result.output
 
+
+def test_recordings_from_gt_to_error(monkeypatch):
+    monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
+    monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
+    monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr("dlzoom.cli.load_tokens", lambda path: object())
+    monkeypatch.setattr("dlzoom.cli.ZoomUserClient", FakeUserClient)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        dlzoom_cli, ["recordings", "--from-date", "2025-01-03", "--to-date", "2025-01-01"]
+    )
+    assert result.exit_code != 0
+    assert "before or equal" in result.output
+
+
+def test_recordings_limit_zero_fetches_all(monkeypatch):
+    monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
+    monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
+    monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr("dlzoom.cli.load_tokens", lambda path: object())
+    monkeypatch.setattr("dlzoom.cli.ZoomUserClient", FakeUserClient)
+
+    runner = CliRunner()
+    result = runner.invoke(dlzoom_cli, ["recordings", "--range", "today", "--limit", "0", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["total_count"] == 2
+
+
+def test_recordings_empty_results(monkeypatch):
+    class EmptyClient(FakeUserClient):
+        def get_user_recordings(self, *a, **k):
+            return {"meetings": []}
+
+    monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
+    monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
+    monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr("dlzoom.cli.load_tokens", lambda path: object())
+    monkeypatch.setattr("dlzoom.cli.ZoomUserClient", EmptyClient)
+
+    runner = CliRunner()
+    result = runner.invoke(dlzoom_cli, ["recordings", "--range", "today", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["total_count"] == 0

@@ -325,10 +325,10 @@ dlzoom download 123456789 --skip-chat
 dlzoom download 123456789 --skip-timeline
 ```
 
-## All Options
+## Download Options
 
 ```
-dlzoom [OPTIONS] MEETING_ID
+dlzoom download [OPTIONS] MEETING_ID
 
 Options:
   --output-dir, -o PATH          Output directory (default: current directory)
@@ -350,6 +350,31 @@ Options:
   --folder-template TEXT         Custom folder structure template
   --help                         Show this message and exit
   --version                      Show version and exit
+```
+
+## Recordings Options
+
+```
+dlzoom recordings [OPTIONS]
+
+User-wide mode (default):
+  --from-date TEXT               Start date (YYYY-MM-DD)
+  --to-date TEXT                 End date (YYYY-MM-DD)
+  --range [today|yesterday|last-7-days|last-30-days]
+                                 Quick date range (exclusive with --from-date/--to-date)
+  --topic TEXT                   Substring filter on topic
+  --limit INTEGER                Max results (0 = unlimited) [default: 1000]
+  --page-size INTEGER            [Advanced] Results per API request (Zoom max 300) [default: 300]
+
+Meeting-scoped mode (replaces `download --list`):
+  --meeting-id TEXT              Exact meeting ID or UUID to list instances
+
+Common options:
+  --json, -j                     JSON output mode (silent)
+  --verbose, -v                  Verbose human output
+  --debug, -d                    Debug logging
+  --config PATH                  Path to config file
+  --help                         Show this message and exit
 ```
 
 ## Template Variables

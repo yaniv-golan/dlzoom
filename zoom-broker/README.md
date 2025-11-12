@@ -69,6 +69,9 @@ Output example:
 ```
 Deployed zoom-broker
 https://zoom-broker.<user>.workers.dev
+
+Environment tips:
+- To restrict CORS for token endpoints, set `ALLOWED_ORIGIN` in your Worker environment (e.g., your CLI’s origin) to replace the default `*`.
 ```
 
 ---
