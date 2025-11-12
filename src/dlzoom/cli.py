@@ -43,7 +43,9 @@ click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
 console = Console()
 
 
-def validate_meeting_id(ctx: click.Context, param: click.Parameter, value: str | None) -> str:
+def validate_meeting_id(
+    ctx: click.Context, param: click.Parameter, value: str | None
+) -> str | None:
     """
     Validate meeting ID format to prevent injection attacks
 
@@ -57,7 +59,7 @@ def validate_meeting_id(ctx: click.Context, param: click.Parameter, value: str |
         value: Meeting ID value to validate
 
     Returns:
-        Validated meeting ID
+        Validated meeting ID or None if value is None
 
     Raises:
         click.BadParameter: If meeting ID format is invalid
@@ -65,7 +67,7 @@ def validate_meeting_id(ctx: click.Context, param: click.Parameter, value: str |
     # Normalize: remove whitespace, strip URL fragments, and decode percent-encoding
     if value is None:
         # Allow None for optional option usage; required arguments should not pass None.
-        return None  # type: ignore[return-value]
+        return None
     raw = str(value).strip()
 
     # If user pasted a URL or an encoded UUID, strip fragment/query and decode

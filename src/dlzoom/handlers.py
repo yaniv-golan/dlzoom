@@ -443,7 +443,8 @@ def _handle_download_mode(
         total_size = 0
         has_audio = False
         for f in recording_files:
-            if f.get("file_extension", "").upper() == "M4A" or f.get("file_type") == "M4A":
+            # Check for M4A extension or audio_only file type
+            if f.get("file_extension", "").upper() == "M4A" or f.get("file_type") == "audio_only":
                 has_audio = True
             total_size += int(f.get("file_size", 0) or 0)
         if json_mode:
@@ -465,7 +466,9 @@ def _handle_download_mode(
             )
         return
 
-    downloader = Downloader(output_dir, output_name)
+    # Get access token from client for download authentication
+    access_token = client._get_access_token()
+    downloader = Downloader(output_dir, access_token, output_name)
     extractor = AudioExtractor()
     downloaded_files: list[Path] = []
 
@@ -486,8 +489,9 @@ def _handle_download_mode(
     audio_file_size = int(audio_file.get("file_size", 0) or 0)
     audio_extracted_from_video = False
     source_file_type = audio_file.get("file_extension", "").upper()
+    # Check for audio-only files (M4A extension or audio_only file type)
     audio_only_available = any(
-        f.get("file_type") == "M4A" or f.get("file_extension", "").upper() == "M4A"
+        f.get("file_extension", "").upper() == "M4A" or f.get("file_type") == "audio_only"
         for f in recording_files
     )
 

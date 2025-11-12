@@ -96,7 +96,7 @@ Direct authentication using account credentials (no broker needed).
   cd zoom-broker
   wrangler deploy
   ```
-  Then configure CLI: `export ZOOM_BROKER_URL=https://your-worker.workers.dev`
+  Then configure CLI: `export DLZOOM_AUTH_URL=https://your-worker.workers.dev`
 
 ## Security Architecture
 
@@ -170,7 +170,7 @@ The CLI defaults to a hosted broker for convenience. Advanced users can:
 1. Deploy `zoom-broker/` to their own Cloudflare account
 2. Point the CLI to their broker URL:
    ```bash
-   export ZOOM_BROKER_URL=https://your-worker.workers.dev
+   export DLZOOM_AUTH_URL=https://your-worker.workers.dev
    ```
 
 This provides full control over the OAuth flow and ensures no third-party handles tokens.

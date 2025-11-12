@@ -226,12 +226,6 @@ dlzoom download 123456789 --output-dir ~/Downloads/zoom
 dlzoom download 123456789 --wait 30
 ```
 
-**Password-protected recordings:**
-
-```bash
-dlzoom download 123456789 --password "meeting_password"
-```
-
 ### Advanced Options
 
 **Use config file:**
@@ -431,7 +425,7 @@ dlzoom download 123456789 --json > recording.json
 ```bash
 #!/bin/bash
 for meeting_id in 111111111 222222222 333333333; do
-    dlzoom $meeting_id  --output-dir ./recordings
+    dlzoom download $meeting_id --output-dir ./recordings
 done
 ```
 

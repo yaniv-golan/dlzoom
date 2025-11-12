@@ -120,8 +120,8 @@ export default {
 };
 
 function callbackUrl(u) {
-  // Build the exact callback URL of this worker regardless of hostname
-  return `${u.protocol}//${u.host}/callback`;
+  // Build the exact callback URL preserving any subpath routing
+  return new URL('/callback', u).toString();
 }
 async function safeJson(req) { try { return await req.json(); } catch { return null; } }
 function json(obj, status = 200, headers = {}) { return new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", ...headers } }); }

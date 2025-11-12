@@ -5,9 +5,36 @@ All notable changes to dlzoom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
 
----
+## [0.2.0] - unreleased
+
+User‑facing release focused on a clearer CLI, optional user OAuth, and safer downloads.
+
+### Breaking
+- Removed: `dlzoom download --list`.
+  - Use: `dlzoom recordings --meeting-id <id_or_uuid>` to list instances for a meeting.
+
+### New
+- Unified CLI with subcommands: `dlzoom [recordings|download|login|logout|whoami]`.
+- User OAuth login/logout using a minimal hosted broker (`dlzoom login`, `dlzoom logout`). **Note** This is inactive at the the time of the release - pending approval of the Zoom App by Zoom. 
+- `dlzoom recordings` command:
+  - Browse by date: `--range` (today, yesterday, last-7-days, last-30-days) or `--from-date/--to-date`.
+  - Meeting‑scoped listing: `--meeting-id <id_or_uuid>` with instance count and file types.
+  - JSON output (`--json`), topic filter (`--topic`), and result limits (`--limit`, `--page-size`).
+- Batch by date window: `dlzoom download --from-date YYYY-MM-DD --to-date YYYY-MM-DD`.
+- `dlzoom whoami` to confirm auth mode (S2S vs user OAuth) and token validity.
+
+### Improvements
+- Safer download host allow‑list (HTTPS, Zoom domains only) and clearer errors.
+- Stricter meeting ID/UUID normalization (handles URL/percent‑encoded UUIDs; blocks traversal).
+- More robust networking (retries/backoff), filename sanitization, and structured JSON errors.
+- Local metadata JSON saved with each download (meeting details, selected instance, files, notes).
+
+### Docs
+- New Privacy/Terms/Support pages; expanded README and architecture overview.
+
+### Migration
+- Replace any `dlzoom download <id> --list` usage with `dlzoom recordings --meeting-id <id>`.
 
 ## [0.1.0] - 2025-10-02
 
@@ -211,35 +238,6 @@ This is the first stable release of dlzoom. The tool is production-ready for:
 - Containerized deployments
 
 Report issues at: <https://github.com/yaniv-golan/dlzoom/issues>
-## [0.2.0] - 2025-11-12
-
-User‑facing release focused on a clearer CLI, optional user OAuth, and safer downloads.
-
-### Breaking
-- Removed: `dlzoom download --list`.
-  - Use: `dlzoom recordings --meeting-id <id_or_uuid>` to list instances for a meeting.
-
-### New
-- Unified CLI with subcommands: `dlzoom [recordings|download|login|logout|whoami]`.
-- User OAuth login/logout using a minimal hosted broker (`dlzoom login`, `dlzoom logout`).
-- `dlzoom recordings` command:
-  - Browse by date: `--range` (today, yesterday, last-7-days, last-30-days) or `--from-date/--to-date`.
-  - Meeting‑scoped listing: `--meeting-id <id_or_uuid>` with instance count and file types.
-  - JSON output (`--json`), topic filter (`--topic`), and result limits (`--limit`, `--page-size`).
-- Batch by date window: `dlzoom download --from-date YYYY-MM-DD --to-date YYYY-MM-DD`.
-- `dlzoom whoami` to confirm auth mode (S2S vs user OAuth) and token validity.
-
-### Improvements
-- Safer download host allow‑list (HTTPS, Zoom domains only) and clearer errors.
-- Stricter meeting ID/UUID normalization (handles URL/percent‑encoded UUIDs; blocks traversal).
-- More robust networking (retries/backoff), filename sanitization, and structured JSON errors.
-- Local metadata JSON saved with each download (meeting details, selected instance, files, notes).
-
-### Docs
-- New Privacy/Terms/Support pages; expanded README and architecture overview.
-
-### Migration
-- Replace any `dlzoom download <id> --list` usage with `dlzoom recordings --meeting-id <id>`.
 
 [0.1.0]: https://github.com/yaniv-golan/dlzoom/releases/tag/v0.1.0
 [0.2.0]: https://github.com/yaniv-golan/dlzoom/compare/v0.1.0...v0.2.0

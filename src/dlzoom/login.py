@@ -116,6 +116,18 @@ def main(auth_url: str | None) -> None:
                 console.print("[green]✓ Signed in. Tokens saved.[/green]")
                 return
 
+        if pr is not None and pr.status_code == 500:
+            # Broker returned an error (token exchange failed)
+            console.print("[red]Authorization failed.[/red]")
+            try:
+                error_data = pr.json()
+                error_msg = error_data.get("body", str(error_data))
+                console.print(f"[red]Error:[/red] {error_msg}")
+            except Exception:
+                console.print(f"[red]Server error:[/red] {pr.text}")
+            console.print("[yellow]Please try running: dlzoom login again[/yellow]")
+            raise SystemExit(1)
+
         if pr is not None and pr.status_code == 410:
             console.print("[red]Session expired. Please run: dlzoom login again[/red]")
             raise SystemExit(1)

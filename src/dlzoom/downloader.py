@@ -270,8 +270,19 @@ class Downloader:
                         if temp_path.exists():
                             temp_path.unlink()
                     elif response.status_code == 416:  # Range Not Satisfiable
-                        # File is already complete
-                        self.logger.info("Partial download is complete")
+                        # File is already complete - verify size before accepting
+                        actual_size = temp_path.stat().st_size
+                        if expected_size > 0 and actual_size != expected_size:
+                            self.logger.warning(
+                                f"416 response but size mismatch: expected {expected_size}, "
+                                f"got {actual_size}. Re-downloading from start."
+                            )
+                            temp_path.unlink()
+                            resume_from = 0
+                            mode = "wb"
+                            # Retry without Range header
+                            continue
+                        self.logger.info("Partial download is complete (verified size)")
                         temp_path.rename(output_path)
                         return output_path
                     else:

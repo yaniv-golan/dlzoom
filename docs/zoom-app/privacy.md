@@ -19,9 +19,9 @@ How we use it
 - To sign you in to Zoom and show/download your recordings.
 - We don’t use your data for ads or analytics.
 
-Where it’s stored and for how long
-- The tool keeps sign‑in tokens only while you use it.
-- To finish sign‑in, a small code is stored briefly and then expires automatically.
+Where it's stored and for how long
+- Sign‑in tokens are stored locally on your device (in `~/.config/dlzoom/tokens.json`) until you log out or they expire.
+- To finish sign‑in, a small authorization code is stored briefly in the authentication service and expires automatically after 10 minutes.
 - Downloaded recordings are saved only on your device and are under your control.
 
 Hosted vs self‑hosted sign‑in

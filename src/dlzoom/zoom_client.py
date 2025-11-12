@@ -118,8 +118,11 @@ class ZoomClient:
         url = f"{self.base_url}/{endpoint}"
         headers = {
             "Authorization": f"Bearer {self._get_access_token()}",
-            "Content-Type": "application/json",
+            "Accept": "application/json",
         }
+        # Add Content-Type only for methods that send a body
+        if method.upper() in ("POST", "PUT", "PATCH"):
+            headers["Content-Type"] = "application/json"
 
         for attempt in range(retry_count):
             try:
