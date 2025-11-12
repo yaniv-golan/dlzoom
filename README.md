@@ -578,6 +578,13 @@ dlzoom download 123456789 --config config.yaml
 
 Security note (tokens): On Windows, file permission enforcement for `tokens.json` is best‑effort. Treat your token file as sensitive and ensure your user profile is protected.
 
+## Broker Origin Restriction (Optional)
+
+For tighter security on the hosted auth service, you can restrict which origin is allowed to call the token endpoints:
+
+- Set the `ALLOWED_ORIGIN` environment variable on your Cloudflare Worker (e.g., your CLI’s origin or a specific domain). When set, the broker sends `Access-Control-Allow-Origin: <value>` and `Vary: Origin` instead of `*`.
+- See `zoom-broker/README.md` for details. If you don’t set it, the broker defaults to `*` — acceptable for CLI usage but less restrictive.
+
 ## Development
 
 ```bash
