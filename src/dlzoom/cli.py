@@ -216,6 +216,8 @@ def recordings(
         tdt = datetime.strptime(to_date, "%Y-%m-%d")
         if fdt > tdt:
             raise click.UsageError("--from-date must be before or equal to --to-date")
+    elif from_date or to_date:
+        raise click.UsageError("Both --from-date and --to-date must be provided together")
 
     # Load config and choose client
     cfg = Config(env_file=config) if config else Config()
@@ -444,7 +446,6 @@ def json_dumps(data: Any) -> str:
     "--skip-timeline", is_flag=True, help="Skip timeline download (timelines downloaded by default)"
 )
 @click.option("--dry-run", is_flag=True, help="Show what would be downloaded without downloading")
-@click.option("--password", "-p", help="Password for password-protected recordings")
 @click.option(
     "--log-file",
     type=click.Path(exists=False),
@@ -457,8 +458,8 @@ def json_dumps(data: Any) -> str:
 @click.option(
     "--folder-template", help='Custom folder structure template (e.g., "{start_time:%Y/%m}")'
 )
-@click.option("--from-date", help="Start date for batch downloads (YYYY-MM-DD)")
-@click.option("--to-date", help="End date for batch downloads (YYYY-MM-DD)")
+@click.option("--from-date", callback=_validate_date, help="Start date for batch downloads (YYYY-MM-DD)")
+@click.option("--to-date", callback=_validate_date, help="End date for batch downloads (YYYY-MM-DD)")
 def download(
     meeting_id: str,
     output_dir: str | None,
@@ -473,7 +474,6 @@ def download(
     skip_chat: bool,
     skip_timeline: bool,
     dry_run: bool,
-    password: str | None,
     log_file: str | None,
     config: str | None,
     filename_template: str | None,
@@ -508,22 +508,23 @@ def download(
         if output_dir:
             cfg.output_dir = Path(output_dir)
 
-        # Default output name to meeting_id, then sanitize for filesystem safety
-        if not output_name:
-            output_name = meeting_id
-            try:
-                from dlzoom.templates import TemplateParser
+        # Sanitize output name for filesystem safety
+        try:
+            from dlzoom.templates import TemplateParser
 
-                parser = TemplateParser()
-                output_name = parser._sanitize_filename(output_name)
-            except Exception:
-                # Fallback minimal sanitization if TemplateParser isn't available
-                import re as _re
+            parser = TemplateParser()
+            if not output_name:
+                output_name = meeting_id
+            output_name = parser._sanitize_filename(str(output_name))
+        except Exception:
+            # Fallback minimal sanitization if TemplateParser isn't available
+            import re as _re
 
-                unsafe_chars = r'[<>:"/\\|?*]'
-                safe_name = _re.sub(unsafe_chars, "_", str(output_name))
-                safe_name = _re.sub(r"[_\s]+", "_", safe_name).strip("_. ")
-                output_name = safe_name
+            name_to_sanitize = str(output_name or meeting_id)
+            unsafe_chars = r'[<>:"/\\|?*]'
+            safe_name = _re.sub(unsafe_chars, "_", name_to_sanitize)
+            safe_name = _re.sub(r"[_\s]+", "_", safe_name).strip("_. ")
+            output_name = safe_name
 
         # Initialize client per auth mode
         if use_s2s:
@@ -576,7 +577,6 @@ def download(
             skip_chat=skip_chat,
             skip_timeline=skip_timeline,
             dry_run=dry_run,
-            password=password,
             log_file=Path(log_file) if log_file else None,
             formatter=formatter,
             verbose=verbose,
@@ -1005,7 +1005,6 @@ def _handle_download_mode(
     skip_chat: bool,
     skip_timeline: bool,
     dry_run: bool,
-    password: str | None,
     log_file: Path | None,
     formatter: OutputFormatter,
     verbose: bool,
@@ -1344,19 +1343,24 @@ def _handle_download_mode(
         json_lib.dump(metadata, f, indent=2)
     formatter.output_success(f"Metadata saved: {metadata_path}")
 
-    # Write structured log if requested
-    if log_file:
-        with open(log_file, "a") as f:
-            for file_path in downloaded_files:
-                log_entry = {
-                    "meeting_id": meeting_id,
-                    "meeting_uuid": meeting_uuid,
-                    "file_path": str(file_path.absolute()),
-                    "size_bytes": file_path.stat().st_size if file_path.exists() else 0,
-                    "timestamp": time.time(),
-                    "status": "completed",
-                }
-                f.write(json_lib.dumps(log_entry) + "\n")
+        # Write structured log if requested
+        if log_file:
+            try:
+                log_path = Path(log_file)
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(log_path, "a") as f:
+                    for file_path in downloaded_files:
+                        log_entry = {
+                            "meeting_id": meeting_id,
+                            "meeting_uuid": meeting_uuid,
+                            "file_path": str(file_path.absolute()),
+                            "size_bytes": file_path.stat().st_size if file_path.exists() else 0,
+                            "timestamp": time.time(),
+                            "status": "completed",
+                        }
+                        f.write(json_lib.dumps(log_entry) + "\n")
+            except OSError as e:
+                warnings.append(f"Could not write log file: {e}")
 
     formatter.output_success(f"Downloaded {len(downloaded_files)} file(s) to {output_dir}")
 

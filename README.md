@@ -343,7 +343,6 @@ Options:
   --skip-chat                    Skip chat log download
   --skip-timeline                Skip timeline download
   --dry-run                      Show what would be downloaded
-  --password, -p TEXT            Password for protected recordings
   --log-file PATH                Write structured log (JSONL format)
   --config PATH                  Path to config file (JSON/YAML)
   --filename-template TEXT       Custom filename template
@@ -405,7 +404,7 @@ Use in `--filename-template` and `--folder-template`:
 ### Download Latest Recording from Recurring Meeting
 
 ```bash
-dlzoom 123456789 --verbose
+dlzoom download 123456789 --verbose
 ```
 
 ### Download Specific Instance
@@ -606,34 +605,16 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes. Current version: 0.
 
 Planned for future releases:
 
-### v0.2 (Next) - OAuth Authentication 🚀
-
-- 🔐 **One-click authentication** - No more manual OAuth app setup!
-
-  ```bash
-  dlzoom auth login  # Opens browser, authorize, done!
-  dlzoom download 123456789 # Just works
-  ```
-
-- 🔄 Automatic token refresh
-- 👤 Per-user authentication (no shared credentials)
-- 🔑 Secure token storage in `~/.dlzoom/credentials`
+- 🎨 More output formats (TSV)
+- 🔐 Token encryption via system keychain
 - 📱 Multiple profiles support
-
-### v0.3
-
-- 📅 Batch download by date range
-- 🎨 More output formats (CSV, TSV)
-- 🔐 Token encryption (system keychain)
+- 📦 Optional SBOM generation in CI
 
 ## Known Limitations
 
 ### Feature Limitations
 
-- No standalone "list all recordings" command (requires meeting ID)
 - Audio quality parameter not exposed via CLI (internal only)
-- No batch download by date range
-- No listing of all meetings/recordings
 
 ## License
 

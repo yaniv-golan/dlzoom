@@ -237,8 +237,9 @@ class Downloader:
 
         # Add access token as query parameter (NOT in Authorization header)
         # This is CRITICAL for password-protected recordings
+        from urllib.parse import urlencode
         separator = "&" if "?" in download_url else "?"
-        url_with_token = f"{download_url}{separator}access_token={self.access_token}"
+        url_with_token = f"{download_url}{separator}{urlencode({'access_token': self.access_token})}"
 
         # Retry loop
         for attempt in range(retry_count):
@@ -352,6 +353,9 @@ class Downloader:
                                 f"expected {expected_size}, got {actual_size} "
                                 f"(diff: {size_diff_pct * 100:.1f}%). "
                                 "File may be corrupted."
+                            )
+                            raise DownloadError(
+                                f"Downloaded file size mismatch for {filename}: expected {expected_size}, got {actual_size}"
                             )
 
                 # Move temp file to final location (atomic operation)

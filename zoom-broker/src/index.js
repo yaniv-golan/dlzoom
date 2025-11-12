@@ -6,8 +6,9 @@ export default {
     const allowedOrigin = env.ALLOWED_ORIGIN || "*";
     const cors = {
       "Access-Control-Allow-Origin": allowedOrigin,
-      "Access-Control-Allow-Headers": "content-type,authorization",
+      "Access-Control-Allow-Headers": "content-type",
       "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      "Vary": "Origin",
     };
     if (request.method === "OPTIONS") return new Response("", { headers: cors });
 

@@ -6,6 +6,7 @@ We release security updates for the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.2.x   | :white_check_mark: |
 | 0.1.x   | :white_check_mark: |
 | < 0.1   | :x:                |
 
@@ -51,7 +52,7 @@ dlzoom implements several security measures to protect your credentials and data
 - **Minimal base image:** Uses `python:3.11-slim` for smaller attack surface
 - **Multi-stage builds:** Build dependencies not included in final image
 - **Regular scanning:** Docker images scanned with Trivy on every build
-- **SBOM generation:** Software Bill of Materials available for images
+- **SBOM generation:** Software Bill of Materials available for images (planned)
 
 ## Reporting a Vulnerability
 
