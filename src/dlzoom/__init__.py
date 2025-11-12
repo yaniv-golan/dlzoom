@@ -2,7 +2,7 @@
 dlzoom - Download Zoom cloud recordings via API
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "dlzoom"
 __description__ = "CLI tool to download Zoom cloud recordings and extract audio for transcription"
 

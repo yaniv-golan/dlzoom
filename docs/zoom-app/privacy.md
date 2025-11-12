@@ -33,6 +33,12 @@ Your choices
 - You can remove access at any time in Zoom: App Marketplace → Manage → Added Apps → Remove (or Profile → Apps → Manage → Remove).
 - You can delete any downloaded files from your computer whenever you like.
 
+Optional permissions (advanced)
+- If enabled by you, the app may request additional Zoom permissions to improve the experience:
+  - `meeting:read`: allows identifying whether a meeting is recurring when browsing recordings. No changes to what is downloaded; only metadata lookup to determine recurrence.
+  - `user:read`: allows displaying your Zoom profile info (name/email) in `dlzoom whoami` when using user tokens.
+- These are optional. Without them, the CLI still works; recurrence is inferred only within your selected date range, and `whoami` confirms token validity without showing profile details.
+
 Contact
 - Questions or requests: open a GitHub issue or email yaniv+dlzoom@golan.name.
 

@@ -466,7 +466,6 @@ def download(
     verbose: bool,
     debug: bool,
     json_mode: bool,
-    list_mode: bool = False,
     check_availability: bool,
     recording_id: str | None,
     wait: int | None,
@@ -1328,7 +1327,7 @@ def _handle_download_mode(
         metadata["selected_instance"] = selection_method
         metadata["selected_instance_uuid"] = meeting_uuid
         metadata["selected_instance_timestamp"] = instance.get("start_time")
-        metadata["note"] = "Multiple recordings exist for this meeting. Use --list to see all."
+        metadata["note"] = "Multiple recordings exist for this meeting. Use 'dlzoom recordings --meeting-id <id>' to see all instances."
         metadata["all_instances"] = [
             {
                 "uuid": m.get("uuid"),
@@ -1409,7 +1408,7 @@ def _handle_download_mode(
                 "total_count": len(meetings),
                 "selected": str(selection_method) if selection_method else "",
                 "selected_timestamp": str(instance.get("start_time", "")),
-                "note": "Multiple recordings exist for this meeting. Use --list to see all.",
+                "note": "Multiple recordings exist for this meeting. Use 'dlzoom recordings --meeting-id <id>' to see all instances.",
             }
             result["multiple_instances"] = multi_inst
 

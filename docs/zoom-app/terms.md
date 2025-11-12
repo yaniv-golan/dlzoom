@@ -41,5 +41,10 @@ Changes to these terms
 Contact
 - Questions? Open a GitHub issue or email yaniv+dlzoom@golan.name.
 
+Optional permissions (advanced)
+- `meeting:read` (user-managed): enables definitive recurring-meeting marking in the recordings listing.
+- `user:read` (user-managed): enables showing your name/email in `dlzoom whoami` for user tokens.
+- These are optional and not required for core functionality.
+
 Open source
 - dlzoom is open source at https://github.com/yaniv-golan/dlzoom and is also governed by the project’s open‑source license (see LICENSE in the repository). If these Terms conflict with the open‑source license, the license governs your rights to the code.

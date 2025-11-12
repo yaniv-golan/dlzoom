@@ -48,3 +48,9 @@ Open source
 - Open a GitHub issue in the project repository or email the maintainer at <your‑support‑email>.
 
 For details on the broker endpoints and set‑up, see `zoom-broker/README.md` in the repository.
+
+**Optional permissions (advanced)**
+- To improve fidelity (not required):
+  - `meeting:read` — lets the CLI mark recurring meetings definitively when browsing recordings.
+  - `user:read` — lets `dlzoom whoami` show your name/email when using user tokens.
+  - Without these, the CLI still works: recurrence is inferred within the chosen date range; `whoami` confirms token validity without profile details.

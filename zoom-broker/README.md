@@ -38,6 +38,9 @@ Because an open-source CLI cannot safely embed a Zoom client secret, the broker 
 
   * `cloud_recording:read:list_user_recordings`
   * `cloud_recording:read:list_recording_files`
+* Optional scopes (for enhanced features):
+  * `meeting:read` — lets the CLI mark recurring meetings definitively when browsing recordings (otherwise recurrence is inferred within the selected date range only).
+  * `user:read` — lets the CLI show user name/email in `dlzoom whoami` when using user tokens.
 * Save and install the app (via **Local Test → Install**).
 
 ### 2. Secrets
@@ -139,4 +142,3 @@ Open the returned URL; after authorization, check the KV entries with
 ## 📄 License
 
 Same license as the parent CLI project.
-

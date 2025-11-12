@@ -153,10 +153,38 @@ zoom_client_secret: "your_client_secret"
 log_level: "INFO"
 ```
 
-### 3. Download a Recording
+### 3. Browse and Download
+
+Browse your recordings by date:
+
+```bash
+# Last 7 days
+dlzoom recordings --range last-7-days
+
+# Specific window
+dlzoom recordings --from-date 2025-01-01 --to-date 2025-01-31
+
+# Filter by topic (user-wide mode)
+dlzoom recordings --range today --topic "standup"
+```
+
+Inspect instances for a specific meeting (replaces the old `download --list`):
+
+```bash
+dlzoom recordings --meeting-id 123456789
+```
+
+Download a recording (audio + transcript + chat + timeline):
 
 ```bash
 dlzoom download 123456789
+```
+
+Tip: You can paste meeting IDs directly from Zoom. Spaces are removed automatically:
+
+```bash
+dlzoom download "882 9060 9309"  # Works! Spaces are removed automatically
+dlzoom download 88290609309      # Also works
 ```
 
 ## Usage
@@ -169,11 +197,7 @@ dlzoom download 123456789
 dlzoom download 123456789 --check-availability
 ```
 
-**List all recordings for a meeting:**
-
-```bash
-dlzoom download 123456789 --list
-```
+Use `dlzoom recordings --meeting-id 123456789` instead of the removed `download --list`.
 
 **Download recording (audio + transcript + chat + timeline):**
 
@@ -243,6 +267,15 @@ dlzoom whoami
 ```bash
 dlzoom logout
 ```
+
+### Optional Permissions (Advanced)
+
+dlzoom works with minimal permissions by default. You can optionally add these to improve fidelity:
+
+- `meeting:read` (user-managed OAuth): allows `recordings` to definitively mark recurring meetings by checking meeting type; without it, recurrence is inferred only within the fetched date range.
+- `user:read` (user-managed OAuth): allows `whoami` to show your name/email when using user tokens.
+
+Behavior degrades gracefully if these are not enabled.
 ```
 
 **Dry run (see what would be downloaded):**
@@ -302,7 +335,6 @@ Options:
   --verbose, -v                  Show detailed operation information
   --debug, -d                    Show full API responses and trace
   --json, -j                     JSON output mode (machine-readable)
-  --list, -l                     List all recordings with timestamps
   --check-availability, -c       Check if recording is ready
   --recording-id TEXT            Select specific recording by UUID
   --wait MINUTES                 Wait for recording processing (timeout)
@@ -315,8 +347,6 @@ Options:
   --config PATH                  Path to config file (JSON/YAML)
   --filename-template TEXT       Custom filename template
   --folder-template TEXT         Custom folder structure template
-  --from-date TEXT               Start date for batch (YYYY-MM-DD)
-  --to-date TEXT                 End date for batch (YYYY-MM-DD)
   --help                         Show this message and exit
   --version                      Show version and exit
 ```
@@ -355,11 +385,11 @@ dlzoom 123456789 --verbose
 ### Download Specific Instance
 
 ```bash
-# List all instances first
-dlzoom 123456789 --list
+# List all instances first (meeting-scoped view)
+dlzoom recordings --meeting-id 123456789
 
-# Download specific one
-dlzoom 123456789 --recording-id "abc123def456"
+# Download a specific instance by UUID
+dlzoom download 123456789 --recording-id "abc123def456"
 ```
 
 ### Automated Pipeline (JSON Output)
@@ -675,9 +705,3 @@ Built with:
 ## Acknowledgments
 
 Thanks to all contributors and the open source community.
-Meeting IDs can be pasted directly from Zoom (spaces are automatically removed):
-
-```bash
-dlzoom "882 9060 9309"  # Works! Spaces are removed automatically
-dlzoom 88290609309      # Also works
-```
