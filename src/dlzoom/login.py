@@ -21,8 +21,13 @@ console = Console()
 
 def _normalize_auth_url(url: str) -> str:
     url = url.strip()
+    # Allow http://localhost and http://127.0.0.1 for local development
+    if url.startswith("http://localhost") or url.startswith("http://127.0.0.1"):
+        return url.rstrip("/")
     if not url.startswith("https://"):
-        raise click.BadParameter("--auth-url must start with https://")
+        raise click.BadParameter(
+            "--auth-url must start with https:// (or http://localhost / http://127.0.0.1 for dev)"
+        )
     return url.rstrip("/")
 
 
@@ -52,12 +57,12 @@ def main(auth_url: str | None) -> None:
 
     # Defense-in-depth: Validate that auth URL points to Zoom's domain
     from urllib.parse import urlparse
-    
+
     try:
         parsed = urlparse(auth_page)
         host = parsed.netloc.lower()
         if not (host == "zoom.us" or host.endswith(".zoom.us")):
-            console.print(f"[red]Security Error: Authorization URL is not from zoom.us domain[/red]")
+            console.print("[red]Security Error: Authorization URL is not from zoom.us domain[/red]")
             console.print(f"[yellow]Received URL: {auth_page}[/yellow]")
             console.print("[yellow]This may indicate a compromised authentication broker.[/yellow]")
             raise SystemExit(1)
@@ -80,8 +85,9 @@ def main(auth_url: str | None) -> None:
         try:
             _now = time.time()
         except Exception:
-            # Testing/mocking safety: if time.time() is exhausted (e.g., StopIteration from side_effect),
-            # force a timeout path to exit cleanly.
+            # Testing/mocking safety: if time.time() is exhausted
+            # (e.g., StopIteration from side_effect), force a timeout path
+            # to exit cleanly.
             _now = start_time + 601
         elapsed = _now - start_time
         if elapsed > 600:

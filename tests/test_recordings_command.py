@@ -82,6 +82,8 @@ class FakeS2SClient:
 
 
 def test_recordings_user_wide_json(monkeypatch):
+    # Disable .env autoload for test isolation
+    monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
     # Ensure S2S is not used
     monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
@@ -104,6 +106,8 @@ def test_recordings_user_wide_json(monkeypatch):
 
 
 def test_recordings_meeting_scoped_json(monkeypatch):
+    # Disable .env autoload for test isolation
+    monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
     # Make S2S present via env so CLI chooses S2S
     monkeypatch.setenv("ZOOM_ACCOUNT_ID", "acct")
     monkeypatch.setenv("ZOOM_CLIENT_ID", "cid")
@@ -122,6 +126,8 @@ def test_recordings_meeting_scoped_json(monkeypatch):
 
 
 def test_recordings_mutual_exclusivity_error(monkeypatch):
+    # Disable .env autoload for test isolation
+    monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
     # Tokens to avoid auth error
     monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
@@ -139,6 +145,8 @@ def test_recordings_mutual_exclusivity_error(monkeypatch):
 
 
 def test_recordings_invalid_date_rejected(monkeypatch):
+    # Disable .env autoload for test isolation
+    monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
     monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)
@@ -154,6 +162,8 @@ def test_recordings_invalid_date_rejected(monkeypatch):
 
 
 def test_recordings_from_gt_to_error(monkeypatch):
+    # Disable .env autoload for test isolation
+    monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
     monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)
@@ -169,6 +179,8 @@ def test_recordings_from_gt_to_error(monkeypatch):
 
 
 def test_recordings_limit_zero_fetches_all(monkeypatch):
+    # Disable .env autoload for test isolation
+    monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
     monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)
@@ -187,6 +199,8 @@ def test_recordings_empty_results(monkeypatch):
         def get_user_recordings(self, *a, **k):
             return {"meetings": []}
 
+    # Disable .env autoload for test isolation
+    monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
     monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)

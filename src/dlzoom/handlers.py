@@ -8,7 +8,6 @@ complexity in the Click command definitions. Behavior is unchanged.
 from __future__ import annotations
 
 import json as _json
-import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -471,9 +470,8 @@ def _handle_download_mode(
 
     # Get access token from client for download authentication
     # Defensive check: ensure client exposes _get_access_token (tests rely on this)
-    client_has_method = (
-        hasattr(type(client), "_get_access_token")
-        or ("_get_access_token" in getattr(client, "__dict__", {}))
+    client_has_method = hasattr(type(client), "_get_access_token") or (
+        "_get_access_token" in getattr(client, "__dict__", {})
     )
     if not client_has_method:
         raise AttributeError("Client does not provide _get_access_token()")
@@ -633,7 +631,9 @@ def _handle_download_mode(
             for m in meetings
         ]
 
-    metadata_path = output_dir / f"{output_name}_metadata.json"
+    # Use meeting_id as fallback if output_name is None
+    metadata_basename = output_name if output_name else meeting_id
+    metadata_path = output_dir / f"{metadata_basename}_metadata.json"
     with open(metadata_path, "w") as f:
         _json.dump(metadata, f, indent=2)
     formatter.output_success(f"Metadata saved: {metadata_path}")

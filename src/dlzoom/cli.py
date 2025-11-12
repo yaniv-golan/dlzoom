@@ -43,6 +43,31 @@ click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
 console = Console()
 
 
+def _autoload_dotenv() -> None:
+    """Automatically load a local .env file for CLI usage.
+
+    Notes:
+    - Skipped when the environment variable DLZOOM_NO_DOTENV is set (e.g., tests).
+    - Does not override existing environment variables.
+    - Searches from the current working directory upwards for a .env file.
+    """
+    import os
+    try:
+        if os.getenv("DLZOOM_NO_DOTENV"):
+            return
+        from dotenv import load_dotenv, find_dotenv
+
+        dotenv_path = find_dotenv(usecwd=True)
+        if dotenv_path:
+            load_dotenv(dotenv_path, override=False)
+    except Exception:
+        # Best-effort only; never fail CLI due to dotenv load issues
+        pass
+
+# Module logger for warnings/info
+logger = logging.getLogger(__name__)
+
+
 def validate_meeting_id(
     ctx: click.Context, param: click.Parameter, value: str | None
 ) -> str | None:
@@ -133,7 +158,8 @@ def validate_meeting_id(
 @click.version_option(version=__version__)
 def cli() -> None:
     """Top-level Click group."""
-    pass
+    # Ensure .env is loaded for all subcommands invoked via the CLI.
+    _autoload_dotenv()
 
 
 # Register subcommands from other modules
@@ -279,12 +305,14 @@ def recordings(
         raise ConfigError(
             "Not signed in. Run 'dlzoom login' or configure S2S credentials in your environment."
         )
-    
+
     # Cap page_size to Zoom API maximum
     if page_size > 300:
-        logger.warning(f"page_size {page_size} exceeds Zoom API limit of 300, capping to 300")
+        import logging
+
+        logging.warning(f"page_size {page_size} exceeds Zoom API limit of 300, capping to 300")
         page_size = 300
-    
+
     client = (
         ZoomClient(str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret))
         if use_s2s

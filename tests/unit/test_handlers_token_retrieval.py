@@ -46,20 +46,20 @@ class TestHandlersTokenRetrieval:
     ) -> None:
         """
         Verify _get_access_token is called before Downloader is constructed.
-        
+
         This is the PRIMARY regression test for the critical bug.
         """
         selector = RecordingSelector()
         formatter = OutputFormatter("human")
-        
-        with patch("dlzoom.handlers.Downloader") as MockDownloader:
+
+        with patch("dlzoom.handlers.Downloader") as mock_downloader_cls:
             mock_downloader = Mock()
-            MockDownloader.return_value = mock_downloader
+            mock_downloader_cls.return_value = mock_downloader
             mock_downloader.download_file = Mock(return_value=tmp_path / "test.m4a")
             mock_downloader.download_transcripts_and_chat = Mock(
                 return_value={"vtt": None, "txt": None, "timeline": None}
             )
-            
+
             _handle_download_mode(
                 client=mock_client_with_token,
                 selector=selector,
@@ -78,34 +78,34 @@ class TestHandlersTokenRetrieval:
                 json_mode=False,
                 wait=None,
             )
-            
+
             # CRITICAL: Verify token was retrieved
             mock_client_with_token._get_access_token.assert_called_once()
-            
+
             # CRITICAL: Verify it was called BEFORE Downloader construction
             # This checks the call order
             assert mock_client_with_token._get_access_token.call_count == 1
-            assert MockDownloader.call_count == 1
+            assert mock_downloader_cls.call_count == 1
 
     def test_access_token_passed_as_second_argument(
         self, mock_client_with_token: Mock, tmp_path: Path
     ) -> None:
         """
         Verify access token is passed as 2nd argument to Downloader.__init__.
-        
+
         Signature: Downloader(output_dir, access_token, output_name=None)
         """
         selector = RecordingSelector()
         formatter = OutputFormatter("human")
-        
-        with patch("dlzoom.handlers.Downloader") as MockDownloader:
+
+        with patch("dlzoom.handlers.Downloader") as mock_downloader_cls:
             mock_downloader = Mock()
-            MockDownloader.return_value = mock_downloader
+            mock_downloader_cls.return_value = mock_downloader
             mock_downloader.download_file = Mock(return_value=tmp_path / "test.m4a")
             mock_downloader.download_transcripts_and_chat = Mock(
                 return_value={"vtt": None, "txt": None, "timeline": None}
             )
-            
+
             _handle_download_mode(
                 client=mock_client_with_token,
                 selector=selector,
@@ -124,20 +124,18 @@ class TestHandlersTokenRetrieval:
                 json_mode=False,
                 wait=None,
             )
-            
+
             # Verify constructor call arguments
-            assert MockDownloader.called
-            args, kwargs = MockDownloader.call_args
-            
+            assert mock_downloader_cls.called
+            args, kwargs = mock_downloader_cls.call_args
+
             # Positional args should be: (output_dir, access_token, output_name)
             assert len(args) == 3
             assert args[0] == tmp_path  # output_dir
             assert args[1] == "mock_token_12345"  # access_token
             assert args[2] == "my_output"  # output_name
 
-    def test_different_token_for_different_client(
-        self, tmp_path: Path
-    ) -> None:
+    def test_different_token_for_different_client(self, tmp_path: Path) -> None:
         """
         Verify handler correctly retrieves token from different client types.
         """
@@ -160,18 +158,18 @@ class TestHandlersTokenRetrieval:
                 "uuid": "different-uuid",
             }
         )
-        
+
         selector = RecordingSelector()
         formatter = OutputFormatter("human")
-        
-        with patch("dlzoom.handlers.Downloader") as MockDownloader:
+
+        with patch("dlzoom.handlers.Downloader") as mock_downloader_cls:
             mock_downloader = Mock()
-            MockDownloader.return_value = mock_downloader
+            mock_downloader_cls.return_value = mock_downloader
             mock_downloader.download_file = Mock(return_value=tmp_path / "diff.m4a")
             mock_downloader.download_transcripts_and_chat = Mock(
                 return_value={"vtt": None, "txt": None, "timeline": None}
             )
-            
+
             _handle_download_mode(
                 client=client2,
                 selector=selector,
@@ -190,10 +188,10 @@ class TestHandlersTokenRetrieval:
                 json_mode=False,
                 wait=None,
             )
-            
+
             # Verify correct token was retrieved and passed
             client2._get_access_token.assert_called_once()
-            args, _ = MockDownloader.call_args
+            args, _ = mock_downloader_cls.call_args
             assert args[1] == "different_token_67890"
 
     def test_token_not_retrieved_in_dry_run(
@@ -201,12 +199,12 @@ class TestHandlersTokenRetrieval:
     ) -> None:
         """
         Verify token is NOT retrieved during dry run.
-        
+
         Dry run should return early without creating Downloader.
         """
         selector = RecordingSelector()
         formatter = OutputFormatter("human")
-        
+
         _handle_download_mode(
             client=mock_client_with_token,
             selector=selector,
@@ -225,7 +223,7 @@ class TestHandlersTokenRetrieval:
             json_mode=False,
             wait=None,
         )
-        
+
         # Token should NOT be retrieved in dry run
         mock_client_with_token._get_access_token.assert_not_called()
 
@@ -234,20 +232,20 @@ class TestHandlersTokenRetrieval:
     ) -> None:
         """
         Verify token is retrieved even when using filename/folder templates.
-        
+
         Templates should not affect the core token retrieval logic.
         """
         selector = RecordingSelector()
         formatter = OutputFormatter("human")
-        
-        with patch("dlzoom.handlers.Downloader") as MockDownloader:
+
+        with patch("dlzoom.handlers.Downloader") as mock_downloader_cls:
             mock_downloader = Mock()
-            MockDownloader.return_value = mock_downloader
+            mock_downloader_cls.return_value = mock_downloader
             mock_downloader.download_file = Mock(return_value=tmp_path / "test.m4a")
             mock_downloader.download_transcripts_and_chat = Mock(
                 return_value={"vtt": None, "txt": None, "timeline": None}
             )
-            
+
             _handle_download_mode(
                 client=mock_client_with_token,
                 selector=selector,
@@ -268,12 +266,12 @@ class TestHandlersTokenRetrieval:
                 filename_template="{topic}_{start_time:%Y%m%d}",
                 folder_template="{start_time:%Y/%m}",
             )
-            
+
             # Token should still be retrieved with templates
             mock_client_with_token._get_access_token.assert_called_once()
-            
+
             # And passed to Downloader
-            args, _ = MockDownloader.call_args
+            args, _ = mock_downloader_cls.call_args
             assert args[1] == "mock_token_12345"
 
 
@@ -283,29 +281,31 @@ class TestTokenRetrievalEdgeCases:
     def test_client_missing_get_access_token_method(self, tmp_path: Path) -> None:
         """
         Verify appropriate error if client doesn't have _get_access_token.
-        
+
         This shouldn't happen in practice but worth testing defensive behavior.
         """
         bad_client = Mock()
         # Intentionally don't add _get_access_token method
         bad_client.get_meeting_recordings = Mock(
             return_value={
-                "recording_files": [{
-                    "id": "test",
-                    "file_extension": "M4A",
-                    "file_size": 1000,
-                    "download_url": "https://zoom.us/rec/test.m4a",
-                    "status": "completed",
-                }],
+                "recording_files": [
+                    {
+                        "id": "test",
+                        "file_extension": "M4A",
+                        "file_size": 1000,
+                        "download_url": "https://zoom.us/rec/test.m4a",
+                        "status": "completed",
+                    }
+                ],
                 "topic": "Test",
                 "start_time": "2024-01-01T10:00:00Z",
                 "uuid": "test",
             }
         )
-        
+
         selector = RecordingSelector()
         formatter = OutputFormatter("human")
-        
+
         with pytest.raises(AttributeError):
             _handle_download_mode(
                 client=bad_client,
@@ -336,22 +336,24 @@ class TestTokenRetrievalEdgeCases:
         )
         failing_client.get_meeting_recordings = Mock(
             return_value={
-                "recording_files": [{
-                    "id": "test",
-                    "file_extension": "M4A",
-                    "file_size": 1000,
-                    "download_url": "https://zoom.us/rec/test.m4a",
-                    "status": "completed",
-                }],
+                "recording_files": [
+                    {
+                        "id": "test",
+                        "file_extension": "M4A",
+                        "file_size": 1000,
+                        "download_url": "https://zoom.us/rec/test.m4a",
+                        "status": "completed",
+                    }
+                ],
                 "topic": "Test",
                 "start_time": "2024-01-01T10:00:00Z",
                 "uuid": "test",
             }
         )
-        
+
         selector = RecordingSelector()
         formatter = OutputFormatter("human")
-        
+
         with pytest.raises(Exception) as exc_info:
             _handle_download_mode(
                 client=failing_client,
@@ -371,6 +373,5 @@ class TestTokenRetrievalEdgeCases:
                 json_mode=False,
                 wait=None,
             )
-        
-        assert "Token retrieval failed" in str(exc_info.value)
 
+        assert "Token retrieval failed" in str(exc_info.value)

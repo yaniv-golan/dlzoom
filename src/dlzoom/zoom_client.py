@@ -51,7 +51,7 @@ class ZoomClient:
     def clear_credentials(self) -> None:
         """
         Clear sensitive credentials from memory.
-        
+
         Note: Due to Python's memory management and string immutability,
         this provides best-effort cleanup but cannot guarantee complete
         memory erasure. Credentials may remain in memory until garbage
@@ -61,7 +61,7 @@ class ZoomClient:
         self.client_id = ""
         self.client_secret = ""
         self._access_token = None
-    
+
     def __del__(self) -> None:
         """Attempt to clear credentials when object is destroyed (best-effort only)"""
         try:
@@ -165,10 +165,12 @@ class ZoomClient:
     ) -> dict[str, Any]:
         """Make authenticated API request with retry logic"""
         url = f"{self.base_url}/{endpoint}"
+        from dlzoom import __version__
+        
         headers = {
             "Authorization": f"Bearer {self._get_access_token()}",
             "Accept": "application/json",
-            "User-Agent": "dlzoom/0.2.0 (https://github.com/yaniv-golan/dlzoom)",
+            "User-Agent": f"dlzoom/{__version__} (https://github.com/yaniv-golan/dlzoom)",
         }
         # Add Content-Type only for methods that send a body
         if method.upper() in ("POST", "PUT", "PATCH"):
@@ -187,14 +189,27 @@ class ZoomClient:
                 # Handle rate limiting and server errors with exponential backoff
                 if response.status_code in (429, 500, 502, 503, 504):
                     if attempt < retry_count - 1:
-                        wait_time = backoff_factor * (2**attempt)
-                        status_name = (
-                            "Rate limit" if response.status_code == 429 else "Server error"
-                        )
-                        logging.warning(
-                            f"{status_name} (HTTP {response.status_code}), "
-                            f"retrying in {wait_time}s (attempt {attempt + 1}/{retry_count})"
-                        )
+                        # For rate limits, use Retry-After header if provided
+                        if response.status_code == 429:
+                            retry_after = response.headers.get("Retry-After")
+                            if retry_after and retry_after.isdigit():
+                                wait_time = int(retry_after)
+                                logging.warning(
+                                    f"Rate limit (HTTP 429), Retry-After: {wait_time}s "
+                                    f"(attempt {attempt + 1}/{retry_count})"
+                                )
+                            else:
+                                wait_time = backoff_factor * (2**attempt)
+                                logging.warning(
+                                    f"Rate limit (HTTP 429), backing off {wait_time}s "
+                                    f"(attempt {attempt + 1}/{retry_count})"
+                                )
+                        else:
+                            wait_time = backoff_factor * (2**attempt)
+                            logging.warning(
+                                f"Server error (HTTP {response.status_code}), "
+                                f"retrying in {wait_time}s (attempt {attempt + 1}/{retry_count})"
+                            )
                         time.sleep(wait_time)
                         continue
                     else:
@@ -259,8 +274,16 @@ class ZoomClient:
                         "Permission denied", details="Check OAuth scopes for your Zoom app"
                     )
                 elif status_code == 404:
-                    # Determine if it's a meeting or recording not found based on endpoint
-                    if "meeting" in endpoint and "recording" not in endpoint:
+                    # Determine if it's a meeting or recording not found based on endpoint structure
+                    # Meetings API: /meetings/{meetingId}
+                    # Recordings API: /meetings/{meetingId}/recordings or /recordings/*
+                    endpoint_lower = endpoint.lower()
+                    is_meeting_endpoint = (
+                        endpoint_lower.startswith("meetings/") 
+                        and "/recordings" not in endpoint_lower
+                    )
+                    
+                    if is_meeting_endpoint:
                         raise MeetingNotFoundError(
                             "Meeting not found",
                             details=f"Meeting ID or UUID may be incorrect: {zoom_message}",

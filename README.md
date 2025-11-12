@@ -273,12 +273,17 @@ dlzoom logout
 
 ### Optional Permissions (Advanced)
 
-dlzoom works with minimal permissions by default. You can optionally add these to improve fidelity (Zoom granular scopes shown):
+dlzoom works with minimal permissions by default. You can optionally add these to improve fidelity:
 
-- `meeting:read:meeting` (user-managed OAuth): allows `recordings` to definitively mark recurring meetings by checking meeting type; without it, recurrence is inferred only within the fetched date range.
-- `user:read:user` (user-managed OAuth): allows `whoami` to show your name/email when using user tokens.
+**Required Scopes (Minimum):**
+- `cloud_recording:read:list_user_recordings` - List your cloud recordings
+- `cloud_recording:read:list_recording_files` - Access recording file details for download
 
-Behavior degrades gracefully if these are not enabled.
+**Optional Scopes (Enhanced Features):**
+- `meeting:read:meeting` - Definitively mark recurring meetings by checking meeting type; without it, recurrence is inferred only within the fetched date range
+- `user:read:user` - Show your name/email in `whoami` when using user tokens
+
+All scopes use Zoom's granular scope naming (user-managed OAuth). Behavior degrades gracefully if optional scopes are not enabled.
 ```
 
 **Dry run (see what would be downloaded):**

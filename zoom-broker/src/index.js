@@ -91,8 +91,11 @@ export default {
       const tok = await env.AUTH.get(`tok:${id}`);
       if (!tok) return json({ status: "pending" }, 200, cors);
 
-      // One-time read: delete after serving
+      // One-time read: delete before serving to prevent replay
+      // Note: If network drops after delete but before client receives response,
+      // client will see "pending" on retry. This is acceptable - user can re-auth.
       await env.AUTH.delete(`tok:${id}`);
+      await env.AUTH.delete(`sess:${id}`);
       return new Response(tok, { status: 200, headers: { "content-type": "application/json", ...cors } });
     }
 

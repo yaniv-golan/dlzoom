@@ -51,7 +51,7 @@ Open source
 - Code and issues: https://github.com/yaniv-golan/dlzoom
 
 **Support**
-- Open a GitHub issue in the project repository or email the maintainer at <your‑support‑email>.
+- Open a GitHub issue in the project repository or email the maintainer at support@dlzoom.com.
 
 For details on the broker endpoints and set‑up, see `zoom-broker/README.md` in the repository.
 

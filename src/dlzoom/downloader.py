@@ -185,7 +185,9 @@ class Downloader:
             meeting_topic: Meeting topic/name
             instance_start: Optional instance start time
             show_progress: Show progress bar
-            verify_size: Verify file size after download (not a cryptographic checksum). Default False for compatibility with mocked/test environments.
+            verify_size: Verify file size after download (not a cryptographic
+                checksum). Default False for compatibility with mocked/test
+                environments.
             retry_count: Number of retry attempts
             backoff_factor: Exponential backoff factor
 
@@ -206,7 +208,7 @@ class Downloader:
             expected_size = int(file_info.get("file_size", 0) or 0)
         except (ValueError, TypeError):
             expected_size = 0
-        
+
         if not self.overwrite and self.file_exists_with_size(output_path, expected_size):
             self.logger.info(f"File already exists, skipping: {filename}")
             return output_path
@@ -233,7 +235,19 @@ class Downloader:
 
             parsed = urlparse(str(download_url))
             host = parsed.netloc.lower()
-            if parsed.scheme != "https" or not (host == "zoom.us" or host.endswith(".zoom.us")):
+            # Allow zoom.us, zoomgov.com, and regional variants
+            allowed_domains = [
+                "zoom.us",
+                ".zoom.us",
+                "zoomgov.com",
+                ".zoomgov.com",
+                "zoom.com.cn",
+                ".zoom.com.cn",
+            ]
+            is_allowed = any(
+                host == domain.lstrip(".") or host.endswith(domain) for domain in allowed_domains
+            )
+            if parsed.scheme != "https" or not is_allowed:
                 raise DownloadError(f"Refusing to download from untrusted URL: {download_url}")
         except Exception as e:
             if isinstance(e, DownloadError):
@@ -410,13 +424,19 @@ class Downloader:
                     )
                     time.sleep(wait_time)
                 else:
+                    # Sanitize error message to avoid leaking access_token from URL
+                    error_msg = str(e)
+                    if "access_token=" in error_msg:
+                        error_msg = error_msg.split("access_token=")[0] + "access_token=[REDACTED]"
+
                     if url_expired:
                         raise DownloadError(
-                            f"Download URL expired. Re-run command to get fresh URL and resume: {e}"
+                            "Download URL expired. Re-run command to get fresh URL and resume: "
+                            f"{error_msg}"
                         ) from e
                     else:
                         raise DownloadError(
-                            f"Download failed after {retry_count} attempts: {e}"
+                            f"Download failed after {retry_count} attempts: {error_msg}"
                         ) from e
 
         raise DownloadError(f"Download failed: {filename}")

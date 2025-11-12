@@ -121,7 +121,7 @@ class Config:
     def clear_credentials(self) -> None:
         """
         Clear sensitive credentials from memory.
-        
+
         Note: Due to Python's memory management and string immutability,
         this provides best-effort cleanup but cannot guarantee complete
         memory erasure. Credentials may remain in memory until garbage
@@ -130,7 +130,7 @@ class Config:
         self._zoom_account_id = None
         self._zoom_client_id = None
         self._zoom_client_secret = None
-    
+
     def __del__(self) -> None:
         """Attempt to clear credentials when object is destroyed (best-effort only)"""
         try:

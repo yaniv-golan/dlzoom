@@ -74,6 +74,7 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
                 out["user"] = user
             else:
                 out["user"] = None
+                out["error_code"] = "scope_insufficient"
                 out["note"] = "Token valid, but profile endpoint not permitted by current scopes"
             print(json.dumps(out, indent=2))
             return
@@ -85,7 +86,10 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
             console.print(f"[bold]Email:[/bold] {user.get('email', 'N/A')}")
             console.print(f"[bold]User ID:[/bold] {user.get('id', 'N/A')}")
             if use_s2s:
-                console.print(f"[bold]Account ID:[/bold] {user.get('account_id', 'N/A')}")
+                console.print(
+                    f"[bold]Account ID (API):[/bold] {user.get('account_id', 'N/A')} "
+                    "[dim](Note: This is the API account ID, not your Zoom account number)[/dim]"
+                )
         else:
             console.print(
                 "Token is valid (recordings accessible), but profile details are not "

@@ -6,20 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [Unreleased]
+## [0.2.0] - unreleased
 
+User‑facing release focused on a clearer CLI, optional user OAuth, and safer downloads.
+
+### Breaking
+- Removed: `dlzoom download --list`.
+  - Use: `dlzoom recordings --meeting-id <id_or_uuid>` to list instances for a meeting.
+- Removed Auto-deletion of MP4 files after audio extraction
+
+### Fixed
+- **Critical**: Fixed undefined `logger` causing crash when page_size > 300
+- **Critical**: Fixed `None_metadata.json` when output_name is None (now uses meeting_id as fallback)
+- **Critical**: Added token sanitization in downloader error messages (prevents access_token leak in logs)
+- **Critical**: Fixed missing `InvalidRecordingIDError` import in handlers
+- **Critical**: Fixed `file_size` type handling - now safely casts to int (Zoom API sometimes returns string)
+- **Critical**: Added comprehensive error handling for corrupted/invalid `tokens.json` with friendly fallback
+- Fixed `Config.__repr__` to check all three S2S credentials (was only checking account_id)
+- Fixed Content-Type header missing on 401 retry for POST/PUT/PATCH requests
+- Fixed tests to use public `sanitize_filename()` method
+- Fixed README Docker code block formatting (unclosed backticks)
+- Fixed CHANGELOG uvx example missing `download` subcommand
+- Fixed SECURITY.md Docker code block formatting
+- Fixed brittle 404 classification - now checks endpoint structure instead of string contains
+- Fixed template datetime parsing to use clear placeholders (INVALID_DATE/NO_DATE) instead of empty strings
+- Fixed placeholder email in zoom-app documentation
+- Fixed privacy policy to clarify infrastructure observability vs user-tracking analytics
+- Fixed broker token polling race condition documentation
 
 ### Added
+- **Security**: Added zoomgov.com and regional domains (zoom.com.cn) to download allowlist
 - **Security**: Added zoom.us domain validation before opening browser in login flow (defense-in-depth)
 - **Security**: Added `auth_url` validation for both CLI and config sources
 - **Security**: Added prominent warning about .env files in cloud-synced directories
 - **Security**: Added critical ALLOWED_ORIGIN documentation with security warnings in broker README
-- Added User-Agent headers to all API requests (`dlzoom/0.2.0`)
+- **Development**: Allow http://localhost and http://127.0.0.1 for local broker development
+- Added User-Agent with dynamic version (reads from `__version__`)
+- Added Accept header to ZoomUserClient requests
+- Added Retry-After header parsing for rate limit responses (429)
+- Added `error_code` field to whoami JSON output for scope_insufficient cases
 - Added public `sanitize_filename()` method to TemplateParser (was private `_sanitize_filename`)
 - Added `clear_credentials()` method with accurate security documentation
 - Added warning when token persistence fails during refresh
 - Added automatic capping of `page_size` to Zoom API maximum (300)
 - Added schema validation for `tokens.json` with required fields check
+- Added clarification note for S2S Account ID in whoami output
 
 ### Changed
 - **Breaking (Internal)**: Renamed `verify_checksum` parameter to `verify_size` for accuracy (only affects code, not CLI)
@@ -28,17 +59,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated duplicate `DownloadError` class - now imports from `exceptions.py`
 - Improved `__del__` security documentation to reflect Python limitations
 - Optimized `Content-Type` header - only included for POST/PUT/PATCH requests (not GET)
+- Updated README with explicit required vs optional scopes with descriptions
 
 ### Removed
-- Auto-deletion of MP4 files after audio extraction
-
-## [0.2.0] - unreleased
-
-User‑facing release focused on a clearer CLI, optional user OAuth, and safer downloads.
-
-### Breaking
-- Removed: `dlzoom download --list`.
-  - Use: `dlzoom recordings --meeting-id <id_or_uuid>` to list instances for a meeting.
+- Removed coverage artifacts (htmlcov/, .coverage) from repository
 
 ### New
 - Unified CLI with subcommands: `dlzoom [recordings|download|login|logout|whoami]`.
@@ -55,6 +79,11 @@ User‑facing release focused on a clearer CLI, optional user OAuth, and safer d
 - Stricter meeting ID/UUID normalization (handles URL/percent‑encoded UUIDs; blocks traversal).
 - More robust networking (retries/backoff), filename sanitization, and structured JSON errors.
 - Local metadata JSON saved with each download (meeting details, selected instance, files, notes).
+
+### Changed
+- **Behavior Change**: MP4 files are now **retained** after audio extraction (previously auto-deleted)
+- Optimized `Content-Type` header - only included for POST/PUT/PATCH requests (not GET)
+
 
 ### Docs
 - New Privacy/Terms/Support pages; expanded README and architecture overview.

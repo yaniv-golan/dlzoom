@@ -17,7 +17,8 @@ What we access
 
 How we use it
 - To sign you in to Zoom and show/download your recordings.
-- We don’t use your data for ads or analytics.
+- We don't use your data for ads or user-tracking analytics.
+- Note: Our hosted authentication service uses Cloudflare Workers, which collects infrastructure-level metrics (request counts, errors, performance) for operational monitoring. This is standard infrastructure observability and does not track individual users or their data.
 
 Where it's stored and for how long
 - Sign‑in tokens are stored locally on your device (in `~/.config/dlzoom/tokens.json`) until you log out or they expire.

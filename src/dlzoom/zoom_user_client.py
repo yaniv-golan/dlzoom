@@ -76,6 +76,7 @@ class ZoomUserClient:
         except Exception as e:
             # Non-fatal, but log warning
             import logging
+
             logging.warning(
                 f"Failed to persist refreshed tokens to {self._tokens_path}: {e}. "
                 "You may need to re-authenticate sooner than expected."
@@ -88,9 +89,12 @@ class ZoomUserClient:
         Args:
             include_content_type: Only set Content-Type for methods with body (POST, PUT, PATCH)
         """
+        from dlzoom import __version__
+        
         headers = {
             "Authorization": f"Bearer {self._tokens.access_token}",
-            "User-Agent": "dlzoom/0.2.0 (https://github.com/yaniv-golan/dlzoom)",
+            "User-Agent": f"dlzoom/{__version__} (https://github.com/yaniv-golan/dlzoom)",
+            "Accept": "application/json",
         }
         if include_content_type:
             headers["Content-Type"] = "application/json"
@@ -115,7 +119,7 @@ class ZoomUserClient:
         )
         # Only include Content-Type for methods with body
         include_content_type = method.upper() in ("POST", "PUT", "PATCH")
-        
+
         for attempt in range(retry_count):
             try:
                 resp = requests.request(
@@ -151,7 +155,7 @@ class ZoomUserClient:
                     resp = requests.request(
                         method,
                         url,
-                        headers=self._auth_headers(),
+                        headers=self._auth_headers(include_content_type=include_content_type),
                         params=params,
                         timeout=30,
                     )

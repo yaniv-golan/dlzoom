@@ -43,28 +43,30 @@ def load(path: Path) -> Tokens | None:
     """Load tokens from file. Returns None if file doesn't exist or is invalid."""
     if not path.exists():
         return None
-    
+
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError) as e:
         # Return None for invalid/unreadable files - caller will prompt for login
         import logging
+
         logging.warning(f"Could not load tokens from {path}: {e}")
         return None
-    
+
     # Validate required fields
     required_fields = ["access_token", "refresh_token", "expires_at", "auth_url"]
     if not all(field in data for field in required_fields):
         import logging
+
         logging.warning(f"Token file missing required fields: {path}")
         return None
-    
+
     # Minimal validation
     if data.get("version") != VERSION:
         # Allow forward compatibility if keys exist
         pass
-    
+
     try:
         return Tokens(
             token_type=str(data.get("token_type", "Bearer")),
@@ -77,6 +79,7 @@ def load(path: Path) -> Tokens | None:
         )
     except (KeyError, ValueError, TypeError) as e:
         import logging
+
         logging.warning(f"Invalid token data in {path}: {e}")
         return None
 
