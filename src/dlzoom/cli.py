@@ -48,7 +48,7 @@ click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
 console = Console()
 
 
-def validate_meeting_id(ctx: click.Context, param: click.Parameter, value: str) -> str:
+def validate_meeting_id(ctx: click.Context, param: click.Parameter, value: str | None) -> str:
     """
     Validate meeting ID format to prevent injection attacks
 
@@ -69,7 +69,8 @@ def validate_meeting_id(ctx: click.Context, param: click.Parameter, value: str) 
     """
     # Normalize: remove all whitespace (spaces, tabs, newlines)
     if value is None:
-        raise click.BadParameter("Meeting ID cannot be empty")
+        # Allow None for optional option usage; required arguments should not pass None.
+        return None  # type: ignore[return-value]
     normalized_value = "".join(str(value).split())
 
     if not normalized_value:
@@ -120,6 +121,289 @@ cli.add_command(logout_main, name="logout")
 cli.add_command(whoami_main, name="whoami")
 
 
+def _validate_date(ctx: click.Context, param: click.Parameter, value: str | None) -> str | None:
+    if value is None:
+        return None
+    import re as _re
+    from datetime import datetime as _dt
+    if not _re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+        raise click.BadParameter(f"Date must be YYYY-MM-DD, got: {value}")
+    try:
+        _dt.strptime(value, "%Y-%m-%d")
+    except ValueError as e:
+        raise click.BadParameter(f"Invalid date: {e}")
+    return value
+
+
+def _calc_range(range_opt: str) -> tuple[str, str]:
+    from datetime import datetime, timedelta
+    today = datetime.now().date()
+    if range_opt == "today":
+        f = t = today
+    elif range_opt == "yesterday":
+        f = t = today - timedelta(days=1)
+    elif range_opt == "last-7-days":
+        f, t = today - timedelta(days=6), today
+    elif range_opt == "last-30-days":
+        f, t = today - timedelta(days=29), today
+    else:
+        raise click.BadParameter(f"Invalid range: {range_opt}")
+    return f.strftime("%Y-%m-%d"), t.strftime("%Y-%m-%d")
+
+
+@cli.command(name="recordings", help="Browse recordings by date or list instances for a meeting")
+@click.option("--from-date", callback=_validate_date, help="Start date (YYYY-MM-DD)")
+@click.option("--to-date", callback=_validate_date, help="End date (YYYY-MM-DD)")
+@click.option(
+    "--range",
+    "range_opt",
+    type=click.Choice(["today", "yesterday", "last-7-days", "last-30-days"]),
+    help="Quick date range shortcut (mutually exclusive with --from-date/--to-date)",
+)
+@click.option(
+    "--meeting-id",
+    callback=validate_meeting_id,
+    help="Exact meeting ID or UUID to list instances (replaces 'download --list')",
+)
+@click.option("--topic", help="Substring filter on topic (user-wide mode only)")
+@click.option("--limit", type=int, default=1000, show_default=True, help="Max results (0 = unlimited)")
+@click.option(
+    "--page-size",
+    type=int,
+    default=300,
+    show_default=True,
+    help="[Advanced] Number of results per API request (Zoom max 300)",
+)
+@click.option("--json", "-j", is_flag=True, help="JSON output mode")
+@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@click.option("--debug", "-d", is_flag=True, help="Debug output")
+@click.option("--config", type=click.Path(exists=True), help="Path to config file")
+def recordings(
+    from_date: str | None,
+    to_date: str | None,
+    range_opt: str | None,
+    meeting_id: str | None,
+    topic: str | None,
+    limit: int,
+    page_size: int,
+    json: bool,
+    verbose: bool,
+    debug: bool,
+    config: str | None,
+):
+    # Setup logging and formatter
+    log_level = "DEBUG" if debug else ("INFO" if verbose else "WARNING")
+    setup_logging(level=log_level, verbose=debug or verbose)
+    output_mode = "json" if json else "human"
+    formatter = OutputFormatter(output_mode)
+    if json:
+        formatter.set_silent(True)
+
+    # Mutual exclusivity checks
+    if meeting_id and any([range_opt, from_date, to_date, topic]):
+        raise click.UsageError(
+            "--meeting-id cannot be used with --range, --from-date, --to-date, or --topic"
+        )
+    if range_opt and (from_date or to_date):
+        raise click.UsageError("--range cannot be used with --from-date or --to-date")
+
+    # Dates
+    if range_opt:
+        from_date, to_date = _calc_range(range_opt)
+    if from_date and to_date:
+        from datetime import datetime
+        fdt = datetime.strptime(from_date, "%Y-%m-%d")
+        tdt = datetime.strptime(to_date, "%Y-%m-%d")
+        if fdt > tdt:
+            raise click.UsageError("--from-date must be before or equal to --to-date")
+
+    # Load config and choose client
+    cfg = Config(env_file=config) if config else Config()
+    use_s2s = bool(cfg.zoom_account_id and cfg.zoom_client_id and cfg.zoom_client_secret)
+    tokens = None if use_s2s else load_tokens(cfg.tokens_path)
+    if not use_s2s and tokens is None:
+        raise ConfigError(
+            "Not signed in. Run 'dlzoom login' or configure S2S credentials in your environment."
+        )
+    client = (
+        ZoomClient(str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret))
+        if use_s2s
+        else ZoomUserClient(tokens, str(cfg.tokens_path))  # type: ignore[arg-type]
+    )
+
+    # Meeting-scoped mode
+    if meeting_id:
+        try:
+            result = client.get_meeting_recordings(meeting_id)
+        except ZoomAPIError as e:
+            if json:
+                print(
+                    json_dumps(
+                        {
+                            "status": "error",
+                            "error": {
+                                "code": "MEETING_LOOKUP_FAILED",
+                                "message": str(e),
+                            },
+                        }
+                    )
+                )
+                return
+            formatter.output_error(f"Failed to fetch recordings: {e}")
+            raise SystemExit(1)
+
+        meetings = result.get("meetings", [])
+        if not meetings and result.get("recording_files"):
+            meetings = [result]
+        if not meetings:
+            payload = {"status": "success", "command": "recordings-instances", "meeting_id": meeting_id, "total_instances": 0, "instances": []}
+            if json:
+                print(json_dumps(payload))
+                return
+            formatter.output_info("No recordings found")
+            return
+
+        if json:
+            payload = {
+                "status": "success",
+                "command": "recordings-instances",
+                "meeting_id": meeting_id,
+                "total_instances": len(meetings),
+                "instances": [
+                    {
+                        "uuid": m.get("uuid"),
+                        "start_time": m.get("start_time"),
+                        "duration": m.get("duration"),
+                        "recording_files": [
+                            f.get("recording_type") or f.get("file_type")
+                            for f in m.get("recording_files", [])
+                        ],
+                    }
+                    for m in meetings
+                ],
+            }
+            print(json_dumps(payload))
+            return
+
+        console.print(f"\n[bold]Recordings for Meeting {meeting_id}[/bold]")
+        console.print(f"Total instances: {len(meetings)}\n")
+        for idx, m in enumerate(meetings, 1):
+            console.print(f"[cyan]{idx}.[/cyan] {m.get('topic', 'N/A')}")
+            console.print(f"   UUID: {m.get('uuid', 'N/A')}")
+            console.print(f"   Start: {m.get('start_time', 'N/A')}")
+            console.print(f"   Duration: {m.get('duration', 0)} minutes")
+            console.print(f"   Files: {len(m.get('recording_files', []))}")
+            console.print()
+        return
+
+    # User-wide mode
+    items: list[dict[str, Any]] = []
+    next_token = None
+    fetched = 0
+    while True:
+        resp = client.get_user_recordings(
+            user_id="me",
+            from_date=from_date,
+            to_date=to_date,
+            page_size=page_size,
+            next_page_token=next_token,
+        )
+        meetings = resp.get("meetings", [])
+        for m in meetings:
+            if topic and topic.lower() not in str(m.get("topic", "")).lower():
+                continue
+            items.append(m)
+            fetched += 1
+            if limit and limit > 0 and fetched >= limit:
+                break
+        if limit and limit > 0 and fetched >= limit:
+            break
+        next_token = resp.get("next_page_token")
+        if not next_token:
+            break
+
+    # Recurring indicator (heuristic)
+    from collections import Counter
+    id_counts = Counter(m.get("id") for m in items)
+
+    # Optional enrichment via meeting:read or S2S
+    def _is_recurring_definitive(mid: Any) -> bool | None:
+        try:
+            if not mid:
+                return None
+            details = client.get_meeting(str(mid))
+            mtype = details.get("type")
+            if isinstance(mtype, int) and mtype in (3, 8):
+                return True
+            if isinstance(mtype, int):
+                return False
+            return None
+        except Exception:
+            return None
+
+    enriched: list[dict[str, Any]] = []
+    for m in items:
+        mid = m.get("id")
+        rec = _is_recurring_definitive(mid)
+        if rec is None:
+            rec_flag = id_counts.get(mid, 0) > 1
+        else:
+            rec_flag = rec
+        m2 = {
+            "id": m.get("id"),
+            "uuid": m.get("uuid"),
+            "topic": m.get("topic"),
+            "start_time": m.get("start_time"),
+            "duration": m.get("duration"),
+            "recording_count": len(m.get("recording_files", [])),
+            "recurring": rec_flag,
+        }
+        enriched.append(m2)
+
+    if json:
+        payload = {
+            "status": "success",
+            "command": "recordings",
+            "from_date": from_date,
+            "to_date": to_date,
+            "total_count": len(enriched),
+            "page_size": page_size,
+            "recordings": enriched,
+        }
+        print(json_dumps(payload))
+        return
+
+    from rich.table import Table
+    table = Table(title="Zoom Recordings")
+    table.add_column("Topic", style="green")
+    table.add_column("Start Time", style="blue")
+    table.add_column("Duration", style="magenta")
+    table.add_column("Meeting ID", style="cyan")
+    table.add_column("Recurring", style="yellow")
+    verbose_flag = verbose or debug
+    if verbose_flag:
+        table.add_column("UUID", style="white")
+        table.add_column("Files", style="white")
+    for r in enriched:
+        row = [
+            str(r.get("topic", "N/A")),
+            str(r.get("start_time", "N/A")),
+            str(r.get("duration", 0)),
+            str(r.get("id", "")),
+            "yes" if r.get("recurring") else "no",
+        ]
+        if verbose_flag:
+            row.extend([str(r.get("uuid", "")), str(r.get("recording_count", 0))])
+        table.add_row(*row)
+    console.print(table)
+
+
+def json_dumps(data: Any) -> str:
+    import json as _json
+
+    return _json.dumps(data, indent=2)
+
+
 @cli.command(name="download", help="Download Zoom cloud recordings")
 @click.argument("meeting_id", callback=validate_meeting_id)
 @click.option(
@@ -137,13 +421,6 @@ cli.add_command(whoami_main, name="whoami")
 )
 @click.option(
     "--json", "-j", "json_mode", is_flag=True, help="JSON output mode - machine-readable output"
-)
-@click.option(
-    "--list",
-    "-l",
-    "list_mode",
-    is_flag=True,
-    help="List all recordings for this meeting with timestamps and UUIDs",
 )
 @click.option(
     "--check-availability",
@@ -189,7 +466,7 @@ def download(
     verbose: bool,
     debug: bool,
     json_mode: bool,
-    list_mode: bool,
+    list_mode: bool = False,
     check_availability: bool,
     recording_id: str | None,
     wait: int | None,
@@ -279,10 +556,7 @@ def download(
             )
             return
 
-        # Handle --list mode
-        if list_mode:
-            _handle_list_mode(client, selector, meeting_id, recording_id, formatter, json_mode)
-            return
+        # --list mode removed in v0.2.0; use `dlzoom recordings --meeting-id` instead
 
         # Handle --check-availability mode
         if check_availability:
@@ -414,75 +688,7 @@ def download(
         sys.exit(1)
 
 
-def _handle_list_mode(
-    client: ZoomClient,
-    selector: RecordingSelector,
-    meeting_id: str,
-    recording_id: str | None,
-    formatter: OutputFormatter,
-    json_mode: bool = False,
-) -> None:
-    """Handle --list mode: List all recordings for meeting"""
-
-    # Enable silent mode if JSON to suppress intermediate messages
-    if json_mode:
-        formatter.set_silent(True)
-
-    formatter.output_info(f"Fetching recordings for meeting {meeting_id}...")
-    recordings = client.get_meeting_recordings(meeting_id)
-
-    meetings = recordings.get("meetings", [])
-
-    if not meetings:
-        # Single meeting response
-        if recordings.get("recording_files"):
-            meetings = [recordings]
-        else:
-            formatter.output_error("No recordings found")
-            sys.exit(1)
-
-    # Output as JSON if json_mode
-    if json_mode:
-        import json
-
-        result = {
-            "status": "success",
-            "command": "list",
-            "meeting_id": meeting_id,
-            "total_instances": len(meetings),
-            "instances": [
-                {
-                    "uuid": m.get("uuid"),
-                    "start_time": m.get("start_time"),
-                    "duration": m.get("duration"),
-                    "has_recording": bool(m.get("recording_files")),
-                    "recording_status": (
-                        m.get("recording_files", [{}])[0].get("status", "completed")
-                        if m.get("recording_files")
-                        else "not_found"
-                    ),
-                    "recording_files": [
-                        f.get("recording_type") or f.get("file_type")
-                        for f in m.get("recording_files", [])
-                    ],
-                }
-                for m in meetings
-            ],
-        }
-        print(json.dumps(result, indent=2))
-        return
-
-    # Output list of recordings (human-readable)
-    console.print(f"\n[bold]Recordings for Meeting {meeting_id}[/bold]")
-    console.print(f"Total instances: {len(meetings)}\n")
-
-    for idx, meeting in enumerate(meetings, 1):
-        console.print(f"[cyan]{idx}.[/cyan] {meeting.get('topic', 'N/A')}")
-        console.print(f"   UUID: {meeting.get('uuid', 'N/A')}")
-        console.print(f"   Start: {meeting.get('start_time', 'N/A')}")
-        console.print(f"   Duration: {meeting.get('duration', 0)} minutes")
-        console.print(f"   Files: {len(meeting.get('recording_files', []))}")
-        console.print()
+# _handle_list_mode removed in v0.2.0; use `dlzoom recordings --meeting-id` instead
 
 
 def _handle_check_availability(

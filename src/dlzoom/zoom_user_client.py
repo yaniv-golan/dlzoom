@@ -83,30 +83,67 @@ class ZoomUserClient:
         endpoint: str,
         params: dict[str, Any] | None = None,
         retry_on_401: bool = True,
+        retry_count: int = 3,
+        backoff_factor: float = 1.0,
     ) -> dict[str, Any]:
         self._maybe_refresh()
         url = f"{self.base_url}/{endpoint}"
-        try:
-            resp = requests.request(
-                method,
-                url,
-                headers=self._auth_headers(),
-                params=params,
-                timeout=30,
-            )
-            if resp.status_code == 401 and retry_on_401:
-                # Try one refresh then retry
-                logging.info("Access token expired, attempting refresh...")
-                self._refresh_tokens()
+        for attempt in range(retry_count):
+            try:
                 resp = requests.request(
-                    method, url, headers=self._auth_headers(), params=params, timeout=30
+                    method,
+                    url,
+                    headers=self._auth_headers(),
+                    params=params,
+                    timeout=30,
                 )
-            resp.raise_for_status()
-            return resp.json()
-        except requests.exceptions.HTTPError as e:
-            raise ZoomUserAPIError(f"Zoom API error: {e}") from e
-        except Exception as e:
-            raise ZoomUserAPIError(f"Network error: {e}") from e
+
+                # Handle rate limiting and server errors with exponential backoff
+                if resp.status_code in (429, 500, 502, 503, 504):
+                    if attempt < retry_count - 1:
+                        wait_time = backoff_factor * (2**attempt)
+                        status_name = (
+                            "Rate limit" if resp.status_code == 429 else "Server error"
+                        )
+                        logging.warning(
+                            f"{status_name} (HTTP {resp.status_code}), retrying in {wait_time}s "
+                            f"(attempt {attempt + 1}/{retry_count})"
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        if resp.status_code == 429:
+                            raise ZoomUserAPIError("Rate limit exceeded")
+                        raise ZoomUserAPIError(
+                            f"Server error (HTTP {resp.status_code}) after {retry_count} retries"
+                        )
+
+                if resp.status_code == 401 and retry_on_401:
+                    logging.info("Access token expired, attempting refresh...")
+                    self._refresh_tokens()
+                    resp = requests.request(
+                        method,
+                        url,
+                        headers=self._auth_headers(),
+                        params=params,
+                        timeout=30,
+                    )
+                resp.raise_for_status()
+                return resp.json()
+            except requests.exceptions.HTTPError as e:
+                raise ZoomUserAPIError(f"Zoom API error: {e}") from e
+            except Exception as e:
+                # Network errors: try again with backoff if attempts remain
+                if attempt < retry_count - 1:
+                    wait_time = backoff_factor * (2**attempt)
+                    logging.warning(
+                        f"Network error ({type(e).__name__}), retrying in {wait_time}s "
+                        f"(attempt {attempt + 1}/{retry_count})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                raise ZoomUserAPIError(f"Network error: {e}") from e
+        raise ZoomUserAPIError("Max retries exceeded")
 
     # Public API (mirror subset used by CLI)
     @staticmethod
@@ -160,6 +197,11 @@ class ZoomUserClient:
         if next_page_token:
             params["next_page_token"] = next_page_token
         return self._request("GET", endpoint, params=params)
+
+    def get_meeting(self, meeting_id: str) -> dict[str, Any]:
+        """Get meeting details (requires meeting:read scope)."""
+        endpoint = f"meetings/{meeting_id}"
+        return self._request("GET", endpoint)
 
 
 class ZoomUserAPIError(Exception):

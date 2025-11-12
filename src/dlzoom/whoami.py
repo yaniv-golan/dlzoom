@@ -56,19 +56,44 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
             client = ZoomUserClient(tokens, str(cfg.tokens_path))
             mode = "User OAuth"
 
-        user = client.get_current_user()
+        user = None
+        profile_supported = True
+        try:
+            user = client.get_current_user()
+        except Exception:
+            # Some tokens (e.g., our user OAuth scopes) may not include profile-read scopes.
+            # Fall back to a capability check using recordings (within granted scopes).
+            profile_supported = False
+            try:
+                # Minimal sanity call: list 1 recording page to validate token works
+                _ = client.get_user_recordings(user_id="me", page_size=1)
+            except Exception as e:
+                raise ZoomAPIError(f"Failed to verify token with recordings: {e}")
 
         if json_mode:
-            print(json.dumps({"status": "success", "mode": mode, "user": user}, indent=2))
+            out: dict[str, Any] = {"status": "success", "mode": mode}
+            if user is not None:
+                out["user"] = user
+            else:
+                out["user"] = None
+                out["note"] = (
+                    "Token valid, but profile endpoint not permitted by current scopes"
+                )
+            print(json.dumps(out, indent=2))
             return
 
         console.print(f"[bold]Auth:[/bold] {mode}")
-        name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or "N/A"
-        console.print(f"[bold]Name:[/bold] {name}")
-        console.print(f"[bold]Email:[/bold] {user.get('email', 'N/A')}")
-        console.print(f"[bold]User ID:[/bold] {user.get('id', 'N/A')}")
-        if use_s2s:
-            console.print(f"[bold]Account ID:[/bold] {user.get('account_id', 'N/A')}")
+        if user is not None:
+            name = f"{user.get('first_name','')} {user.get('last_name','')}".strip() or "N/A"
+            console.print(f"[bold]Name:[/bold] {name}")
+            console.print(f"[bold]Email:[/bold] {user.get('email', 'N/A')}")
+            console.print(f"[bold]User ID:[/bold] {user.get('id', 'N/A')}")
+            if use_s2s:
+                console.print(f"[bold]Account ID:[/bold] {user.get('account_id', 'N/A')}")
+        else:
+            console.print(
+                "Token is valid (recordings accessible), but profile details are not available with current scopes."
+            )
 
     except ConfigError as e:
         if json_mode:

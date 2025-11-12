@@ -324,6 +324,14 @@ class ZoomClient:
 
         return self._make_request("GET", endpoint, params=params)
 
+    def get_meeting(self, meeting_id: str) -> dict[str, Any]:
+        """Get meeting details (requires meeting:read scope for user tokens).
+
+        Returns an object that may contain a 'type' field indicating recurrence.
+        """
+        endpoint = f"meetings/{meeting_id}"
+        return self._make_request("GET", endpoint)
+
     def get_current_user(self) -> dict[str, Any]:
         """Get information about the current Zoom user ("users/me")."""
         endpoint = "users/me"
