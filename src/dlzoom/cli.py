@@ -217,7 +217,7 @@ def recordings(
     verbose: bool,
     debug: bool,
     config: str | None,
-):
+) -> None:
     # Setup logging and formatter
     log_level = "DEBUG" if debug else ("INFO" if verbose else "WARNING")
     setup_logging(level=log_level, verbose=debug or verbose)

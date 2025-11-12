@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import requests
 
@@ -19,8 +19,8 @@ from dlzoom.token_store import save as save_tokens
 class ZoomUserClient:
     def __init__(self, tokens: Tokens, tokens_path: str | None = None):
         self.base_url = "https://api.zoom.us/v2"
-        self._tokens = tokens
-        self._tokens_path = tokens_path
+        self._tokens: Tokens = tokens
+        self._tokens_path: str | None = tokens_path
         # In-process simple lock for refresh single-flight
         from threading import Lock
 
@@ -38,7 +38,7 @@ class ZoomUserClient:
     def _get_access_token(self) -> str:
         """Provide current access token (refresh if needed) for downloader compatibility."""
         self._maybe_refresh()
-        return self._tokens.access_token
+        return str(self._tokens.access_token)
 
     def _refresh_tokens(self) -> None:
         url = f"{self._tokens.auth_url.rstrip('/')}/zoom/token/refresh"
@@ -141,7 +141,7 @@ class ZoomUserClient:
                     )
                     logging.debug("Zoom API response after refresh: HTTP %s", resp.status_code)
                 resp.raise_for_status()
-                data = resp.json()
+                data = cast(dict[str, Any], resp.json())
                 logging.debug(
                     "Zoom API ok: keys=%s",
                     (list(data.keys()) if isinstance(data, dict) else type(data).__name__),
