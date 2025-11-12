@@ -576,6 +576,8 @@ dlzoom download 123456789 --config config.yaml
 - ffmpeg (for audio extraction)
 - Zoom account (User OAuth via `dlzoom login`) or S2S OAuth app (optional)
 
+Security note (tokens): On Windows, file permission enforcement for `tokens.json` is best‑effort. Treat your token file as sensitive and ensure your user profile is protected.
+
 ## Development
 
 ```bash

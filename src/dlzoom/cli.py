@@ -328,11 +328,19 @@ def recordings(
     from collections import Counter
     id_counts = Counter(m.get("id") for m in items)
 
-    # Optional enrichment via meeting:read or S2S
+    # Optional enrichment via meeting:read or S2S (gate to avoid excess calls)
+    enrichment_budget = 50  # cap number of meeting lookups per command
     def _is_recurring_definitive(mid: Any) -> bool | None:
         try:
             if not mid:
                 return None
+            # Only enrich if heuristic would be false (single occurrence) and budget remains
+            if id_counts.get(mid, 0) > 1:
+                return None
+            nonlocal enrichment_budget
+            if enrichment_budget <= 0:
+                return None
+            enrichment_budget -= 1
             details = client.get_meeting(str(mid))
             mtype = details.get("type")
             if isinstance(mtype, int) and mtype in (3, 8):

@@ -162,3 +162,32 @@ jobs:
         format: 'table'
         severity: 'CRITICAL,HIGH'
         ignore-unfixed: true
+
+  sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate SBOM for source (SPDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          output-file: sbom-source.spdx.json
+
+      - name: Build Docker image
+        run: docker build -t dlzoom:test .
+
+      - name: Generate SBOM for Docker image (SPDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          image: dlzoom:test
+          output-file: sbom-image.spdx.json
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            sbom-source.spdx.json
+            sbom-image.spdx.json
