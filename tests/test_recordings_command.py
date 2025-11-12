@@ -1,4 +1,5 @@
 import json
+
 from click.testing import CliRunner
 
 from dlzoom.cli import cli as dlzoom_cli

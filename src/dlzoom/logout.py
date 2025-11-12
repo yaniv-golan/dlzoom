@@ -10,7 +10,6 @@ from rich.console import Console
 from dlzoom.config import Config
 from dlzoom.token_store import clear as clear_tokens
 
-
 console = Console()
 
 

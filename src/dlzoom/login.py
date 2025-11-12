@@ -13,8 +13,8 @@ import rich_click as click
 from rich.console import Console
 
 from dlzoom.config import Config
-from dlzoom.token_store import Tokens, save as save_tokens
-
+from dlzoom.token_store import Tokens
+from dlzoom.token_store import save as save_tokens
 
 console = Console()
 

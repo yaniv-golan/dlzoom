@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 import requests
 
-from dlzoom.token_store import Tokens, save as save_tokens
+from dlzoom.token_store import Tokens
+from dlzoom.token_store import save as save_tokens
 
 
 class ZoomUserClient:

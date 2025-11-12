@@ -17,7 +17,7 @@ from typing import Any
 from rich.console import Console
 
 from dlzoom.audio_extractor import AudioExtractor
-from dlzoom.downloader import DownloadError, Downloader
+from dlzoom.downloader import Downloader, DownloadError
 from dlzoom.exceptions import (
     DlzoomError,
     FFmpegNotFoundError,
@@ -28,7 +28,6 @@ from dlzoom.output import OutputFormatter
 from dlzoom.recorder_selector import RecordingSelector
 from dlzoom.templates import TemplateParser
 from dlzoom.zoom_client import ZoomAPIError, ZoomClient
-
 
 console = Console()
 
@@ -119,10 +118,10 @@ def _handle_check_availability(
 
                         if not wait:
                             formatter.output_info(
-                                (
+
                                     "Recording is still processing. Use --wait to wait "
                                     "until it's ready."
-                                )
+
                             )
                             return
 
@@ -151,11 +150,11 @@ def _handle_check_availability(
 
                         if not json_mode:
                             formatter.output_info(
-                                (
+
                                     "Recording is processing; checking again in "
                                     f"{poll_interval} seconds (time left: "
                                     f"{remaining // 60}m {remaining % 60}s)"
-                                )
+
                             )
                         time.sleep(poll_interval)
                         continue
@@ -463,11 +462,11 @@ def _handle_download_mode(
             print(_json.dumps(dry_run_result, indent=2))
         else:
             formatter.output_info(
-                (
+
                     "Dry run: would download "
                     f"{len(recording_files)} files totaling ~"
                     f"{total_size / (1024 * 1024):.1f} MB"
-                )
+
             )
         return
 

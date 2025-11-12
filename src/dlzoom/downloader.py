@@ -358,10 +358,10 @@ class Downloader:
                                 "File may be corrupted."
                             )
                             raise DownloadError(
-                                (
+
                                     "Downloaded file size mismatch for "
                                     f"{filename}: expected {expected_size}, got {actual_size}"
-                                )
+
                             )
 
                 # Move temp file to final location (atomic operation)

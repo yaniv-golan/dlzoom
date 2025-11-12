@@ -15,10 +15,9 @@ from rich.console import Console
 from dlzoom.config import Config, ConfigError
 from dlzoom.exceptions import DlzoomError
 from dlzoom.output import OutputFormatter
+from dlzoom.token_store import load as load_tokens
 from dlzoom.zoom_client import ZoomAPIError, ZoomClient
 from dlzoom.zoom_user_client import ZoomUserClient
-from dlzoom.token_store import load as load_tokens
-
 
 console = Console()
 

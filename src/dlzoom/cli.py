@@ -18,21 +18,21 @@ from typing import Any
 import rich_click as click
 from rich.console import Console
 
+import dlzoom.handlers as _h
 from dlzoom import __version__
 from dlzoom.audio_extractor import AudioExtractionError
 from dlzoom.config import Config, ConfigError
 from dlzoom.downloader import DownloadError
 from dlzoom.exceptions import DlzoomError
 from dlzoom.logger import setup_logging
-from dlzoom.output import OutputFormatter
-from dlzoom.recorder_selector import RecordingSelector
-from dlzoom.zoom_client import ZoomAPIError, ZoomClient
-from dlzoom.zoom_user_client import ZoomUserAPIError, ZoomUserClient
-from dlzoom.token_store import load as load_tokens
 from dlzoom.login import main as login_main
 from dlzoom.logout import main as logout_main
+from dlzoom.output import OutputFormatter
+from dlzoom.recorder_selector import RecordingSelector
+from dlzoom.token_store import load as load_tokens
 from dlzoom.whoami import main as whoami_main
-import dlzoom.handlers as _h
+from dlzoom.zoom_client import ZoomAPIError, ZoomClient
+from dlzoom.zoom_user_client import ZoomUserAPIError, ZoomUserClient
 
 # Rich-click configuration
 # Switch to text markup (use_rich_markup is deprecated)
