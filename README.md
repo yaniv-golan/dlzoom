@@ -125,6 +125,9 @@ This opens your browser to approve access and stores a short‑lived token local
 
 Alternatively, organizational users can configure Server‑to‑Server (S2S) OAuth using environment variables or a config file.
 
+Host your own broker (optional)
+- The CLI uses a hosted sign‑in broker by default. To self‑host, deploy the worker under `zoom-broker/` (see that README), then point dlzoom to your URL via the `--auth-url` option or environment variable when logging in.
+
 ### 2. Configure S2S Credentials (Optional)
 
 Create a `.env` file in your working directory:
@@ -271,10 +274,10 @@ dlzoom logout
 
 ### Optional Permissions (Advanced)
 
-dlzoom works with minimal permissions by default. You can optionally add these to improve fidelity:
+dlzoom works with minimal permissions by default. You can optionally add these to improve fidelity (Zoom granular scopes shown):
 
-- `meeting:read` (user-managed OAuth): allows `recordings` to definitively mark recurring meetings by checking meeting type; without it, recurrence is inferred only within the fetched date range.
-- `user:read` (user-managed OAuth): allows `whoami` to show your name/email when using user tokens.
+- `meeting:read:meeting` (user-managed OAuth): allows `recordings` to definitively mark recurring meetings by checking meeting type; without it, recurrence is inferred only within the fetched date range.
+- `user:read:user` (user-managed OAuth): allows `whoami` to show your name/email when using user tokens.
 
 Behavior degrades gracefully if these are not enabled.
 ```
@@ -682,6 +685,9 @@ docs: update installation instructions
 
 For detailed guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Code of Conduct
+- See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
 ## Security
 
 Security is important to us. If you discover a security vulnerability:
@@ -719,3 +725,31 @@ Built with:
 ## Acknowledgments
 
 Thanks to all contributors and the open source community.
+## Architecture
+
+This is a **monorepo** containing two independently deployable components:
+
+### Repository Structure
+
+```
+dlzoom/
+├── src/dlzoom/           # Python CLI (primary deliverable)
+├── tests/                # Python test suite
+├── zoom-broker/          # Cloudflare Worker (OAuth broker)
+├── docs/                 # Documentation
+│   ├── architecture.md   # Detailed architecture overview
+│   └── zoom-app/         # Zoom App marketplace docs
+└── pyproject.toml        # Python package configuration
+```
+
+**Components:**
+- **Python CLI** (`src/dlzoom/`): Command-line tool to browse and download Zoom cloud recordings. Published to PyPI as `dlzoom`.
+- **OAuth Broker** (`zoom-broker/`): Cloudflare Worker that performs OAuth code exchange and token refresh on behalf of the CLI. Optional component for user OAuth mode.
+
+**Why a monorepo?**
+- Simplified development workflow (single repo to clone, single issue tracker)
+- Shared documentation and versioning strategy
+- Python CLI is the primary deliverable; broker is a supporting service
+- Each component remains independently deployable
+
+📖 **See [`docs/architecture.md`](docs/architecture.md) for detailed architecture, data flows, security model, and deployment options.**

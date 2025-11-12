@@ -46,13 +46,21 @@ dlzoom implements several security measures to protect your credentials and data
 - **Regular updates:** Dependencies are kept up-to-date
 - **Minimal dependencies:** Only essential dependencies are included
 
-### 6. Docker Security
+### 6. OAuth Broker Security (Cloudflare Worker)
+
+- Confidential client: The broker holds the Zoom client secret and performs the Authorization Code exchange and token refresh on behalf of the CLI.
+- Short‑lived storage: Authorization results and tokens are stored briefly in KV (≤ 10 minutes) to complete login; the CLI persists refreshed tokens locally under the user config directory.
+- CORS: Endpoints allow CLI access; deployments can restrict origin via `ALLOWED_ORIGIN`.
+- Endpoints: See `zoom-broker/README.md` for `/zoom/auth/start`, `/callback`, `/zoom/auth/poll`, and `/zoom/token/refresh`.
+- Self‑hosting: If you deploy your own broker, you are responsible for securing the Worker, secrets (`ZOOM_CLIENT_ID`/`ZOOM_CLIENT_SECRET`), and KV namespace. Always use HTTPS and restrict CORS where possible.
+
+### 7. Docker Security
 
 - **Non-root user:** Docker containers run as non-root user (UID 1000)
 - **Minimal base image:** Uses `python:3.11-slim` for smaller attack surface
 - **Multi-stage builds:** Build dependencies not included in final image
 - **Regular scanning:** Docker images scanned with Trivy on every build
-- **SBOM generation:** Software Bill of Materials available for images (planned)
+- **SBOM generation:** Software Bill of Materials generated during release and attached as artifacts.
 
 ## Reporting a Vulnerability
 
@@ -252,12 +260,12 @@ dlzoom 123456789 --output-dir ~/zoom-recordings
 
 Our CI/CD pipeline runs multiple security scans:
 
-#### 1. Dependency Scanning
+#### 1. Dependency Scanning (Python and Node)
 
-- **Tool:** Trivy (filesystem scan)
-- **Frequency:** Every push/PR
-- **Scope:** Python dependencies in requirements
-- **Results:** Uploaded to GitHub Security tab
+- Tool: Trivy (filesystem scan)
+- Frequency: Every push/PR
+- Scope: Python and Node dependencies (CLI and broker)
+- Results: Uploaded to GitHub Security tab
 
 #### 2. Docker Image Scanning
 
@@ -291,6 +299,9 @@ pip-audit
 # Scan Docker image
 docker build -t dlzoom:test .
 docker run --rm aquasec/trivy image dlzoom:test
+
+# Scan Node dependencies (broker)
+trivy fs --severity CRITICAL,HIGH zoom-broker
 ```
 
 ## Vulnerability Response
