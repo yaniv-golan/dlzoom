@@ -28,6 +28,7 @@ from dlzoom.output import OutputFormatter
 from dlzoom.recorder_selector import RecordingSelector
 from dlzoom.templates import TemplateParser
 from dlzoom.zoom_client import ZoomAPIError, ZoomClient
+from dlzoom.zoom_user_client import ZoomUserClient
 
 console = Console()
 
@@ -37,7 +38,7 @@ def json_dumps(data: Any) -> str:
 
 
 def _handle_check_availability(
-    client: ZoomClient,
+    client: ZoomClient | ZoomUserClient,
     selector: RecordingSelector,
     meeting_id: str,
     recording_id: str | None,
@@ -185,7 +186,7 @@ def _handle_check_availability(
 
 
 def _handle_batch_download(
-    client: ZoomClient,
+    client: ZoomClient | ZoomUserClient,
     selector: RecordingSelector,
     from_date: str | None,
     to_date: str | None,
@@ -335,7 +336,7 @@ def _handle_batch_download(
 
 
 def _handle_download_mode(
-    client: ZoomClient,
+    client: ZoomClient | ZoomUserClient,
     selector: RecordingSelector,
     meeting_id: str,
     recording_id: str | None,
@@ -470,7 +471,11 @@ def _handle_download_mode(
 
     audio_file = selector.select_best_audio(recording_files)
     if not audio_file:
-        video_file = selector.select_best_video(recording_files)
+        # Fallback: pick an MP4 video to extract audio from
+        video_file = next(
+            (f for f in recording_files if str(f.get("file_extension", "")).upper() == "MP4"),
+            None,
+        )
         if not video_file:
             raise NoAudioAvailableError(
                 "No audio available",

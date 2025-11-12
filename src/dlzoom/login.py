@@ -31,7 +31,7 @@ def _normalize_auth_url(url: str) -> str:
 def main(auth_url: str | None) -> None:
     """Authenticate with Zoom. Opens your browser for approval."""
     cfg = Config()
-    base_auth = _normalize_auth_url(auth_url) if auth_url else cfg.auth_url
+    base_auth: str = _normalize_auth_url(auth_url) if auth_url else str(cfg.auth_url)
 
     # Start auth
     start_url = f"{base_auth}/zoom/auth/start"

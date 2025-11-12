@@ -36,7 +36,7 @@ from dlzoom.zoom_user_client import ZoomUserAPIError, ZoomUserClient
 
 # Rich-click configuration
 # Switch to text markup (use_rich_markup is deprecated)
-click.rich_click.TEXT_MARKUP = True
+click.rich_click.TEXT_MARKUP = "rich"
 click.rich_click.SHOW_ARGUMENTS = True
 click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
 
@@ -589,6 +589,7 @@ def download(
             output_name = safe_name
 
         # Initialize client per auth mode
+        client: ZoomClient | ZoomUserClient
         if use_s2s:
             cfg.validate()
             client = ZoomClient(
