@@ -55,7 +55,7 @@ def _autoload_dotenv() -> None:
     try:
         if os.getenv("DLZOOM_NO_DOTENV"):
             return
-        from dotenv import load_dotenv, find_dotenv
+        from dotenv import find_dotenv, load_dotenv
 
         dotenv_path = find_dotenv(usecwd=True)
         if dotenv_path:

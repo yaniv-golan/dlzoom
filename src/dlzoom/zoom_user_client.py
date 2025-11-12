@@ -85,12 +85,12 @@ class ZoomUserClient:
     def _auth_headers(self, include_content_type: bool = False) -> dict[str, str]:
         """
         Build authentication headers.
-        
+
         Args:
             include_content_type: Only set Content-Type for methods with body (POST, PUT, PATCH)
         """
         from dlzoom import __version__
-        
+
         headers = {
             "Authorization": f"Bearer {self._tokens.access_token}",
             "User-Agent": f"dlzoom/{__version__} (https://github.com/yaniv-golan/dlzoom)",

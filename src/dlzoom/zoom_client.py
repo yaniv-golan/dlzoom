@@ -166,7 +166,6 @@ class ZoomClient:
         """Make authenticated API request with retry logic"""
         url = f"{self.base_url}/{endpoint}"
         from dlzoom import __version__
-        
         headers = {
             "Authorization": f"Bearer {self._get_access_token()}",
             "Accept": "application/json",
@@ -200,7 +199,7 @@ class ZoomClient:
                             except Exception:
                                 retry_after_val = None
 
-                            if isinstance(retry_after_val, (str, bytes)):
+                            if isinstance(retry_after_val, str | bytes):
                                 try:
                                     s = (
                                         retry_after_val.decode()
@@ -291,10 +290,10 @@ class ZoomClient:
                     # Recordings API: /meetings/{meetingId}/recordings or /recordings/*
                     endpoint_lower = endpoint.lower()
                     is_meeting_endpoint = (
-                        endpoint_lower.startswith("meetings/") 
+                        endpoint_lower.startswith("meetings/")
                         and "/recordings" not in endpoint_lower
                     )
-                    
+
                     if is_meeting_endpoint:
                         raise MeetingNotFoundError(
                             "Meeting not found",
