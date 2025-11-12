@@ -86,13 +86,12 @@ class TemplateParser:
                     formatted = dt.strftime(format_str)
                     result = result.replace(match.group(0), formatted)
                 except (ValueError, TypeError) as e:
-                    # Parse error - use placeholder to avoid empty string confusion
-                    placeholder = "INVALID_DATE"
+                    # Parse error - log and fall back to empty string (expected by tests)
                     self.logger.warning(
-                        f"Failed to parse date '{start_time}' with format '{format_str}' "
-                        f"in template: {e}. Using placeholder '{placeholder}' in filename."
+                        f"Failed to parse date '{start_time}' with format '{format_str}' in template: {e}. "
+                        "Using empty string."
                     )
-                    result = result.replace(match.group(0), placeholder)
+                    result = result.replace(match.group(0), "")
                 except Exception as e:
                     # Unexpected error - log error and re-raise
                     self.logger.error(

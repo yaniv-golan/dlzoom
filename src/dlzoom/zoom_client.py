@@ -191,19 +191,31 @@ class ZoomClient:
                     if attempt < retry_count - 1:
                         # For rate limits, use Retry-After header if provided
                         if response.status_code == 429:
-                            retry_after = response.headers.get("Retry-After")
-                            if retry_after and retry_after.isdigit():
-                                wait_time = int(retry_after)
-                                logging.warning(
-                                    f"Rate limit (HTTP 429), Retry-After: {wait_time}s "
-                                    f"(attempt {attempt + 1}/{retry_count})"
-                                )
-                            else:
-                                wait_time = backoff_factor * (2**attempt)
-                                logging.warning(
-                                    f"Rate limit (HTTP 429), backing off {wait_time}s "
-                                    f"(attempt {attempt + 1}/{retry_count})"
-                                )
+                            wait_time = backoff_factor * (2**attempt)
+                            retry_after_val = None
+                            try:
+                                hdrs = getattr(response, "headers", None)
+                                if hdrs:
+                                    retry_after_val = hdrs.get("Retry-After")
+                            except Exception:
+                                retry_after_val = None
+
+                            if isinstance(retry_after_val, (str, bytes)):
+                                try:
+                                    s = (
+                                        retry_after_val.decode()
+                                        if isinstance(retry_after_val, bytes)
+                                        else retry_after_val
+                                    ).strip()
+                                    if s.isdigit():
+                                        wait_time = int(s)
+                                except Exception:
+                                    # Ignore parse errors; keep exponential backoff
+                                    pass
+                            logging.warning(
+                                f"Rate limit (HTTP 429), retrying in {wait_time}s "
+                                f"(attempt {attempt + 1}/{retry_count})"
+                            )
                         else:
                             wait_time = backoff_factor * (2**attempt)
                             logging.warning(
