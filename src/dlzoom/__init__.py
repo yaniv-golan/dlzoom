@@ -2,7 +2,13 @@
 dlzoom - Download Zoom cloud recordings via API
 """
 
-__version__ = "0.2.0"
+try:
+    from importlib.metadata import PackageNotFoundError, version
+
+    __version__ = version("dlzoom")
+except Exception:
+    # Fallback for editable/uninstalled checkouts
+    __version__ = "0.dev0"
 __author__ = "dlzoom"
 __description__ = "CLI tool to download Zoom cloud recordings and extract audio for transcription"
 
