@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "python"]
+    groups:
+      python-minor-patches:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    rebase-strategy: disabled
+
+  - package-ecosystem: npm
+    directory: "/zoom-broker"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    labels: ["dependencies", "javascript"]
+    groups:
+      npm-minor-patches:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    rebase-strategy: disabled
+
