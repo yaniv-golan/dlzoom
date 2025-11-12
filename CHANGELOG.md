@@ -211,8 +211,6 @@ This is the first stable release of dlzoom. The tool is production-ready for:
 - Containerized deployments
 
 Report issues at: <https://github.com/yaniv-golan/dlzoom/issues>
-
-[0.1.0]: https://github.com/yaniv-golan/dlzoom/releases/tag/v0.1.0
 ## [0.2.0] - 2025-11-12
 
 User‑facing release focused on a clearer CLI, optional user OAuth, and safer downloads.
@@ -242,3 +240,6 @@ User‑facing release focused on a clearer CLI, optional user OAuth, and safer d
 
 ### Migration
 - Replace any `dlzoom download <id> --list` usage with `dlzoom recordings --meeting-id <id>`.
+
+[0.1.0]: https://github.com/yaniv-golan/dlzoom/releases/tag/v0.1.0
+[0.2.0]: https://github.com/yaniv-golan/dlzoom/compare/v0.1.0...v0.2.0
