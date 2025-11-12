@@ -162,7 +162,7 @@ jobs:
         fi
 
     - name: Run Trivy security scanner
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@v0.24.0
       continue-on-error: true
       with:
         image-ref: 'dlzoom:test'
@@ -186,7 +186,7 @@ jobs:
         sarif_file: 'trivy-results.sarif'
 
     - name: Run Trivy scanner (fail on high/critical)
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@v0.24.0
       with:
         image-ref: 'dlzoom:test'
         exit-code: '1'
@@ -272,6 +272,40 @@ jobs:
 
     - name: Build package
       run: python -m build
+
+    - name: Generate SBOM (SPDX JSON)
+      uses: anchore/sbom-action@v0
+      with:
+        path: ./
+        format: spdx-json
+        output-file: dlzoom-sbom.spdx.json
+
+    - name: Generate SBOM (CycloneDX JSON, optional)
+      uses: anchore/sbom-action@v0
+      with:
+        path: ./
+        format: cyclonedx-json
+        output-file: dlzoom-sbom.cdx.json
+
+    - name: Upload SBOM (SPDX) to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./dlzoom-sbom.spdx.json
+        asset_name: dlzoom-${{ github.event.release.tag_name }}-sbom.spdx.json
+        asset_content_type: application/json
+
+    - name: Upload SBOM (CycloneDX) to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./dlzoom-sbom.cdx.json
+        asset_name: dlzoom-${{ github.event.release.tag_name }}-sbom.cdx.json
+        asset_content_type: application/json
 
     - name: Upload wheel to release
       uses: actions/upload-release-asset@v1
