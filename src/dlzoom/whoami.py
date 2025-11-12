@@ -74,9 +74,7 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
                 out["user"] = user
             else:
                 out["user"] = None
-                out["note"] = (
-                    "Token valid, but profile endpoint not permitted by current scopes"
-                )
+                out["note"] = "Token valid, but profile endpoint not permitted by current scopes"
             print(json.dumps(out, indent=2))
             return
 

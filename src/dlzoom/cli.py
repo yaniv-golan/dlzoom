@@ -133,6 +133,7 @@ def cli() -> None:
     """Top-level Click group."""
     pass
 
+
 # Register subcommands from other modules
 cli.add_command(login_main, name="login")
 cli.add_command(logout_main, name="logout")
@@ -144,6 +145,7 @@ def _validate_date(ctx: click.Context, param: click.Parameter, value: str | None
         return None
     import re as _re
     from datetime import datetime as _dt
+
     if not _re.match(r"^\d{4}-\d{2}-\d{2}$", value):
         raise click.BadParameter(f"Date must be YYYY-MM-DD, got: {value}")
     try:
@@ -155,6 +157,7 @@ def _validate_date(ctx: click.Context, param: click.Parameter, value: str | None
 
 def _calc_range(range_opt: str) -> tuple[str, str]:
     from datetime import datetime, timedelta
+
     today = datetime.now().date()
     if range_opt == "today":
         f = t = today
@@ -236,6 +239,7 @@ def recordings(
         from_date, to_date = _calc_range(range_opt)
     if from_date and to_date:
         from datetime import datetime
+
         fdt = datetime.strptime(from_date, "%Y-%m-%d")
         tdt = datetime.strptime(to_date, "%Y-%m-%d")
         if fdt > tdt:
@@ -369,10 +373,12 @@ def recordings(
 
     # Recurring indicator (heuristic)
     from collections import Counter
+
     id_counts = Counter(m.get("id") for m in items)
 
     # Optional enrichment via meeting:read or S2S (gate to avoid excess calls)
     enrichment_budget = 50  # cap number of meeting lookups per command
+
     def _is_recurring_definitive(mid: Any) -> bool | None:
         try:
             if not mid:
@@ -427,6 +433,7 @@ def recordings(
         return
 
     from rich.table import Table
+
     table = Table(title="Zoom Recordings")
     table.add_column("Topic", style="green")
     table.add_column("Start Time", style="blue")

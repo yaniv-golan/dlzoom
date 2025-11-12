@@ -227,9 +227,7 @@ class Downloader:
             parsed = urlparse(str(download_url))
             host = parsed.netloc.lower()
             if parsed.scheme != "https" or not (host == "zoom.us" or host.endswith(".zoom.us")):
-                raise DownloadError(
-                    f"Refusing to download from untrusted URL: {download_url}"
-                )
+                raise DownloadError(f"Refusing to download from untrusted URL: {download_url}")
         except Exception as e:
             if isinstance(e, DownloadError):
                 raise
@@ -238,10 +236,10 @@ class Downloader:
         # Add access token as query parameter (NOT in Authorization header)
         # This is CRITICAL for password-protected recordings
         from urllib.parse import urlencode
+
         separator = "&" if "?" in download_url else "?"
         url_with_token = (
-            f"{download_url}{separator}"
-            f"{urlencode({'access_token': self.access_token})}"
+            f"{download_url}{separator}" f"{urlencode({'access_token': self.access_token})}"
         )
 
         # Retry loop
@@ -358,10 +356,8 @@ class Downloader:
                                 "File may be corrupted."
                             )
                             raise DownloadError(
-
-                                    "Downloaded file size mismatch for "
-                                    f"{filename}: expected {expected_size}, got {actual_size}"
-
+                                "Downloaded file size mismatch for "
+                                f"{filename}: expected {expected_size}, got {actual_size}"
                             )
 
                 # Move temp file to final location (atomic operation)

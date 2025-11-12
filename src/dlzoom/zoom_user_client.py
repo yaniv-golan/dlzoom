@@ -115,9 +115,7 @@ class ZoomUserClient:
                 if resp.status_code in (429, 500, 502, 503, 504):
                     if attempt < retry_count - 1:
                         wait_time = backoff_factor * (2**attempt)
-                        status_name = (
-                            "Rate limit" if resp.status_code == 429 else "Server error"
-                        )
+                        status_name = "Rate limit" if resp.status_code == 429 else "Server error"
                         logging.warning(
                             f"{status_name} (HTTP {resp.status_code}), retrying in {wait_time}s "
                             f"(attempt {attempt + 1}/{retry_count})"

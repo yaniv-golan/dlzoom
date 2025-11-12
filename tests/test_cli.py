@@ -103,4 +103,3 @@ class TestOutputNameSanitization:
         assert parser._sanitize_filename("/abc123") == "abc123"
         assert parser._sanitize_filename("abc/def") == "abc_def"
         assert parser._sanitize_filename("//abc//def//") == "abc_def"
-
