@@ -533,8 +533,8 @@ def _handle_download_mode(
         )
         downloaded_files.extend([f for f in transcript_files.values() if f])
 
-    participants = []
-    if meeting_uuid:
+    participants: list[dict[str, Any]] = []
+    if meeting_uuid and isinstance(client, ZoomClient):
         try:
             formatter.output_info("Fetching participant information...")
             participants = client.get_all_participants(meeting_uuid)
