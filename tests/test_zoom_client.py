@@ -9,7 +9,6 @@ import requests
 
 from dlzoom.exceptions import AuthenticationError, RateLimitedError
 from dlzoom.zoom_client import ZoomAPIError, ZoomClient
-from unittest.mock import patch
 
 
 class TestCredentialProtection:

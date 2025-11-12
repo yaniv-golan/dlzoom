@@ -239,7 +239,10 @@ class Downloader:
         # This is CRITICAL for password-protected recordings
         from urllib.parse import urlencode
         separator = "&" if "?" in download_url else "?"
-        url_with_token = f"{download_url}{separator}{urlencode({'access_token': self.access_token})}"
+        url_with_token = (
+            f"{download_url}{separator}"
+            f"{urlencode({'access_token': self.access_token})}"
+        )
 
         # Retry loop
         for attempt in range(retry_count):
@@ -355,7 +358,10 @@ class Downloader:
                                 "File may be corrupted."
                             )
                             raise DownloadError(
-                                f"Downloaded file size mismatch for {filename}: expected {expected_size}, got {actual_size}"
+                                (
+                                    "Downloaded file size mismatch for "
+                                    f"{filename}: expected {expected_size}, got {actual_size}"
+                                )
                             )
 
                 # Move temp file to final location (atomic operation)

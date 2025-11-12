@@ -12,7 +12,7 @@ from pathlib import Path
 
 import requests
 
-from dlzoom.token_store import Tokens, load as load_tokens, save as save_tokens
+from dlzoom.token_store import Tokens, save as save_tokens
 
 
 class ZoomUserClient:
@@ -143,7 +143,10 @@ class ZoomUserClient:
                     logging.debug("Zoom API response after refresh: HTTP %s", resp.status_code)
                 resp.raise_for_status()
                 data = resp.json()
-                logging.debug("Zoom API ok: keys=%s", list(data.keys()) if isinstance(data, dict) else type(data).__name__)
+                logging.debug(
+                    "Zoom API ok: keys=%s",
+                    (list(data.keys()) if isinstance(data, dict) else type(data).__name__),
+                )
                 return data
             except requests.exceptions.HTTPError as e:
                 raise ZoomUserAPIError(f"Zoom API error: {e}") from e

@@ -51,19 +51,18 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
             tokens = load_tokens(cfg.tokens_path)
             if not tokens:
                 raise ConfigError(
-                    "Not signed in. Run 'dlzoom login' or configure S2S credentials in your environment."
+                    "Not signed in. Run 'dlzoom login' or configure S2S "
+                    "credentials in your environment."
                 )
             client = ZoomUserClient(tokens, str(cfg.tokens_path))
             mode = "User OAuth"
 
         user = None
-        profile_supported = True
         try:
             user = client.get_current_user()
         except Exception:
             # Some tokens (e.g., our user OAuth scopes) may not include profile-read scopes.
             # Fall back to a capability check using recordings (within granted scopes).
-            profile_supported = False
             try:
                 # Minimal sanity call: list 1 recording page to validate token works
                 _ = client.get_user_recordings(user_id="me", page_size=1)
@@ -92,7 +91,8 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
                 console.print(f"[bold]Account ID:[/bold] {user.get('account_id', 'N/A')}")
         else:
             console.print(
-                "Token is valid (recordings accessible), but profile details are not available with current scopes."
+                "Token is valid (recordings accessible), but profile details are not "
+                "available with current scopes."
             )
 
     except ConfigError as e:

@@ -7,7 +7,6 @@ from __future__ import annotations
 import json
 import time
 import webbrowser
-from typing import Optional
 
 import requests
 import rich_click as click
@@ -29,7 +28,7 @@ def _normalize_auth_url(url: str) -> str:
 
 @click.command()
 @click.option("--auth-url", help="Advanced: override authentication service URL (must be https)")
-def main(auth_url: Optional[str]) -> None:
+def main(auth_url: str | None) -> None:
     """Authenticate with Zoom. Opens your browser for approval."""
     cfg = Config()
     base_auth = _normalize_auth_url(auth_url) if auth_url else cfg.auth_url
@@ -60,7 +59,6 @@ def main(auth_url: Optional[str]) -> None:
 
     # Polling strategy: 1s for 10s, 2s up to 2m, 5s up to 10m
     start_time = time.time()
-    attempt = 0
     last_hint = 0.0
     while True:
         elapsed = time.time() - start_time
@@ -93,10 +91,13 @@ def main(auth_url: Optional[str]) -> None:
                 nowt = time.time()
                 if elapsed >= 10 and (nowt - last_hint >= 20):
                     console.print(
-                        "Still waiting for approval... If the flow doesn't proceed or you saw an error page, "
-                        "open this authorization link to continue:\n"
-                        f"[blue]{auth_page}[/blue]\n"
-                        "Then press Ctrl+C here and run 'dlzoom login' again."
+                        (
+                            "Still waiting for approval... If the flow doesn't proceed "
+                            "or you saw an error page, "
+                        )
+                        + "open this authorization link to continue:\n"
+                        + f"[blue]{auth_page}[/blue]\n"
+                        + "Then press Ctrl+C here and run 'dlzoom login' again."
                     )
                     last_hint = nowt
             else:

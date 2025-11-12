@@ -12,7 +12,6 @@ import json
 import logging
 import re
 import sys
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -23,25 +22,17 @@ from dlzoom import __version__
 from dlzoom.audio_extractor import AudioExtractionError
 from dlzoom.config import Config, ConfigError
 from dlzoom.downloader import DownloadError
-from dlzoom.exceptions import (
-    DlzoomError,
-    RecordingNotFoundError,
-)
+from dlzoom.exceptions import DlzoomError
 from dlzoom.logger import setup_logging
 from dlzoom.output import OutputFormatter
 from dlzoom.recorder_selector import RecordingSelector
 from dlzoom.zoom_client import ZoomAPIError, ZoomClient
-from dlzoom.zoom_user_client import ZoomUserClient, ZoomUserAPIError
-from dlzoom.token_store import load as load_tokens, exists as tokens_exist
+from dlzoom.zoom_user_client import ZoomUserAPIError, ZoomUserClient
+from dlzoom.token_store import load as load_tokens
 from dlzoom.login import main as login_main
 from dlzoom.logout import main as logout_main
 from dlzoom.whoami import main as whoami_main
-from dlzoom.handlers import (
-    json_dumps,
-    _handle_check_availability as _H_CHECK,
-    _handle_batch_download as _H_BATCH,
-    _handle_download_mode as _H_DOWNLOAD,
-)
+import dlzoom.handlers as _h
 
 # Rich-click configuration
 # Switch to text markup (use_rich_markup is deprecated)
@@ -193,7 +184,13 @@ def _calc_range(range_opt: str) -> tuple[str, str]:
     help="Exact meeting ID or UUID to list instances (replaces 'download --list')",
 )
 @click.option("--topic", help="Substring filter on topic (user-wide mode only)")
-@click.option("--limit", type=int, default=1000, show_default=True, help="Max results (0 = unlimited)")
+@click.option(
+    "--limit",
+    type=int,
+    default=1000,
+    show_default=True,
+    help="Max results (0 = unlimited)",
+)
 @click.option(
     "--page-size",
     type=int,
@@ -248,9 +245,11 @@ def recordings(
 
     # Debug visibility of effective date window
     if debug:
-        console.print(
-            f"[dim]Effective date range: from={from_date or '-'} to={to_date or '-'} (local dates, Zoom API filters on UTC)[/dim]"
+        msg = (
+            f"[dim]Effective date range: from={from_date or '-'} to={to_date or '-'} "
+            "(local dates, Zoom API filters on UTC)[/dim]"
         )
+        console.print(msg)
 
     # Load config and choose client
     cfg = Config(env_file=config) if config else Config()
@@ -273,7 +272,7 @@ def recordings(
         except (ZoomAPIError, ZoomUserAPIError) as e:
             if json:
                 print(
-                    json_dumps(
+                    _h.json_dumps(
                         {
                             "status": "error",
                             "error": {
@@ -291,9 +290,15 @@ def recordings(
         if not meetings and result.get("recording_files"):
             meetings = [result]
         if not meetings:
-            payload = {"status": "success", "command": "recordings-instances", "meeting_id": meeting_id, "total_instances": 0, "instances": []}
+            payload = {
+                "status": "success",
+                "command": "recordings-instances",
+                "meeting_id": meeting_id,
+                "total_instances": 0,
+                "instances": [],
+            }
             if json:
-                print(json_dumps(payload))
+                print(_h.json_dumps(payload))
                 return
             formatter.output_info("No recordings found")
             return
@@ -317,7 +322,7 @@ def recordings(
                     for m in meetings
                 ],
             }
-            print(json_dumps(payload))
+            print(_h.json_dumps(payload))
             return
 
         console.print(f"\n[bold]Recordings for Meeting {meeting_id}[/bold]")
@@ -346,7 +351,8 @@ def recordings(
         meetings = resp.get("meetings", [])
         if debug and not meetings and not next_token:
             console.print(
-                "[dim]No meetings returned by Zoom for this window. This can happen while recordings are still processing or due to UTC boundary effects.[/dim]"
+                "[dim]No meetings returned by Zoom for this window. This can happen while "
+                "recordings are still processing or due to UTC boundary effects.[/dim]"
             )
         for m in meetings:
             if topic and topic.lower() not in str(m.get("topic", "")).lower():
@@ -417,7 +423,7 @@ def recordings(
             "page_size": page_size,
             "recordings": enriched,
         }
-        print(json_dumps(payload))
+        print(_h.json_dumps(payload))
         return
 
     from rich.table import Table
@@ -497,8 +503,16 @@ def recordings(
 @click.option(
     "--folder-template", help='Custom folder structure template (e.g., "{start_time:%Y/%m}")'
 )
-@click.option("--from-date", callback=_validate_date, help="Start date for batch downloads (YYYY-MM-DD)")
-@click.option("--to-date", callback=_validate_date, help="End date for batch downloads (YYYY-MM-DD)")
+@click.option(
+    "--from-date",
+    callback=_validate_date,
+    help="Start date for batch downloads (YYYY-MM-DD)",
+)
+@click.option(
+    "--to-date",
+    callback=_validate_date,
+    help="End date for batch downloads (YYYY-MM-DD)",
+)
 def download(
     meeting_id: str,
     output_dir: str | None,
@@ -540,7 +554,9 @@ def download(
         if not use_s2s and user_tokens is None:
             # If neither S2S nor user tokens are available, raise config error
             raise ConfigError(
-                "Missing Zoom credentials. Either set S2S env vars (ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET) or sign in with: dlzoom login"
+                "Missing Zoom credentials. Either set S2S env vars "
+                "(ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET) or sign in with: "
+                "dlzoom login"
             )
 
         # Override output dir if specified
@@ -577,7 +593,7 @@ def download(
 
         # Handle batch download mode (from_date/to_date)
         if from_date or to_date:
-            _H_BATCH(
+            _h._handle_batch_download(
                 client=client,
                 selector=selector,
                 from_date=from_date,
@@ -599,13 +615,13 @@ def download(
 
         # Handle --check-availability mode
         if check_availability:
-            _H_CHECK(
+            _h._handle_check_availability(
                 client, selector, meeting_id, recording_id, formatter, wait, json_mode
             )
             return
 
         # Default: Download mode
-        _H_DOWNLOAD(
+        _h._handle_download_mode(
             client=client,
             selector=selector,
             meeting_id=meeting_id,

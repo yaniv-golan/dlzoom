@@ -8,7 +8,6 @@ complexity in the Click command definitions. Behavior is unchanged.
 from __future__ import annotations
 
 import json as _json
-import logging
 import sys
 import time
 from datetime import datetime, timedelta
@@ -17,6 +16,8 @@ from typing import Any
 
 from rich.console import Console
 
+from dlzoom.audio_extractor import AudioExtractor
+from dlzoom.downloader import DownloadError, Downloader
 from dlzoom.exceptions import (
     DlzoomError,
     FFmpegNotFoundError,
@@ -26,9 +27,7 @@ from dlzoom.exceptions import (
 from dlzoom.output import OutputFormatter
 from dlzoom.recorder_selector import RecordingSelector
 from dlzoom.templates import TemplateParser
-from dlzoom.downloader import Downloader, DownloadError
-from dlzoom.audio_extractor import AudioExtractor, AudioExtractionError
-from dlzoom.zoom_client import ZoomClient, ZoomAPIError
+from dlzoom.zoom_client import ZoomAPIError, ZoomClient
 
 
 console = Console()
@@ -120,7 +119,10 @@ def _handle_check_availability(
 
                         if not wait:
                             formatter.output_info(
-                                "Recording is still processing. Use --wait to wait until it's ready."
+                                (
+                                    "Recording is still processing. Use --wait to wait "
+                                    "until it's ready."
+                                )
                             )
                             return
 
@@ -149,7 +151,11 @@ def _handle_check_availability(
 
                         if not json_mode:
                             formatter.output_info(
-                                f"Recording is processing; checking again in {poll_interval} seconds (time left: {remaining // 60}m {remaining % 60}s)"
+                                (
+                                    "Recording is processing; checking again in "
+                                    f"{poll_interval} seconds (time left: "
+                                    f"{remaining // 60}m {remaining % 60}s)"
+                                )
                             )
                         time.sleep(poll_interval)
                         continue
@@ -240,7 +246,8 @@ def _handle_batch_download(
     # Sort items by start time (newest first)
     def _parse_start_time(rec: dict[str, Any]) -> float:
         try:
-            return datetime.fromisoformat(rec.get("start_time", "").replace("Z", "+00:00")).timestamp()
+            start = rec.get("start_time", "")
+            return datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp()
         except Exception:
             return 0.0
 
@@ -309,7 +316,11 @@ def _handle_batch_download(
                 raise
 
     if json_mode:
-        status = "success" if failed_count == 0 else ("partial_success" if success_count > 0 else "error")
+        status = (
+            "success" if failed_count == 0 else (
+                "partial_success" if success_count > 0 else "error"
+            )
+        )
         batch_result = {
             "status": status,
             "command": "batch-download",
@@ -452,7 +463,11 @@ def _handle_download_mode(
             print(_json.dumps(dry_run_result, indent=2))
         else:
             formatter.output_info(
-                f"Dry run: would download {len(recording_files)} files totaling ~{total_size / (1024 * 1024):.1f} MB"
+                (
+                    "Dry run: would download "
+                    f"{len(recording_files)} files totaling ~"
+                    f"{total_size / (1024 * 1024):.1f} MB"
+                )
             )
         return
 
@@ -496,7 +511,10 @@ def _handle_download_mode(
             if not extractor.check_ffmpeg_available():
                 raise FFmpegNotFoundError(
                     "ffmpeg not found",
-                    details="Install ffmpeg to extract audio from MP4 files: https://ffmpeg.org/download.html",
+                    details=(
+                        "Install ffmpeg to extract audio from MP4 files: "
+                        "https://ffmpeg.org/download.html"
+                    ),
                 )
             formatter.output_info("Extracting audio from MP4...")
             audio_m4a_path = extractor.extract_audio(audio_path, verbose=debug or verbose)
@@ -591,7 +609,8 @@ def _handle_download_mode(
         metadata["selected_instance_uuid"] = meeting_uuid
         metadata["selected_instance_timestamp"] = instance.get("start_time")
         metadata["note"] = (
-            "Multiple recordings exist for this meeting. Use 'dlzoom recordings --meeting-id <id>' to see all instances."
+            "Multiple recordings exist for this meeting. Use "
+            "'dlzoom recordings --meeting-id <id>' to see all instances."
         )
         metadata["all_instances"] = [
             {
@@ -666,7 +685,10 @@ def _handle_download_mode(
                 "total_count": len(meetings),
                 "selected": str(selection_method) if selection_method else "",
                 "selected_timestamp": str(instance.get("start_time", "")),
-                "note": "Multiple recordings exist for this meeting. Use 'dlzoom recordings --meeting-id <id>' to see all instances.",
+                "note": (
+                    "Multiple recordings exist for this meeting. Use "
+                    "'dlzoom recordings --meeting-id <id>' to see all instances."
+                ),
             }
             result["multiple_instances"] = multi_inst
 
@@ -675,4 +697,3 @@ def _handle_download_mode(
             result["warnings"] = warnings
 
         print(_json.dumps(result, indent=2))
-
