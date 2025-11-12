@@ -48,8 +48,8 @@ Contact
 - Questions? Open a GitHub issue or email yaniv+dlzoom@golan.name.
 
 Optional permissions (advanced)
-- `meeting:read` (user-managed): enables definitive recurring-meeting marking in the recordings listing.
-- `user:read` (user-managed): enables showing your name/email in `dlzoom whoami` for user tokens.
+- `meeting:read:meeting` (user-managed): enables definitive recurring-meeting marking in the recordings listing.
+- `user:read:user` (user-managed): enables showing your name/email in `dlzoom whoami` for user tokens.
 - These are optional and not required for core functionality.
 
 Open source

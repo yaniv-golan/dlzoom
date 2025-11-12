@@ -57,6 +57,6 @@ For details on the broker endpoints and set‑up, see `zoom-broker/README.md` in
 
 **Optional permissions (advanced)**
 - To improve fidelity (not required):
-  - `meeting:read` — lets the CLI mark recurring meetings definitively when browsing recordings.
-  - `user:read` — lets `dlzoom whoami` show your name/email when using user tokens.
+  - `meeting:read:meeting` — lets the CLI mark recurring meetings definitively when browsing recordings.
+  - `user:read:user` — lets `dlzoom whoami` show your name/email when using user tokens.
   - Without these, the CLI still works: recurrence is inferred within the chosen date range; `whoami` confirms token validity without profile details.

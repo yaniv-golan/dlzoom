@@ -40,9 +40,9 @@ Your choices
 - You can delete any downloaded files from your computer whenever you like.
 
 Optional permissions (advanced)
-- If enabled by you, the app may request additional Zoom permissions to improve the experience:
-  - `meeting:read`: allows identifying whether a meeting is recurring when browsing recordings. No changes to what is downloaded; only metadata lookup to determine recurrence.
-  - `user:read`: allows displaying your Zoom profile info (name/email) in `dlzoom whoami` when using user tokens.
+- If enabled by you, the app may request additional Zoom permissions to improve the experience (granular scopes):
+  - `meeting:read:meeting`: allows identifying whether a meeting is recurring when browsing recordings. No changes to what is downloaded; only metadata lookup to determine recurrence.
+  - `user:read:user`: allows displaying your Zoom profile info (name/email) in `dlzoom whoami` when using user tokens.
 - These are optional. Without them, the CLI still works; recurrence is inferred only within your selected date range, and `whoami` confirms token validity without showing profile details.
 
 Contact
