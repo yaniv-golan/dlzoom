@@ -1,0 +1,16 @@
+title: DLZoom Docs
+description: Documentation and Zoom app support pages for dlzoom
+theme: jekyll-theme-cayman
+# Public site URL and base path for repository pages
+url: https://yaniv-golan.github.io
+baseurl: /dlzoom
+
+# Useful default plugins on GitHub Pages
+plugins:
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# Markdown and permalink preferences
+markdown: kramdown
+permalink: pretty
+

@@ -1,3 +1,9 @@
+---
+layout: default
+title: Terms of Service – dlzoom
+permalink: /zoom-app/terms/
+---
+
 Terms of Service – dlzoom
 
 Effective date: 2025‑01‑01

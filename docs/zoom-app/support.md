@@ -1,3 +1,9 @@
+---
+layout: default
+title: Support – dlzoom
+permalink: /zoom-app/support/
+---
+
 Support – dlzoom
 
 If you get stuck, we’re happy to help.

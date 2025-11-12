@@ -1,3 +1,9 @@
+---
+layout: default
+title: dlzoom – Download your Zoom Cloud Recordings
+permalink: /zoom-app/doc/
+---
+
 dlzoom – Download your Zoom Cloud Recordings
 
 dlzoom is a simple command‑line tool that helps you list and download your Zoom Cloud Recordings to your computer.
@@ -7,7 +13,7 @@ Most people can use dlzoom without any setup. When you sign in, we open a Zoom p
 dlzoom is open‑source and free, and it will stay that way. We never sell any data.
 
 Disclaimer
-- dlzoom is provided “as is.” Use at your own risk. See Terms in docs/zoom-app/terms.md.
+- dlzoom is provided “as is.” Use at your own risk. See Terms at [Terms of Service]({{ '/zoom-app/terms/' | relative_url }}).
 
 What you can do
 - See a list of your Zoom Cloud Recordings.
@@ -38,7 +44,7 @@ Uninstall / revoke access
 - You can delete any downloaded files from your computer at any time.
 
 Need help?
-- See Support at docs/zoom-app/support.md or open an issue on GitHub.
+- See [Support]({{ '/zoom-app/support/' | relative_url }}) or open an issue on GitHub.
 - Email: yaniv+dlzoom@golan.name
 
 Open source

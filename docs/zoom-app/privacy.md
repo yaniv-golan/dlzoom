@@ -1,3 +1,9 @@
+---
+layout: default
+title: Privacy Policy – dlzoom
+permalink: /zoom-app/privacy/
+---
+
 Privacy Policy – dlzoom
 
 Effective date: 2025‑01‑01
