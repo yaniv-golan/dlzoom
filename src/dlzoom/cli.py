@@ -1422,4 +1422,4 @@ def _handle_download_mode(
 
 
 if __name__ == "__main__":
-    main()
+    cli()
