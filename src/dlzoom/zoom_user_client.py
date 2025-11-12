@@ -93,6 +93,12 @@ class ZoomUserClient:
     ) -> dict[str, Any]:
         self._maybe_refresh()
         url = f"{self.base_url}/{endpoint}"
+        logging.debug(
+            "Zoom API request: %s %s params=%s",
+            method,
+            url,
+            {k: v for k, v in (params or {}).items()},
+        )
         for attempt in range(retry_count):
             try:
                 resp = requests.request(
@@ -102,6 +108,7 @@ class ZoomUserClient:
                     params=params,
                     timeout=30,
                 )
+                logging.debug("Zoom API response: HTTP %s", resp.status_code)
 
                 # Handle rate limiting and server errors with exponential backoff
                 if resp.status_code in (429, 500, 502, 503, 504):
@@ -133,8 +140,11 @@ class ZoomUserClient:
                         params=params,
                         timeout=30,
                     )
+                    logging.debug("Zoom API response after refresh: HTTP %s", resp.status_code)
                 resp.raise_for_status()
-                return resp.json()
+                data = resp.json()
+                logging.debug("Zoom API ok: keys=%s", list(data.keys()) if isinstance(data, dict) else type(data).__name__)
+                return data
             except requests.exceptions.HTTPError as e:
                 raise ZoomUserAPIError(f"Zoom API error: {e}") from e
             except Exception as e:
