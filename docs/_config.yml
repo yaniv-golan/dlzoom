@@ -13,4 +13,3 @@ plugins:
 # Markdown and permalink preferences
 markdown: kramdown
 permalink: pretty
-

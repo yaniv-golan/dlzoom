@@ -59,4 +59,3 @@ jobs:
         with:
           sarif_file: ${{ runner.temp }}/trivy-node-results.sarif
           category: 'node-dependencies'
-

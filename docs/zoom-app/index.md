@@ -10,4 +10,3 @@ permalink: /zoom-app/
 - [Privacy Policy]({{ '/zoom-app/privacy/' | relative_url }})
 - [Terms of Service]({{ '/zoom-app/terms/' | relative_url }})
 - [Support]({{ '/zoom-app/support/' | relative_url }})
-

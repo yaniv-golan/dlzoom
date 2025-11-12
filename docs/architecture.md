@@ -174,4 +174,3 @@ The CLI defaults to a hosted broker for convenience. Advanced users can:
    ```
 
 This provides full control over the OAuth flow and ensures no third-party handles tokens.
-

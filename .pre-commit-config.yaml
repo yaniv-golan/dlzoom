@@ -18,7 +18,7 @@ repos:
       - id: debug-statements
 
   - repo: https://github.com/psf/black
-    rev: 24.3.0  # Pin to specific version matching project
+    rev: 24.10.0  # Sync with CI and pyproject
     hooks:
       - id: black
         language_version: python3.11
@@ -31,11 +31,11 @@ repos:
         args: ['--fix', '--exit-non-zero-on-fix']
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.9.0  # Pin to specific version matching project
+    rev: v1.18.2  # Sync with CI-installed mypy
     hooks:
       - id: mypy
         additional_dependencies: [types-requests, types-PyYAML]
-        args: ['--ignore-missing-imports', '--no-error-summary']
+        args: ['--ignore-missing-imports', '--no-error-summary', '--explicit-package-bases']
         # Only run on src/dlzoom files
         files: ^src/dlzoom/
 
