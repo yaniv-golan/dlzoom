@@ -162,7 +162,7 @@ jobs:
         fi
 
     - name: Run Trivy security scanner
-      uses: aquasecurity/trivy-action@v0.24.0
+      uses: aquasecurity/trivy-action@0.33.1
       continue-on-error: true
       with:
         image-ref: 'dlzoom:test'
@@ -186,7 +186,7 @@ jobs:
         sarif_file: 'trivy-results.sarif'
 
     - name: Run Trivy scanner (fail on high/critical)
-      uses: aquasecurity/trivy-action@v0.24.0
+      uses: aquasecurity/trivy-action@0.33.1
       with:
         image-ref: 'dlzoom:test'
         exit-code: '1'

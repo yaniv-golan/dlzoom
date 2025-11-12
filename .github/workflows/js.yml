@@ -47,7 +47,7 @@ jobs:
       #     files: ./coverage/coverage-final.json
       #     flags: javascript
       - name: Trivy Node dependency scan (SARIF)
-        uses: aquasecurity/trivy-action@v0.24.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           scan-type: 'fs'
           scan-ref: 'zoom-broker'
