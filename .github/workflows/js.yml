@@ -1,0 +1,62 @@
+name: JS CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'zoom-broker/**'
+      - '.github/workflows/js.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'zoom-broker/**'
+      - '.github/workflows/js.yml'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: js-ci-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    defaults:
+      run:
+        working-directory: zoom-broker
+    strategy:
+      matrix:
+        node: ['20.x']
+    steps:
+      # Note: consider pinning actions to a minor tag or SHA
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: zoom-broker/package-lock.json
+      - run: npm ci
+      - run: npm test
+      # Optional: collect and upload JS coverage (requires Codecov)
+      # - run: npm test -- --coverage
+      # - name: Upload JS coverage to Codecov
+      #   if: github.event_name == 'pull_request'
+      #   uses: codecov/codecov-action@v4
+      #   with:
+      #     files: ./coverage/coverage-final.json
+      #     flags: javascript
+      - name: Trivy Node dependency scan (SARIF)
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          scan-type: 'fs'
+          scan-ref: 'zoom-broker'
+          format: 'sarif'
+          output: ${{ runner.temp }}/trivy-node-results.sarif
+          severity: 'CRITICAL,HIGH'
+      - name: Upload Trivy Node results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ runner.temp }}/trivy-node-results.sarif
+          category: 'node-dependencies'
+
