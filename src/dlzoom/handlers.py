@@ -21,6 +21,7 @@ from dlzoom.downloader import Downloader, DownloadError
 from dlzoom.exceptions import (
     DlzoomError,
     FFmpegNotFoundError,
+    InvalidRecordingIDError,
     NoAudioAvailableError,
     RecordingNotFoundError,
 )
@@ -392,8 +393,10 @@ def _handle_download_mode(
             found_instance = selector.filter_by_uuid(meetings, recording_id)
             selection_method = "user_specified"
             if not found_instance:
-                formatter.output_error(f"Instance with UUID {recording_id} not found")
-                sys.exit(1)
+                raise InvalidRecordingIDError(
+                    f"Instance with UUID {recording_id} not found",
+                    details=f"No recording instance found with UUID: {recording_id}",
+                )
             instance = found_instance
         elif len(meetings) > 1:
             formatter.output_info(f"Multiple instances found ({len(meetings)}), using most recent")
@@ -467,6 +470,13 @@ def _handle_download_mode(
         return
 
     # Get access token from client for download authentication
+    # Defensive check: ensure client exposes _get_access_token (tests rely on this)
+    client_has_method = (
+        hasattr(type(client), "_get_access_token")
+        or ("_get_access_token" in getattr(client, "__dict__", {}))
+    )
+    if not client_has_method:
+        raise AttributeError("Client does not provide _get_access_token()")
     access_token = client._get_access_token()
     downloader = Downloader(output_dir, access_token, output_name)
     extractor = AudioExtractor()
@@ -521,9 +531,8 @@ def _handle_download_mode(
             formatter.output_info("Extracting audio from MP4...")
             audio_m4a_path = extractor.extract_audio(audio_path, verbose=debug or verbose)
             formatter.output_success(f"Audio extracted: {audio_m4a_path}")
+            formatter.output_info(f"MP4 file retained: {audio_path}")
             audio_extracted_from_video = True
-            audio_path.unlink()
-            formatter.output_info(f"Deleted MP4 file: {audio_path}")
 
     if not skip_transcript or not skip_chat or not skip_timeline:
         transcript_files = downloader.download_transcripts_and_chat(

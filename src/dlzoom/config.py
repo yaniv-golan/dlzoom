@@ -49,8 +49,11 @@ class Config:
         if env_file is not None:
             config_data = self._load_config_file(env_file)
         else:
-            # Only load .env file if no config file was specified
-            load_dotenv()
+            # Do not implicitly load .env here to allow tests and callers
+            # to control configuration via environment variables explicitly.
+            # If a .env-style file path is passed explicitly to env_file or
+            # via CLI, _load_config_file() will handle load_dotenv(config_path).
+            pass
 
         # Required Zoom credentials (prioritize config file, fall back to env)
         # Store in private variables to prevent accidental exposure in logs/tracebacks
@@ -102,23 +105,38 @@ class Config:
 
         Prevents accidental credential exposure in logs, tracebacks, and debugging
         """
+        # Check all three credentials for S2S auth
+        s2s_configured = bool(
+            self._zoom_account_id and self._zoom_client_id and self._zoom_client_secret
+        )
         return (
             f"Config("
             f"output_dir={self.output_dir!r}, "
             f"log_level={self.log_level!r}, "
             f"zoom_api_base_url={self.zoom_api_base_url!r}, "
-            f"credentials={'configured' if self._zoom_account_id else 'missing'}"
+            f"credentials={'configured' if s2s_configured else 'missing'}"
             f")"
         )
 
+    def clear_credentials(self) -> None:
+        """
+        Clear sensitive credentials from memory.
+        
+        Note: Due to Python's memory management and string immutability,
+        this provides best-effort cleanup but cannot guarantee complete
+        memory erasure. Credentials may remain in memory until garbage
+        collection or process termination.
+        """
+        self._zoom_account_id = None
+        self._zoom_client_id = None
+        self._zoom_client_secret = None
+    
     def __del__(self) -> None:
-        """Zero out credentials when object is destroyed"""
-        if hasattr(self, "_zoom_account_id"):
-            self._zoom_account_id = None
-        if hasattr(self, "_zoom_client_id"):
-            self._zoom_client_id = None
-        if hasattr(self, "_zoom_client_secret"):
-            self._zoom_client_secret = None
+        """Attempt to clear credentials when object is destroyed (best-effort only)"""
+        try:
+            self.clear_credentials()
+        except Exception:
+            pass  # Ignore errors during finalization
 
     def _load_config_file(self, config_path: str) -> dict[str, Any]:
         """

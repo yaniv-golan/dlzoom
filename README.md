@@ -61,9 +61,11 @@ docker run -it --rm \
   -e ZOOM_CLIENT_ID="your_client_id" \
   -e ZOOM_CLIENT_SECRET="your_secret" \
   yanivgolan1/dlzoom:latest \
-  download 123456789```
+  download 123456789
+```
 
 **Or use GitHub Container Registry:**
+
 ```bash
 docker run -it --rm \
   -v $(pwd)/recordings:/app/downloads \
@@ -71,7 +73,8 @@ docker run -it --rm \
   -e ZOOM_CLIENT_ID="your_client_id" \
   -e ZOOM_CLIENT_SECRET="your_secret" \
   ghcr.io/yaniv-golan/dlzoom:latest \
-  download 123456789```
+  download 123456789
+```
 
 ### 🔧 From Source (Development)
 
@@ -137,6 +140,8 @@ ZOOM_ACCOUNT_ID=your_account_id_here
 ZOOM_CLIENT_ID=your_client_id_here
 ZOOM_CLIENT_SECRET=your_client_secret_here
 ```
+
+> **⚠️ Security Warning**: If your project directory is in a cloud-synced folder (iCloud, Dropbox, Google Drive, etc.), your `.env` file containing credentials may be uploaded to cloud storage. Consider using environment variables instead, moving the project to a non-synced directory, or using a config file outside the project directory with `--config`.
 
 Or set environment variables:
 

@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+
+### Added
+- **Security**: Added zoom.us domain validation before opening browser in login flow (defense-in-depth)
+- **Security**: Added `auth_url` validation for both CLI and config sources
+- **Security**: Added prominent warning about .env files in cloud-synced directories
+- **Security**: Added critical ALLOWED_ORIGIN documentation with security warnings in broker README
+- Added User-Agent headers to all API requests (`dlzoom/0.2.0`)
+- Added public `sanitize_filename()` method to TemplateParser (was private `_sanitize_filename`)
+- Added `clear_credentials()` method with accurate security documentation
+- Added warning when token persistence fails during refresh
+- Added automatic capping of `page_size` to Zoom API maximum (300)
+- Added schema validation for `tokens.json` with required fields check
+
+### Changed
+- **Breaking (Internal)**: Renamed `verify_checksum` parameter to `verify_size` for accuracy (only affects code, not CLI)
+- **Breaking (Internal)**: Renamed `json` parameter to `json_mode` (CLI flag `--json` unchanged)
+- **Behavior Change**: MP4 files are now **retained** after audio extraction (previously auto-deleted)
+- Consolidated duplicate `DownloadError` class - now imports from `exceptions.py`
+- Improved `__del__` security documentation to reflect Python limitations
+- Optimized `Content-Type` header - only included for POST/PUT/PATCH requests (not GET)
+
+### Removed
+- Auto-deletion of MP4 files after audio extraction
+
 ## [0.2.0] - unreleased
 
 User‑facing release focused on a clearer CLI, optional user OAuth, and safer downloads.
@@ -209,7 +235,7 @@ pip install dlzoom
 ### With uvx (no installation)
 
 ```bash
-uvx dlzoom 123456789 --check-availability
+uvx dlzoom download 123456789 --check-availability
 ```
 
 ### Docker

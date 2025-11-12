@@ -48,16 +48,26 @@ class ZoomClient:
             f")"
         )
 
+    def clear_credentials(self) -> None:
+        """
+        Clear sensitive credentials from memory.
+        
+        Note: Due to Python's memory management and string immutability,
+        this provides best-effort cleanup but cannot guarantee complete
+        memory erasure. Credentials may remain in memory until garbage
+        collection or process termination.
+        """
+        self.account_id = ""
+        self.client_id = ""
+        self.client_secret = ""
+        self._access_token = None
+    
     def __del__(self) -> None:
-        """Zero out sensitive credentials when object is destroyed"""
-        if hasattr(self, "account_id"):
-            self.account_id = ""
-        if hasattr(self, "client_id"):
-            self.client_id = ""
-        if hasattr(self, "client_secret"):
-            self.client_secret = ""
-        if hasattr(self, "_access_token"):
-            self._access_token = None
+        """Attempt to clear credentials when object is destroyed (best-effort only)"""
+        try:
+            self.clear_credentials()
+        except Exception:
+            pass  # Ignore errors during finalization
 
     def _get_access_token(self) -> str:
         """Get access token with caching (refresh only when expired)"""
@@ -93,8 +103,47 @@ class ZoomClient:
                 "Authentication timeout",
                 details="Zoom OAuth server did not respond within 30 seconds",
             )
+        except requests.exceptions.ConnectionError as e:
+            from dlzoom.exceptions import AuthenticationError
 
-        token_data = response.json()
+            raise AuthenticationError(
+                "Connection error during authentication",
+                details=f"Could not connect to Zoom OAuth server: {e}",
+            ) from e
+        except requests.exceptions.HTTPError as e:
+            from dlzoom.exceptions import AuthenticationError
+
+            status_code = e.response.status_code if e.response else "unknown"
+            raise AuthenticationError(
+                f"OAuth token request failed (HTTP {status_code})",
+                details=f"Zoom OAuth server returned an error: {e}",
+            ) from e
+        except requests.exceptions.RequestException as e:
+            from dlzoom.exceptions import AuthenticationError
+
+            raise AuthenticationError(
+                "OAuth token request failed",
+                details=f"Request error: {e}",
+            ) from e
+
+        try:
+            token_data = response.json()
+        except ValueError as e:
+            from dlzoom.exceptions import AuthenticationError
+
+            raise AuthenticationError(
+                "Invalid OAuth response",
+                details=f"Could not parse JSON response from Zoom OAuth server: {e}",
+            ) from e
+
+        if "access_token" not in token_data:
+            from dlzoom.exceptions import AuthenticationError
+
+            raise AuthenticationError(
+                "Invalid OAuth token response",
+                details="Response did not contain required 'access_token' field",
+            )
+
         self._access_token = token_data["access_token"]
         expires_in = token_data.get("expires_in", 3600)
         self._token_expires_at = current_time + expires_in
@@ -119,6 +168,7 @@ class ZoomClient:
         headers = {
             "Authorization": f"Bearer {self._get_access_token()}",
             "Accept": "application/json",
+            "User-Agent": "dlzoom/0.2.0 (https://github.com/yaniv-golan/dlzoom)",
         }
         # Add Content-Type only for methods that send a body
         if method.upper() in ("POST", "PUT", "PATCH"):

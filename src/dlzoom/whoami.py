@@ -6,7 +6,6 @@ tokens saved by `dlzoom login`.
 """
 
 import json
-import logging
 from typing import Any
 
 import rich_click as click
@@ -14,6 +13,7 @@ from rich.console import Console
 
 from dlzoom.config import Config, ConfigError
 from dlzoom.exceptions import DlzoomError
+from dlzoom.logger import setup_logging
 from dlzoom.output import OutputFormatter
 from dlzoom.token_store import load as load_tokens
 from dlzoom.zoom_client import ZoomAPIError, ZoomClient
@@ -32,7 +32,7 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
     """
     # Setup logging level
     log_level = "DEBUG" if debug else ("INFO" if verbose else "WARNING")
-    logging.basicConfig(level=getattr(logging, log_level))
+    setup_logging(level=log_level, verbose=debug or verbose)
 
     formatter = OutputFormatter("json" if json_mode else "human")
 

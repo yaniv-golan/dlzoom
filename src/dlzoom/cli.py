@@ -203,7 +203,7 @@ def _calc_range(range_opt: str) -> tuple[str, str]:
     show_default=True,
     help="[Advanced] Number of results per API request (Zoom max 300)",
 )
-@click.option("--json", "-j", is_flag=True, help="JSON output mode")
+@click.option("--json", "-j", "json_mode", is_flag=True, help="JSON output mode")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.option("--debug", "-d", is_flag=True, help="Debug output")
 @click.option("--config", type=click.Path(exists=True), help="Path to config file")
@@ -215,7 +215,7 @@ def recordings(
     topic: str | None,
     limit: int,
     page_size: int,
-    json: bool,
+    json_mode: bool,
     verbose: bool,
     debug: bool,
     config: str | None,
@@ -223,18 +223,24 @@ def recordings(
     # Setup logging and formatter
     log_level = "DEBUG" if debug else ("INFO" if verbose else "WARNING")
     setup_logging(level=log_level, verbose=debug or verbose)
-    output_mode = "json" if json else "human"
+    output_mode = "json" if json_mode else "human"
     formatter = OutputFormatter(output_mode)
-    if json:
+    if json_mode:
         formatter.set_silent(True)
 
     # Mutual exclusivity checks
     if meeting_id and any([range_opt, from_date, to_date, topic]):
-        raise click.UsageError(
-            "--meeting-id cannot be used with --range, --from-date, --to-date, or --topic"
-        )
+        error_msg = "--meeting-id cannot be used with --range, --from-date, --to-date, or --topic"
+        if json_mode:
+            formatter.output_error(error_msg)
+            raise SystemExit(1)
+        raise click.UsageError(error_msg)
     if range_opt and (from_date or to_date):
-        raise click.UsageError("--range cannot be used with --from-date or --to-date")
+        error_msg = "--range cannot be used with --from-date or --to-date"
+        if json_mode:
+            formatter.output_error(error_msg)
+            raise SystemExit(1)
+        raise click.UsageError(error_msg)
 
     # Dates
     if range_opt:
@@ -245,9 +251,17 @@ def recordings(
         fdt = datetime.strptime(from_date, "%Y-%m-%d")
         tdt = datetime.strptime(to_date, "%Y-%m-%d")
         if fdt > tdt:
-            raise click.UsageError("--from-date must be before or equal to --to-date")
+            error_msg = "--from-date must be before or equal to --to-date"
+            if json_mode:
+                formatter.output_error(error_msg)
+                raise SystemExit(1)
+            raise click.UsageError(error_msg)
     elif from_date or to_date:
-        raise click.UsageError("Both --from-date and --to-date must be provided together")
+        error_msg = "Both --from-date and --to-date must be provided together"
+        if json_mode:
+            formatter.output_error(error_msg)
+            raise SystemExit(1)
+        raise click.UsageError(error_msg)
 
     # Debug visibility of effective date window
     if debug:
@@ -265,6 +279,12 @@ def recordings(
         raise ConfigError(
             "Not signed in. Run 'dlzoom login' or configure S2S credentials in your environment."
         )
+    
+    # Cap page_size to Zoom API maximum
+    if page_size > 300:
+        logger.warning(f"page_size {page_size} exceeds Zoom API limit of 300, capping to 300")
+        page_size = 300
+    
     client = (
         ZoomClient(str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret))
         if use_s2s
@@ -276,7 +296,7 @@ def recordings(
         try:
             result = client.get_meeting_recordings(meeting_id)
         except (ZoomAPIError, ZoomUserAPIError) as e:
-            if json:
+            if json_mode:
                 print(
                     _h.json_dumps(
                         {
@@ -303,13 +323,13 @@ def recordings(
                 "total_instances": 0,
                 "instances": [],
             }
-            if json:
+            if json_mode:
                 print(_h.json_dumps(payload))
                 return
             formatter.output_info("No recordings found")
             return
 
-        if json:
+        if json_mode:
             payload = {
                 "status": "success",
                 "command": "recordings-instances",
@@ -421,7 +441,7 @@ def recordings(
         }
         enriched.append(m2)
 
-    if json:
+    if json_mode:
         payload = {
             "status": "success",
             "command": "recordings",
@@ -579,7 +599,7 @@ def download(
             parser = TemplateParser()
             if not output_name:
                 output_name = meeting_id
-            output_name = parser._sanitize_filename(str(output_name))
+            output_name = parser.sanitize_filename(str(output_name))
         except Exception:
             # Fallback minimal sanitization if TemplateParser isn't available
             import re as _re

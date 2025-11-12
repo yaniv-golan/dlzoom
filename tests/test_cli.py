@@ -100,6 +100,6 @@ class TestOutputNameSanitization:
         parser = TemplateParser()
 
         # UUIDs with slashes should be sanitized
-        assert parser._sanitize_filename("/abc123") == "abc123"
-        assert parser._sanitize_filename("abc/def") == "abc_def"
-        assert parser._sanitize_filename("//abc//def//") == "abc_def"
+        assert parser.sanitize_filename("/abc123") == "abc123"
+        assert parser.sanitize_filename("abc/def") == "abc_def"
+        assert parser.sanitize_filename("//abc//def//") == "abc_def"

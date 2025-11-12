@@ -73,15 +73,28 @@ class ZoomUserClient:
         try:
             if self._tokens_path:
                 save_tokens(Path(self._tokens_path), self._tokens)
-        except Exception:
-            # Non-fatal
-            pass
+        except Exception as e:
+            # Non-fatal, but log warning
+            import logging
+            logging.warning(
+                f"Failed to persist refreshed tokens to {self._tokens_path}: {e}. "
+                "You may need to re-authenticate sooner than expected."
+            )
 
-    def _auth_headers(self) -> dict[str, str]:
-        return {
+    def _auth_headers(self, include_content_type: bool = False) -> dict[str, str]:
+        """
+        Build authentication headers.
+        
+        Args:
+            include_content_type: Only set Content-Type for methods with body (POST, PUT, PATCH)
+        """
+        headers = {
             "Authorization": f"Bearer {self._tokens.access_token}",
-            "Content-Type": "application/json",
+            "User-Agent": "dlzoom/0.2.0 (https://github.com/yaniv-golan/dlzoom)",
         }
+        if include_content_type:
+            headers["Content-Type"] = "application/json"
+        return headers
 
     def _request(
         self,
@@ -100,12 +113,15 @@ class ZoomUserClient:
             url,
             {k: v for k, v in (params or {}).items()},
         )
+        # Only include Content-Type for methods with body
+        include_content_type = method.upper() in ("POST", "PUT", "PATCH")
+        
         for attempt in range(retry_count):
             try:
                 resp = requests.request(
                     method,
                     url,
-                    headers=self._auth_headers(),
+                    headers=self._auth_headers(include_content_type=include_content_type),
                     params=params,
                     timeout=30,
                 )

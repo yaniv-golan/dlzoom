@@ -45,10 +45,21 @@ Because an open-source CLI cannot safely embed a Zoom client secret, the broker 
 
 ### 2. Secrets
 
+> **⚠️ CRITICAL SECURITY REQUIREMENT**: You **MUST** set the `ALLOWED_ORIGIN` environment variable in production to restrict which domains can access token endpoints. Without this, your broker is vulnerable to token theft from malicious websites.
+
 ```bash
 npx wrangler secret put ZOOM_CLIENT_ID
 npx wrangler secret put ZOOM_CLIENT_SECRET
+
+# REQUIRED for production - restrict CORS to your CLI domain
+# For CLI usage from localhost, use: http://localhost
+# For public deployments, use your specific domain
+npx wrangler secret put ALLOWED_ORIGIN
+# When prompted, enter: http://localhost
+# (or your specific domain for production deployments)
 ```
+
+**Without `ALLOWED_ORIGIN` set**, the broker defaults to `Access-Control-Allow-Origin: *`, which allows **any website** to make requests to your token endpoints. This is **ONLY acceptable for development/testing**.
 
 ### 3. Key-Value Namespace
 
