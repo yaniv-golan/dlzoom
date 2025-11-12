@@ -2,9 +2,10 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    // CORS for CLI
+    // CORS for CLI (optionally restrict via ALLOWED_ORIGIN)
+    const allowedOrigin = env.ALLOWED_ORIGIN || "*";
     const cors = {
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": allowedOrigin,
       "Access-Control-Allow-Headers": "content-type,authorization",
       "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
     };
@@ -33,6 +34,12 @@ export default {
       const state = url.searchParams.get("state");
       if (!code || !state) return html("Missing code/state", 400);
 
+      // Validate session exists and is pending
+      const sess = await env.AUTH.get(`sess:${state}`, { type: "json" });
+      if (!sess || sess.status !== "pending") {
+        return html("Invalid or expired session", 400);
+      }
+
       // Basic auth header
       const basic = "Basic " + btoa(`${env.ZOOM_CLIENT_ID}:${env.ZOOM_CLIENT_SECRET}`);
 
@@ -51,12 +58,19 @@ export default {
       });
 
       const txt = await resp.text();
-      // Persist raw response so CLI can parse. Set short TTL.
-      await env.AUTH.put(`tok:${state}`, txt, { expirationTtl: 600 });
-      await env.AUTH.put(`sess:${state}`, JSON.stringify({ status: "done" }), { expirationTtl: 600 });
-
-      // Simple UX page
-      return html(`<p>Zoom authorization complete. You can close this window.</p>`, 200);
+      const contentType = resp.headers.get("content-type") || "";
+      if (resp.ok && contentType.includes("application/json")) {
+        // Persist raw JSON token response; short TTL.
+        await env.AUTH.put(`tok:${state}`, txt, { expirationTtl: 600 });
+        await env.AUTH.put(`sess:${state}`, JSON.stringify({ status: "done" }), { expirationTtl: 600 });
+        return html(`<p>Zoom authorization complete. You can close this window.</p>`, 200);
+      } else {
+        // Persist error for polling clients
+        const err = JSON.stringify({ status: "error", http_status: resp.status, body: txt });
+        await env.AUTH.put(`tok:${state}`, err, { expirationTtl: 600 });
+        await env.AUTH.put(`sess:${state}`, JSON.stringify({ status: "error" }), { expirationTtl: 600 });
+        return html(`<p>Zoom authorization failed. Please retry from the CLI.</p>`, 500);
+      }
     }
 
     // 3) CLI polls for status/tokens
@@ -67,6 +81,10 @@ export default {
       const status = await env.AUTH.get(`sess:${id}`, { type: "json" });
       if (!status) return json({ status: "expired" }, 410, cors);
 
+      if (status.status === "error") {
+        const errPayload = await env.AUTH.get(`tok:${id}`);
+        return new Response(errPayload || JSON.stringify({ status: "error" }), { status: 500, headers: { "content-type": "application/json", ...cors } });
+      }
       if (status.status !== "done") return json({ status: "pending" }, 200, cors);
 
       const tok = await env.AUTH.get(`tok:${id}`);
@@ -79,8 +97,11 @@ export default {
 
     // 4) Refresh
     if (url.pathname === "/zoom/token/refresh" && request.method === "POST") {
-      const { refresh_token } = await safeJson(request);
+      const { refresh_token } = await safeJson(request) || {};
       if (!refresh_token) return json({ error: "missing refresh_token" }, 400, cors);
+      if (typeof refresh_token !== "string" || refresh_token.length < 10 || refresh_token.length > 4096) {
+        return json({ error: "invalid refresh_token" }, 400, cors);
+      }
 
       const basic = "Basic " + btoa(`${env.ZOOM_CLIENT_ID}:${env.ZOOM_CLIENT_SECRET}`);
       const body = new URLSearchParams({ grant_type: "refresh_token", refresh_token });

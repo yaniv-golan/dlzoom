@@ -34,6 +34,11 @@ class ZoomUserClient:
                 return
             self._refresh_tokens()
 
+    def _get_access_token(self) -> str:
+        """Provide current access token (refresh if needed) for downloader compatibility."""
+        self._maybe_refresh()
+        return self._tokens.access_token
+
     def _refresh_tokens(self) -> None:
         url = f"{self._tokens.auth_url.rstrip('/')}/zoom/token/refresh"
         try:

@@ -253,10 +253,11 @@ dlzoom download 123456789 --debug
 
 ```bash
 dlzoom download 123456789 --json
+```
 
 ### Other Commands
 
-- Show current account (S2S mode currently):
+- Show current account:
 
 ```bash
 dlzoom whoami
@@ -281,27 +282,27 @@ Behavior degrades gracefully if these are not enabled.
 **Dry run (see what would be downloaded):**
 
 ```bash
-dlzoom 123456789 --dry-run
+dlzoom download 123456789 --dry-run
 ```
 
 **Custom filename template:**
 
 ```bash
-dlzoom 123456789\
+dlzoom download 123456789\
   --filename-template "{topic}_{start_time:%Y%m%d}"
 ```
 
 **Custom folder structure:**
 
 ```bash
-dlzoom 123456789\
+dlzoom download 123456789\
   --folder-template "{start_time:%Y}/{start_time:%m}"
 ```
 
 **Select specific recording instance (for recurring meetings):**
 
 ```bash
-dlzoom 123456789 --recording-id "abc123def456"
+dlzoom download 123456789 --recording-id "abc123def456"
 ```
 
 ### Skip Downloads
@@ -309,19 +310,19 @@ dlzoom 123456789 --recording-id "abc123def456"
 **Skip transcript download:**
 
 ```bash
-dlzoom 123456789 --skip-transcript
+dlzoom download 123456789 --skip-transcript
 ```
 
 **Skip chat log download:**
 
 ```bash
-dlzoom 123456789 --skip-chat
+dlzoom download 123456789 --skip-chat
 ```
 
 **Skip timeline download:**
 
 ```bash
-dlzoom 123456789 --skip-timeline
+dlzoom download 123456789 --skip-timeline
 ```
 
 ## All Options
@@ -395,7 +396,7 @@ dlzoom download 123456789 --recording-id "abc123def456"
 ### Automated Pipeline (JSON Output)
 
 ```bash
-dlzoom 123456789 --json > recording.json
+dlzoom download 123456789 --json > recording.json
 ```
 
 ### Batch Processing
@@ -411,7 +412,7 @@ done
 
 ```bash
 # Wait up to 60 minutes for processing
-dlzoom 123456789 --wait 60
+dlzoom download 123456789 --wait 60
 ```
 
 ## Troubleshooting
@@ -451,7 +452,7 @@ Error: Recording not found
 **Check availability first:**
 
 ```bash
-dlzoom 123456789 --check-availability
+dlzoom download 123456789 --check-availability
 ```
 
 ### ffmpeg Not Found
@@ -513,7 +514,7 @@ log_level: "INFO"
 Use with:
 
 ```bash
-dlzoom 123456789 --config config.yaml
+dlzoom download 123456789 --config config.yaml
 ```
 
 ## Output Files
@@ -547,9 +548,9 @@ dlzoom 123456789 --config config.yaml
 
 ## Requirements
 
-- Python 3.8 or higher
+- Python 3.11 or higher
 - ffmpeg (for audio extraction)
-- Zoom Server-to-Server OAuth app
+- Zoom account (User OAuth via `dlzoom login`) or S2S OAuth app (optional)
 
 ## Development
 
@@ -574,9 +575,7 @@ pytest tests/ --cov=src/dlzoom --cov-report=term-missing
 
 ## Version
 
-**v0.1.0** - Initial release (2025-10-02)
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
+See [CHANGELOG.md](CHANGELOG.md) for detailed release notes. Current version: 0.2.0.
 
 ## Roadmap
 
@@ -588,7 +587,7 @@ Planned for future releases:
 
   ```bash
   dlzoom auth login  # Opens browser, authorize, done!
-  dlzoom 123456789 # Just works
+  dlzoom download 123456789 # Just works
   ```
 
 - 🔄 Automatic token refresh

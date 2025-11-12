@@ -220,6 +220,21 @@ class Downloader:
                     f"Found partial download, will attempt resume from {resume_from} bytes"
                 )
 
+        # Validate download URL scheme/host to prevent misuse
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(str(download_url))
+            host = parsed.netloc.lower()
+            if parsed.scheme != "https" or not (host == "zoom.us" or host.endswith(".zoom.us")):
+                raise DownloadError(
+                    f"Refusing to download from untrusted URL: {download_url}"
+                )
+        except Exception as e:
+            if isinstance(e, DownloadError):
+                raise
+            raise DownloadError(f"Invalid download URL: {download_url}")
+
         # Add access token as query parameter (NOT in Authorization header)
         # This is CRITICAL for password-protected recordings
         separator = "&" if "?" in download_url else "?"
@@ -367,7 +382,7 @@ class Downloader:
                     temp_path.unlink()
 
                 if attempt < retry_count - 1 and not url_expired:
-                    wait_time = backoff_factor**attempt
+                    wait_time = backoff_factor * (2**attempt)
                     self.logger.warning(
                         f"Download failed (attempt {attempt + 1}/{retry_count}), "
                         f"retrying in {wait_time:.1f}s: {e}"

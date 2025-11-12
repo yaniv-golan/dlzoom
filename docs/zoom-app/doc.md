@@ -15,7 +15,7 @@ What you can do
 - Keep everything local — we don’t upload your files anywhere.
 
 How sign‑in works
-- Default (no setup): dlzoom uses our hosted sign‑in service at `https://zoom-broker.yaniv-b91.workers.dev` to connect your Zoom account securely.
+- Default (no setup): dlzoom uses our hosted sign‑in service at `https://zoom-broker.dlzoom.workers.dev` to connect your Zoom account securely.
 - Advanced (optional): You can host your own sign‑in service and point dlzoom to it. See developer docs at `zoom-broker/README.md`.
 
 Permissions requested (read‑only)
@@ -27,7 +27,7 @@ Signing in
 3. Return to the terminal and continue.
 
 Where your data goes
-- Tokens: dlzoom keeps sign‑in tokens in memory while you use the tool.
+- Tokens: dlzoom saves tokens locally to a tokens.json file under your user config directory (permissions restricted best‑effort). Tokens are refreshed automatically.
 - Short‑term cache: the sign‑in service briefly stores a code to finish login, then it expires automatically.
 - Recordings: downloads go straight from Zoom to your computer.
 - Analytics: none.
