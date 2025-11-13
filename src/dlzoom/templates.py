@@ -88,10 +88,8 @@ class TemplateParser:
                 except (ValueError, TypeError) as e:
                     # Parse error - log and fall back to empty string (expected by tests)
                     self.logger.warning(
-                        "Failed to parse date '%s' format '%s': %s. Using empty string.",
-                        start_time,
-                        format_str,
-                        e,
+                        f"Failed to parse date '{start_time}' with format "
+                        f"'{format_str}' in template: {e}. Using empty string."
                     )
                     result = result.replace(match.group(0), "")
                 except Exception as e:
