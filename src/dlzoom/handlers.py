@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json as _json
 import time
+import urllib.parse
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,33 @@ console = Console()
 
 def json_dumps(data: Any) -> str:
     return _json.dumps(data, indent=2)
+
+
+def _scrub_download_url(raw_url: str | None) -> str | None:
+    """Remove sensitive query parameters (e.g., access_token) from Zoom URLs."""
+    if not raw_url:
+        return raw_url
+    try:
+        parsed = urllib.parse.urlsplit(raw_url)
+        if not parsed.query:
+            return raw_url
+        filtered = [
+            (k, v)
+            for k, v in urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+            if k.lower() != "access_token"
+        ]
+        if len(filtered) == len(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)):
+            return raw_url
+        new_query = urllib.parse.urlencode(filtered)
+        rebuilt = urllib.parse.urlunsplit(
+            (parsed.scheme, parsed.netloc, parsed.path, new_query, parsed.fragment)
+        )
+        # Ensure trailing ? removed if query empty
+        if not new_query:
+            return rebuilt.rstrip("?")
+        return rebuilt
+    except Exception:
+        return raw_url
 
 
 def _handle_check_availability(
@@ -603,7 +631,7 @@ def _handle_download_mode(
             "recording_end": audio_file.get("recording_end"),
             "file_size": audio_file.get("file_size"),
             "file_extension": audio_file.get("file_extension"),
-            "download_url": audio_file.get("download_url"),
+            "download_url": _scrub_download_url(audio_file.get("download_url")),
             "audio_only_available": audio_only_available,
             "audio_extracted_from_video": audio_extracted_from_video,
             "source_file_type": source_file_type,
@@ -626,7 +654,7 @@ def _handle_download_mode(
                 "file_type": f.get("file_type"),
                 "file_extension": f.get("file_extension"),
                 "file_size": f.get("file_size"),
-                "download_url": f.get("download_url"),
+                "download_url": _scrub_download_url(f.get("download_url")),
                 "status": f.get("status"),
             }
             for f in recording_files

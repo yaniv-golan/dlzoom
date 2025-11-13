@@ -3,7 +3,19 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     // CORS for CLI (optionally restrict via ALLOWED_ORIGIN)
-    const allowedOrigin = env.ALLOWED_ORIGIN || "*";
+    const allowedOrigin = env.ALLOWED_ORIGIN;
+    if (!allowedOrigin) {
+      return new Response(
+        JSON.stringify({
+          error: "ALLOWED_ORIGIN not configured",
+          message: "Set ALLOWED_ORIGIN to the CLI origin before deploying the OAuth broker.",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
     const cors = {
       "Access-Control-Allow-Origin": allowedOrigin,
       "Access-Control-Allow-Headers": "content-type",
@@ -11,6 +23,21 @@ export default {
       "Vary": "Origin",
     };
     if (request.method === "OPTIONS") return new Response("", { headers: cors });
+
+    // Enforce required secrets early to provide deterministic errors
+    const missingSecrets = [];
+    if (!env.ZOOM_CLIENT_ID) missingSecrets.push("ZOOM_CLIENT_ID");
+    if (!env.ZOOM_CLIENT_SECRET) missingSecrets.push("ZOOM_CLIENT_SECRET");
+    if (missingSecrets.length > 0) {
+      return json(
+        {
+          error: "missing_configuration",
+          message: `Missing required secrets: ${missingSecrets.join(", ")}`,
+        },
+        500,
+        cors,
+      );
+    }
 
     // 1) Start auth: returns { auth_url, session_id }
     if (url.pathname === "/zoom/auth/start" && request.method === "POST") {

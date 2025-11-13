@@ -43,8 +43,12 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
         use_s2s = bool(cfg.zoom_account_id and cfg.zoom_client_id and cfg.zoom_client_secret)
         if use_s2s:
             client: Any = ZoomClient(
-                str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret)
+                str(cfg.zoom_account_id),
+                str(cfg.zoom_client_id),
+                str(cfg.zoom_client_secret),
             )
+            client.base_url = cfg.zoom_api_base_url.rstrip("/")
+            client.token_url = cfg.zoom_oauth_token_url or client.token_url
             mode = "Server-to-Server OAuth"
         else:
             tokens = load_tokens(cfg.tokens_path)
@@ -54,6 +58,8 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
                     "credentials in your environment."
                 )
             client = ZoomUserClient(tokens, str(cfg.tokens_path))
+            if hasattr(client, "base_url"):
+                client.base_url = cfg.zoom_api_base_url.rstrip("/")
             mode = "User OAuth"
 
         user = None

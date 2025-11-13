@@ -5,6 +5,7 @@ Configuration management for dlzoom
 import json
 import os
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 from typing import Any
 
 from dotenv import load_dotenv
@@ -30,8 +31,9 @@ class Config:
         "output_dir": ".",
         "log_level": "INFO",
         "zoom_api_base_url": "https://api.zoom.us/v2",
-        # End-user auth via hosted service
-        "auth_url": "https://zoom-broker.dlzoom.workers.dev",
+        "zoom_oauth_token_url": None,
+        # End-user auth via hosted service (default disabled until configured)
+        "auth_url": "",
         # Token storage path (resolved at runtime using platformdirs)
         "tokens_path": None,
     }
@@ -67,14 +69,23 @@ class Config:
         output_dir_val = config_data.get("output_dir") or os.getenv("OUTPUT_DIR", ".")
         self.output_dir = Path(str(output_dir_val))
         self.log_level = config_data.get("log_level") or os.getenv("LOG_LEVEL", "INFO")
-        self.zoom_api_base_url = config_data.get("zoom_api_base_url") or os.getenv(
-            "ZOOM_API_BASE_URL", "https://api.zoom.us/v2"
+        api_base = config_data.get("zoom_api_base_url") or os.getenv(
+            "ZOOM_API_BASE_URL", self.OPTIONAL_FIELDS["zoom_api_base_url"]
+        )
+        self.zoom_api_base_url = str(api_base).rstrip("/")
+        token_override = config_data.get("zoom_oauth_token_url") or os.getenv("ZOOM_OAUTH_TOKEN_URL")
+        self.zoom_oauth_token_url = (
+            str(token_override).strip()
+            if token_override
+            else _derive_token_url(self.zoom_api_base_url)
         )
 
         # Hosted auth service URL (flag/env/config/default precedence handled in CLI commands)
-        self.auth_url = config_data.get("auth_url") or os.getenv(
-            "DLZOOM_AUTH_URL", self.OPTIONAL_FIELDS["auth_url"]
-        )
+        self.auth_url = (
+            config_data.get("auth_url")
+            or os.getenv("DLZOOM_AUTH_URL")
+            or self.OPTIONAL_FIELDS["auth_url"]
+        ).strip()
 
         # Token file path: default under platform-specific user config directory
         configured_tokens_path = config_data.get("tokens_path") or os.getenv("DLZOOM_TOKENS_PATH")
@@ -272,3 +283,13 @@ class Config:
             return True
         except ConfigError:
             return False
+
+
+def _derive_token_url(api_base_url: str) -> str:
+    """Infer the OAuth token URL from the API base host (Zoom vs ZoomGov, etc.)."""
+    parsed = urlsplit(api_base_url)
+    host = parsed.netloc
+    if host.startswith("api."):
+        host = host[4:]
+    scheme = parsed.scheme or "https"
+    return urlunsplit((scheme, host, "/oauth/token", "", ""))

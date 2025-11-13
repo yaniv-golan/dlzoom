@@ -22,12 +22,20 @@ from dlzoom.exceptions import (
 class ZoomClient:
     """Client for Zoom API with Server-to-Server OAuth and token caching"""
 
-    def __init__(self, account_id: str, client_id: str, client_secret: str):
+    def __init__(
+        self,
+        account_id: str,
+        client_id: str,
+        client_secret: str,
+        *,
+        base_url: str = "https://api.zoom.us/v2",
+        token_url: str | None = None,
+    ):
         self.account_id = account_id
         self.client_id = client_id
         self.client_secret = client_secret
-        self.base_url = "https://api.zoom.us/v2"
-        self.token_url = "https://zoom.us/oauth/token"
+        self.base_url = base_url.rstrip("/")
+        self.token_url = (token_url.rstrip("/") if token_url else self._derive_token_url(base_url))
 
         # Token caching (in memory during execution)
         self._access_token: str | None = None
@@ -151,6 +159,16 @@ class ZoomClient:
         return str(self._access_token)
 
     @staticmethod
+    def _derive_token_url(api_base: str) -> str:
+        """Infer the OAuth token endpoint from the API base host (Zoom vs ZoomGov)."""
+        parsed = urllib.parse.urlsplit(api_base)
+        host = parsed.netloc
+        if host.startswith("api."):
+            host = host[4:]
+        scheme = parsed.scheme or "https"
+        return f"{scheme}://{host}/oauth/token"
+
+    @staticmethod
     def encode_uuid(uuid: str) -> str:
         """Double URL-encode UUID for past_meetings endpoints"""
         return urllib.parse.quote(urllib.parse.quote(uuid, safe=""), safe="")
@@ -164,7 +182,7 @@ class ZoomClient:
         backoff_factor: float = 1.0,
     ) -> dict[str, Any]:
         """Make authenticated API request with retry logic"""
-        url = f"{self.base_url}/{endpoint}"
+        url = f"{self.base_url.rstrip('/')}/{endpoint}"
         from dlzoom import __version__
 
         headers = {
@@ -277,6 +295,7 @@ class ZoomClient:
 
                 # Raise specific exceptions based on status code
                 if status_code == 401:
+                    self._access_token = None
                     raise AuthenticationError(
                         "Authentication failed",
                         details="Check ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET",

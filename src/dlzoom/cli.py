@@ -315,11 +315,19 @@ def recordings(
         logging.warning(f"page_size {page_size} exceeds Zoom API limit of 300, capping to 300")
         page_size = 300
 
-    client = (
-        ZoomClient(str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret))
-        if use_s2s
-        else ZoomUserClient(tokens, str(cfg.tokens_path))  # type: ignore[arg-type]
-    )
+    client: ZoomClient | ZoomUserClient
+    if use_s2s:
+        client = ZoomClient(
+            str(cfg.zoom_account_id),
+            str(cfg.zoom_client_id),
+            str(cfg.zoom_client_secret),
+        )
+        client.base_url = cfg.zoom_api_base_url.rstrip("/")
+        client.token_url = cfg.zoom_oauth_token_url or client.token_url
+    else:
+        client = ZoomUserClient(tokens, str(cfg.tokens_path))  # type: ignore[arg-type]
+        if hasattr(client, "base_url"):
+            client.base_url = cfg.zoom_api_base_url.rstrip("/")
 
     # Meeting-scoped mode
     if meeting_id:
@@ -681,10 +689,16 @@ def download(
         if use_s2s:
             cfg.validate()
             client = ZoomClient(
-                str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret)
+                str(cfg.zoom_account_id),
+                str(cfg.zoom_client_id),
+                str(cfg.zoom_client_secret),
             )
+            client.base_url = cfg.zoom_api_base_url.rstrip("/")
+            client.token_url = cfg.zoom_oauth_token_url or client.token_url
         else:
             client = ZoomUserClient(user_tokens, str(cfg.tokens_path))  # type: ignore[arg-type]
+            if hasattr(client, "base_url"):
+                client.base_url = cfg.zoom_api_base_url.rstrip("/")
         selector = RecordingSelector()
 
         # Handle batch download mode (from_date/to_date)

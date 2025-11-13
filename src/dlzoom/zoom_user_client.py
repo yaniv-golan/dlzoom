@@ -17,8 +17,14 @@ from dlzoom.token_store import save as save_tokens
 
 
 class ZoomUserClient:
-    def __init__(self, tokens: Tokens, tokens_path: str | None = None):
-        self.base_url = "https://api.zoom.us/v2"
+    def __init__(
+        self,
+        tokens: Tokens,
+        tokens_path: str | None = None,
+        *,
+        base_url: str = "https://api.zoom.us/v2",
+    ):
+        self.base_url = base_url.rstrip("/")
         self._tokens: Tokens = tokens
         self._tokens_path: str | None = tokens_path
         # In-process simple lock for refresh single-flight
