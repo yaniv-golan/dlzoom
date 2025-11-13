@@ -8,6 +8,7 @@ safe to run post-timeline download.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -18,6 +19,8 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+_MAX_SPEAKER_ID_LEN = 64
 
 
 def _parse_hhmmss_ms(ts: str) -> float:
@@ -54,70 +57,127 @@ def _slugify(name: str) -> str:
 class _Speaker:
     id: str
     name: str
+    extensions: dict[str, Any] | None = None
 
 
-def _choose_speaker_id(users: list[dict[str, Any]] | None, mode: str) -> str | None:
-    if not users:
+def _user_identity_key(user: dict[str, Any]) -> str:
+    zid = (user.get("zoom_userid") or "").strip()
+    if zid:
+        return f"zoom:{zid}"
+    uid = user.get("user_id")
+    if uid is not None:
+        uid_str = str(uid).strip()
+        if uid_str:
+            return f"uid:{uid_str}"
+    uname = (user.get("username") or "").strip()
+    if uname:
+        return f"name:{uname.lower()}"
+    fingerprint = json.dumps(user, sort_keys=True, default=str)
+    digest = hashlib.sha1(fingerprint.encode("utf-8")).hexdigest()
+    return f"anon:{digest}"
+
+
+def _speaker_extensions(user: dict[str, Any]) -> dict[str, Any] | None:
+    zoom_ext: dict[str, Any] = {}
+    zid = (user.get("zoom_userid") or "").strip()
+    if zid:
+        zoom_ext["participant_id"] = zid
+    uid = user.get("user_id")
+    if uid is not None:
+        uid_str = str(uid).strip()
+        if uid_str:
+            zoom_ext["user_id"] = uid_str
+    if not zoom_ext:
         return None
-    if len(users) > 1 and mode == "multiple":
-        return "multiple"
-    u = users[0]
-    zid = (u.get("zoom_userid") or "").strip()
+    return {"zoom": zoom_ext}
+
+
+def _display_name(user: dict[str, Any]) -> str:
+    name = (user.get("username") or "").strip()
+    if name:
+        return name
+    zid = (user.get("zoom_userid") or "").strip()
     if zid:
         return zid
-    uid = u.get("user_id")
-    if uid is not None and str(uid).strip() != "":
-        return f"uid:{uid}"
-    uname = (u.get("username") or "speaker").strip()
-    return _slugify(uname)
+    uid = user.get("user_id")
+    if uid is not None:
+        uid_str = str(uid).strip()
+        if uid_str:
+            return uid_str
+    return "Speaker"
 
 
-def _build_speakers(
-    entries: Iterable[dict[str, Any]], *, include_unknown: bool, mode: str
-) -> list[_Speaker]:
-    # Deterministic map of id -> name with collision handling for slugified names
-    id_to_name: dict[str, str] = {}
-    slug_counts: dict[str, int] = {}
+class _SpeakerRegistry:
+    def __init__(self, *, include_unknown: bool, mode: str) -> None:
+        self.include_unknown = include_unknown
+        self.mode = mode
+        self._identity_to_id: dict[str, str] = {}
+        self._slug_counts: dict[str, int] = {}
+        self._speakers: dict[str, _Speaker] = {}
+        if mode == "multiple":
+            self._speakers["multiple"] = _Speaker(id="multiple", name="Multiple speakers")
+        if include_unknown:
+            self._speakers["unknown"] = _Speaker(id="unknown", name="Unknown")
 
-    def add_user(u: dict[str, Any]) -> None:
-        zid = (u.get("zoom_userid") or "").strip()
-        if zid:
-            id_to_name.setdefault(zid, str(u.get("username") or zid))
-            return
-        uid = u.get("user_id")
-        if uid is not None and str(uid).strip() != "":
-            key = f"uid:{uid}"
-            id_to_name.setdefault(key, str(u.get("username") or key))
-            return
-        uname = (u.get("username") or "speaker").strip()
-        base = _slugify(uname)
-        # disambiguate
-        if base in id_to_name:
-            slug_counts[base] = slug_counts.get(base, 1) + 1
-            key = f"{base}-{slug_counts[base]}"
-        else:
-            slug_counts[base] = 1
-            key = base
-        id_to_name.setdefault(key, uname)
+    def ingest(self, entries: Iterable[dict[str, Any]]) -> None:
+        for entry in entries:
+            users = entry.get("users") or []
+            if not isinstance(users, list):
+                continue
+            for user in users:
+                if isinstance(user, dict):
+                    self._get_or_create(user)
 
-    for e in entries:
-        users = e.get("users") or []
-        if not isinstance(users, list):
-            continue
-        for u in users:
-            if isinstance(u, dict):
-                add_user(u)
+    def _get_or_create(self, user: dict[str, Any]) -> str:
+        key = _user_identity_key(user)
+        if key in self._identity_to_id:
+            return self._identity_to_id[key]
+        name = _display_name(user)
+        base_slug = _slugify(name)
+        if not base_slug:
+            base_slug = "speaker"
+        base_slug = base_slug[:_MAX_SPEAKER_ID_LEN]
+        slug = self._reserve_slug(base_slug or "speaker")
+        extensions = _speaker_extensions(user)
+        speaker = _Speaker(id=slug, name=name, extensions=extensions)
+        self._speakers[slug] = speaker
+        self._identity_to_id[key] = slug
+        return slug
 
-    # Add synthetic speakers if used by policy
-    if mode == "multiple":
-        id_to_name.setdefault("multiple", "Multiple speakers")
-    if include_unknown:
-        id_to_name.setdefault("unknown", "Unknown")
+    def _reserve_slug(self, base: str) -> str:
+        slug_base = base or "speaker"
+        slug_base = slug_base[:_MAX_SPEAKER_ID_LEN]
+        count = self._slug_counts.get(slug_base, 0) + 1
+        self._slug_counts[slug_base] = count
+        if count == 1:
+            return slug_base
+        suffix = f"-{count}"
+        max_base_len = max(1, _MAX_SPEAKER_ID_LEN - len(suffix))
+        trimmed = slug_base[:max_base_len].rstrip("-")
+        if not trimmed:
+            trimmed = "speaker"
+        return f"{trimmed}{suffix}"
 
-    # Deterministic order: by name, then id
-    speakers = [_Speaker(id=k, name=v) for k, v in id_to_name.items()]
-    speakers.sort(key=lambda sp: (sp.name.lower(), sp.id))
-    return speakers
+    def speaker_id_for_users(self, users: list[dict[str, Any]] | None) -> str | None:
+        if not users:
+            return None
+        if len(users) > 1 and self.mode == "multiple":
+            return "multiple"
+        first = users[0]
+        if not isinstance(first, dict):
+            return None
+        return self._get_or_create(first)
+
+    def speakers_for_ids(self, used_ids: set[str]) -> list[dict[str, Any]]:
+        selected: list[_Speaker] = [sp for sid, sp in self._speakers.items() if sid in used_ids]
+        selected.sort(key=lambda sp: (sp.name.lower(), sp.id))
+        result: list[dict[str, Any]] = []
+        for sp in selected:
+            entry: dict[str, Any] = {"id": sp.id, "name": sp.name}
+            if sp.extensions:
+                entry["extensions"] = sp.extensions
+            result.append(entry)
+        return result
 
 
 def _merge_and_filter_segments(
@@ -193,8 +253,8 @@ def timeline_to_minimal_stj(
     if timeline_source:
         source_name = timeline_source
 
-    # Build speakers registry
-    speakers_list = _build_speakers(entries, include_unknown=include_unknown, mode=mode)
+    registry = _SpeakerRegistry(include_unknown=include_unknown, mode=mode)
+    registry.ingest(entries)
     used_speakers: set[str] = set()
 
     # Build raw segments
@@ -213,7 +273,7 @@ def timeline_to_minimal_stj(
                 end = s
         else:
             end = duration_sec if duration_sec is not None else s
-        sid = _choose_speaker_id(e.get("users"), mode)
+        sid = registry.speaker_id_for_users(e.get("users"))
         if sid is None:
             if include_unknown:
                 sid = "unknown"
@@ -235,10 +295,7 @@ def timeline_to_minimal_stj(
             continue
         rounded_segments.append((s, e, sid))
 
-    # Prepare speakers array with only referenced speakers to keep minimal
-    # but keep synthetic ids if policy uses them and they appear in used_speakers
-    speakers = [{"id": sp.id, "name": sp.name} for sp in speakers_list if sp.id in used_speakers]
-    # Ensure order stability by sort by name then id (already sorted in build)
+    speakers = registry.speakers_for_ids(used_speakers)
 
     # Metadata
     try:

@@ -91,6 +91,8 @@ export DLZOOM_SPEAKERS=0
 
 STJ spec: https://github.com/yaniv-golan/STJ/blob/main/spec/latest/stj-specification.md
 
+Speaker IDs inside the STJ file are human-friendly slugs (e.g., `yaniv-golan`), while the raw Zoom participant/user IDs are preserved under `speakers[].extensions.zoom` for lossless correlation.
+
 ## Browse and Download
 
 ```bash

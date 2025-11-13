@@ -32,11 +32,14 @@ def test_minimal_stj_basic_first_mode():
         assert isinstance(seg["start"], float) and isinstance(seg["end"], float)
         assert isinstance(seg["text"], str)
 
-    # First non-empty users at 10s should create segment 10.0 -> 12.0 for Alice
+    # First non-empty users at 10s should create segment 10.0 -> 12.0 for Alice slug
     assert any(
-        abs(s["start"] - 10.0) < 1e-6 and abs(s["end"] - 12.0) < 1e-6 and s["speaker_id"] == "Z_A"
+        abs(s["start"] - 10.0) < 1e-6 and abs(s["end"] - 12.0) < 1e-6 and s["speaker_id"] == "alice"
         for s in segments
     )
+    speakers = stj["stj"]["transcript"]["speakers"]
+    alice = next(sp for sp in speakers if sp["id"] == "alice")
+    assert alice["extensions"]["zoom"]["participant_id"] == "Z_A"
 
 
 def test_multiple_mode_uses_multiple_id():
@@ -84,3 +87,16 @@ def test_merge_and_min_drop():
     # Short initial 0.6s should be merged into longer segment or dropped
     assert segs[0]["start"] <= 0.0 + 1e-6
     assert segs[0]["end"] >= 2.0 - 1e-6
+
+
+def test_duplicate_names_get_slug_suffixes():
+    data = {
+        "timeline": [
+            {"ts": "00:00:00.000", "users": [{"username": "Alex", "zoom_userid": "Z1"}]},
+            {"ts": "00:00:01.000", "users": [{"username": "Alex", "zoom_userid": "Z2"}]},
+        ]
+    }
+    stj = timeline_to_minimal_stj(data, duration_sec=2.0)
+    speaker_ids = {sp["id"] for sp in stj["stj"]["transcript"]["speakers"]}
+    assert "alex" in speaker_ids
+    assert "alex-2" in speaker_ids
