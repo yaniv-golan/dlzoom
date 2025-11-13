@@ -555,6 +555,12 @@ class Downloader:
         skip_transcript: bool = False,
         skip_chat: bool = False,
         skip_timeline: bool = False,
+        # STJ generation controls
+        skip_speakers: bool | None = None,
+        speakers_mode: str = "first",
+        stj_min_segment_sec: float = 1.0,
+        stj_merge_gap_sec: float = 1.5,
+        include_unknown: bool = False,
     ) -> dict[str, Path | None]:
         """
         Download transcripts (VTT), chat (TXT), and timeline (JSON) files
@@ -643,6 +649,57 @@ class Downloader:
                         show_progress,
                     )
                     result["timeline"] = path
+
+                    # Generate minimal STJ speakers file by default unless disabled
+                    try:
+                        # honor explicit skip_speakers if provided; else check env default
+                        do_skip_speakers = False
+                        if skip_speakers is None:
+                            import os as _os
+
+                            env_val = _os.getenv("DLZOOM_SPEAKERS", "1").strip()
+                            do_skip_speakers = env_val in ("0", "false", "False")
+                        else:
+                            do_skip_speakers = bool(skip_speakers)
+
+                        if not do_skip_speakers:
+                            from dlzoom.stj_minimizer import write_minimal_stj_from_file
+
+                            # Compute output base name
+                            if self.output_name:
+                                base = self.output_name
+                            else:
+                                # Fallback: sanitized meeting_topic + optional timestamp
+                                safe_topic = "".join(
+                                    c if c.isalnum() or c in (" ", "-", "_") else "_"
+                                    for c in meeting_topic
+                                ).strip()
+                                if instance_start:
+                                    ts = (
+                                        instance_start.replace(":", "-")
+                                        .replace("T", "_")
+                                        .split(".")[0]
+                                    )
+                                    base = f"{safe_topic}_{ts}"
+                                else:
+                                    base = safe_topic or "meeting"
+
+                            stj_path = self.output_dir / f"{base}_speakers.stjson"
+
+                            self.logger.info(
+                                f"Generating minimal STJ speakers file: {stj_path.name}"
+                            )
+                            write_minimal_stj_from_file(
+                                timeline_path=path,
+                                output_path=stj_path,
+                                duration_sec=None,
+                                mode=speakers_mode,
+                                min_segment_sec=stj_min_segment_sec,
+                                merge_gap_sec=stj_merge_gap_sec,
+                                include_unknown=include_unknown,
+                            )
+                    except Exception as e:
+                        self.logger.error(f"Failed to generate STJ speakers file: {e}")
                 except DownloadError as e:
                     self.logger.error(f"Failed to download timeline: {e}")
 
