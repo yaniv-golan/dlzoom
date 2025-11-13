@@ -7,6 +7,9 @@
 **Zoom Broker** is a minimal Cloudflare Worker that handles the OAuth 2.0 Authorization Code flow for Zoom on behalf of the CLI.
 It securely stores your Zoom OAuth credentials and issues short-lived access tokens for per-user access to the Zoom API (e.g., listing and downloading cloud recordings).
 
+Note on availability
+- The CLI’s hosted sign‑in will be enabled after the Zoom app is published. Until then, this broker is the supported way to use User OAuth with dlzoom. Deploy it and pass `--auth-url` to `dlzoom login`.
+
 ---
 
 ## 🚀 Overview

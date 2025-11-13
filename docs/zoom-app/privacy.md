@@ -18,7 +18,7 @@ What we access
 How we use it
 - To sign you in to Zoom and show/download your recordings.
 - We don't use your data for ads or user-tracking analytics.
-- Note: Our hosted authentication service uses Cloudflare Workers, which collects infrastructure-level metrics (request counts, errors, performance) for operational monitoring. This is standard infrastructure observability and does not track individual users or their data.
+- Note: When hosted sign‑in is enabled, it uses Cloudflare Workers, which collects infrastructure-level metrics (request counts, errors, performance) for operational monitoring. This is standard infrastructure observability and does not track individual users or their data.
 
 Where it's stored and for how long
 - Sign‑in tokens are stored locally on your device (in `~/.config/dlzoom/tokens.json`) until you log out or they expire.
@@ -26,7 +26,7 @@ Where it's stored and for how long
 - Downloaded recordings are saved only on your device and are under your control.
 
 Hosted vs self‑hosted sign‑in
-- Default: If you use our hosted sign‑in, the short‑lived code is handled by our service only to complete sign‑in, then it expires.
+- Hosted (when enabled): If you use our hosted sign‑in, the short‑lived code is handled by our service only to complete sign‑in, then it expires.
 - Self‑hosted: If you host your own sign‑in, that short‑lived code is handled by your service instead.
 
 Sharing

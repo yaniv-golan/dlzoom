@@ -8,7 +8,8 @@ dlzoom – Download your Zoom Cloud Recordings
 
 dlzoom is a simple command‑line tool that helps you list and download your Zoom Cloud Recordings to your computer.
 
-Most people can use dlzoom without any setup. When you sign in, we open a Zoom page in your browser so you can approve access. Advanced users can host their own sign‑in service if they prefer.
+Note on availability
+- Hosted sign‑in will be available once Zoom publishes the app in the Marketplace. Until then, you can either self‑host the sign‑in broker or use Server‑to‑Server (S2S) OAuth.
 
 dlzoom is open‑source and free, and it will stay that way. We never sell any data.
 
@@ -21,14 +22,14 @@ What you can do
 - Keep everything local — we don’t upload your files anywhere.
 
 How sign‑in works
-- Default (no setup): dlzoom uses our hosted sign‑in service at `https://zoom-broker.dlzoom.workers.dev` to connect your Zoom account securely.
-- Advanced (optional): You can host your own sign‑in service and point dlzoom to it. See developer docs at `zoom-broker/README.md`.
+- Hosted (coming soon): dlzoom will use a hosted sign‑in service to connect your Zoom account securely.
+- Self‑hosted (available now): You can host your own sign‑in service and point dlzoom to it. See developer docs at `zoom-broker/README.md`.
 
 Permissions requested (read‑only)
 - View your list of cloud recordings and their files. dlzoom does not request permission to change meetings or recordings.
 
-Signing in
-1. Run the dlzoom login command.
+Signing in (user OAuth)
+1. If using a self‑hosted broker, run: `dlzoom login --auth-url https://<your-worker>.workers.dev`
 2. A browser window opens to Zoom. Approve access.
 3. Return to the terminal and continue.
 

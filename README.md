@@ -12,6 +12,11 @@
 
 Simple CLI tool to download audio recordings and metadata from Zoom meetings using meeting IDs.
 
+> Status
+> Hosted user sign‑in (`dlzoom login`) will be available after Zoom publishes the app in the Marketplace. Until then, use one of these options:
+> - Self‑host the OAuth broker under `zoom-broker/` and run `dlzoom login --auth-url <your_broker_url>`
+> - Or use Server‑to‑Server (S2S) OAuth by setting `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`
+
 ## Features
 
 - 🎵 Download audio recordings (M4A format)
@@ -124,22 +129,26 @@ winget install ffmpeg
 
 ## Quick Start
 
-### 1. Sign In (Recommended)
+### 1. Sign In (User OAuth)
 
-Use our hosted authentication service to connect your Zoom account (no secrets required):
+Hosted sign‑in is coming soon (pending Zoom Marketplace approval). For now, pick one:
 
-```bash
-dlzoom login
-```
+- Self‑host the OAuth broker and sign in:
+  ```bash
+  # Deploy the broker (see zoom-broker/README.md for full steps)
+  cd zoom-broker
+  npx wrangler secret put ZOOM_CLIENT_ID
+  npx wrangler secret put ZOOM_CLIENT_SECRET
+  npx wrangler kv namespace create AUTH
+  npx wrangler deploy
 
-This opens your browser to approve access and stores a short‑lived token locally (refreshed automatically).
+  # Back in your project root, sign in via your broker
+  dlzoom login --auth-url https://<your-worker>.workers.dev
+  ```
 
-Alternatively, organizational users can configure Server‑to‑Server (S2S) OAuth using environment variables or a config file.
+- Or use Server‑to‑Server (S2S) OAuth (no broker): see the next section.
 
-Host your own broker (optional)
-- The CLI uses a hosted sign‑in broker by default. To self‑host, deploy the worker under `zoom-broker/` (see that README), then point dlzoom to your URL via the `--auth-url` option or environment variable when logging in.
-
-### 2. Configure S2S Credentials (Optional)
+### 2. Configure S2S Credentials (Alternative to user sign‑in)
 
 Create a `.env` file in your working directory:
 
@@ -603,11 +612,11 @@ dlzoom download 123456789 --config config.yaml
 
 - Python 3.11 or higher
 - ffmpeg (for audio extraction)
-- Zoom account (User OAuth via `dlzoom login`) or S2S OAuth app (optional)
+- Zoom account. For user OAuth, use a self‑hosted broker with `dlzoom login --auth-url <your_broker_url>` until hosted sign‑in is enabled; or use an S2S OAuth app.
 
 Security note (tokens): On Windows, file permission enforcement for `tokens.json` is best‑effort. Treat your token file as sensitive and ensure your user profile is protected.
 
-## Broker Origin Restriction (Optional)
+## Broker Origin Restriction (Optional, when using user sign‑in)
 
 For tighter security on the hosted auth service, you can restrict which origin is allowed to call the token endpoints:
 

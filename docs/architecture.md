@@ -90,8 +90,8 @@ Direct authentication using account credentials (no broker needed).
 - Source: `git clone` + `pip install -e .`
 
 ### OAuth Broker
-- **Hosted (default):** CLI uses a public broker instance
-- **Self-hosted:** Deploy `zoom-broker/` to your Cloudflare account
+- **Hosted (coming soon):** CLI will use a public broker instance when available
+- **Self-hosted (available now):** Deploy `zoom-broker/` to your Cloudflare account
   ```bash
   cd zoom-broker
   wrangler deploy
@@ -165,7 +165,7 @@ npm run dev  # Local Cloudflare Worker
 
 ## Self‑Hosting
 
-The CLI defaults to a hosted broker for convenience. Advanced users can:
+The CLI will default to a hosted broker when it is available. Until then, you can:
 
 1. Deploy `zoom-broker/` to their own Cloudflare account
 2. Point the CLI to their broker URL:
