@@ -19,6 +19,10 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      ALLOWED_ORIGIN: http://localhost
+      ZOOM_CLIENT_ID: dummy
+      ZOOM_CLIENT_SECRET: dummy
     concurrency:
       group: js-ci-${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true
