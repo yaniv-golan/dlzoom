@@ -161,6 +161,20 @@ zoom_client_secret: "your_client_secret"
 log_level: "INFO"
 ```
 
+#### Automatic .env loading and opt-out
+
+- dlzoom automatically loads environment variables from a `.env` file at startup. It searches from your current working directory upwards (like `git`), and loads the first `.env` it finds.
+- Loading uses `override=False`, so variables already present in your shell/environment take precedence over values in `.env`.
+- To disable auto-loading (e.g., for CI or scripts that must be fully deterministic), set:
+
+```bash
+export DLZOOM_NO_DOTENV=1
+```
+
+Tips and caveats:
+- Prefer explicit environment variables for automation where you don’t want a parent directory `.env` to influence behavior.
+- If your project lives in a cloud‑synced folder (Dropbox, iCloud, Google Drive), treat `.env` as sensitive; consider using environment variables or a config file stored outside that folder.
+
 ### 3. Browse and Download
 
 Browse your recordings by date:
