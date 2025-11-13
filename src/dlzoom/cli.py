@@ -698,17 +698,17 @@ def download(
                 skip_transcript=skip_transcript,
                 skip_chat=skip_chat,
                 skip_timeline=skip_timeline,
-                skip_speakers=skip_speakers,
-                speakers_mode=speakers_mode,
-                stj_min_segment_sec=stj_min_seg_sec,
-                stj_merge_gap_sec=stj_merge_gap_sec,
-                include_unknown=include_unknown,
                 formatter=formatter,
                 verbose=verbose,
                 debug=debug,
                 json_mode=json_mode,
                 filename_template=filename_template,
                 folder_template=folder_template,
+                skip_speakers=skip_speakers,
+                speakers_mode=speakers_mode,
+                stj_min_segment_sec=stj_min_seg_sec,
+                stj_merge_gap_sec=stj_merge_gap_sec,
+                include_unknown=include_unknown,
             )
             return
 
@@ -732,11 +732,6 @@ def download(
             skip_transcript=skip_transcript,
             skip_chat=skip_chat,
             skip_timeline=skip_timeline,
-            skip_speakers=skip_speakers,
-            speakers_mode=speakers_mode,
-            stj_min_segment_sec=stj_min_seg_sec,
-            stj_merge_gap_sec=stj_merge_gap_sec,
-            include_unknown=include_unknown,
             dry_run=dry_run,
             log_file=Path(log_file) if log_file else None,
             formatter=formatter,
@@ -746,6 +741,11 @@ def download(
             wait=wait,
             filename_template=filename_template,
             folder_template=folder_template,
+            skip_speakers=skip_speakers,
+            speakers_mode=speakers_mode,
+            stj_min_segment_sec=stj_min_seg_sec,
+            stj_merge_gap_sec=stj_merge_gap_sec,
+            include_unknown=include_unknown,
         )
 
     except DlzoomError as e:

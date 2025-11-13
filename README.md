@@ -363,6 +363,31 @@ dlzoom download 123456789 --skip-chat
 dlzoom download 123456789 --skip-timeline
 ```
 
+### Minimal STJ Diarization (default)
+
+By default, dlzoom generates a compact STJ file of speaker segments after downloading the timeline. This is useful for AI transcription prompts and diarization-aware tools.
+
+```bash
+# Default behavior (generates my_meeting_speakers.stjson)
+dlzoom download 123456789 --output-name my_meeting
+
+# Disable generation entirely
+dlzoom download 123456789 --skip-speakers
+
+# Handle multi-user timestamps
+dlzoom download 123456789 --speakers-mode multiple
+
+# Tuning
+dlzoom download 123456789 --stj-min-seg-sec 1.0 --stj-merge-gap-sec 1.5
+
+# Include unknown-speaker segments instead of dropping them
+dlzoom download 123456789 --include-unknown
+```
+
+Environment toggle:
+- Set `DLZOOM_SPEAKERS=0` to disable generation by default.
+- Note: `--skip-timeline` also prevents STJ generation.
+
 ## Download Options
 
 ```
@@ -380,6 +405,12 @@ Options:
   --skip-transcript              Skip transcript download
   --skip-chat                    Skip chat log download
   --skip-timeline                Skip timeline download
+  --skip-speakers                Do not generate minimal STJ speakers file (default: generate)
+  --speakers-mode [first|multiple]
+                                 When multiple users are listed for a timestamp (default: first)
+  --stj-min-seg-sec FLOAT        Drop segments shorter than this duration (seconds) [default: 1.0]
+  --stj-merge-gap-sec FLOAT      Merge adjacent same-speaker segments within this gap (seconds) [default: 1.5]
+  --include-unknown              Include segments with unknown speaker (otherwise drop)
   --dry-run                      Show what would be downloaded
   --log-file PATH                Write structured log (JSONL format)
   --config PATH                  Path to config file (JSON/YAML)
@@ -601,6 +632,14 @@ dlzoom download 123456789 --config config.yaml
 - Format: JSON
 - Naming: `{meeting_id}_timeline.json`
 - Contains: Meeting events (joins, leaves, screen shares, etc.)
+
+**Minimal STJ speakers (diarization):**
+
+- Format: STJ v0.6 JSON (`.stjson`)
+- Naming: `{meeting_id}_speakers.stjson` (or `{output_name}_speakers.stjson`)
+- Contains: Minimal diarization segments with `start`, `end`, `speaker_id`, `text:""`
+- Defaults: Generated automatically when a timeline is present; disable with `--skip-speakers` or `DLZOOM_SPEAKERS=0`
+- Notes: Prefers `timeline_refine` when available; respects `--skip-timeline`
 
 **Metadata:**
 

@@ -5,6 +5,41 @@ All notable changes to dlzoom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - Unreleased
+
+### Added
+- Minimal STJ diarization file generation (default ON) after timeline download
+  - Emits `{output_name}_speakers.stjson` in STJ v0.6 format
+  - Diarization-only segments (start/end/speaker_id, empty text)
+  - Prefers `timeline_refine` over `timeline` when available
+  - Privacy by default: includes only stable speaker id + display name
+- CLI controls:
+  - `--skip-speakers` to disable generation
+  - `--speakers-mode [first|multiple]` to handle multi-user timestamps
+  - `--stj-min-seg-sec` (default 1.0) to drop very short segments
+  - `--stj-merge-gap-sec` (default 1.5) to merge small gaps
+  - `--include-unknown` to include segments with unknown speaker
+- Env toggle: `DLZOOM_SPEAKERS=0` disables generation (default is enabled)
+
+### Changed
+- Respect skip cascade: `--skip-timeline` also prevents STJ generation
+- Deterministic STJ output (rounded to 3 decimals) and idempotent regeneration
+
+### Documentation
+- Added design plan: `docs/internal/stj-minimal-json-plan.md`
+- README: documented STJ feature, CLI flags, and env toggle
+
+
+## [0.2.1] - 2025-11-13
+
+Hotfix release.
+
+### Changed
+- docs(readme): add Shields badges for CI, PyPI, Docker, license, and downloads
+- docs(auth): clarify hosted sign-in availability and provide self-host/S2S alternatives
+- refactor(cli): add `main()` entrypoint for console script
+- chore(zoom-broker): update `zoom-broker/wrangler.jsonc`
+
 
 ## [0.2.0] - 2025-11-13
 

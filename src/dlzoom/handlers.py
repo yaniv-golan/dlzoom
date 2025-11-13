@@ -194,17 +194,18 @@ def _handle_batch_download(
     skip_transcript: bool,
     skip_chat: bool,
     skip_timeline: bool,
-    skip_speakers: bool | None,
-    speakers_mode: str,
-    stj_min_segment_sec: float,
-    stj_merge_gap_sec: float,
-    include_unknown: bool,
     formatter: OutputFormatter,
     verbose: bool,
     debug: bool,
     json_mode: bool,
     filename_template: str | None,
     folder_template: str | None,
+    *,
+    skip_speakers: bool | None = None,
+    speakers_mode: str = "first",
+    stj_min_segment_sec: float = 1.0,
+    stj_merge_gap_sec: float = 1.5,
+    include_unknown: bool = False,
 ) -> None:
     """Batch download helper used by the `download` command when a date range is supplied."""
 
@@ -274,11 +275,6 @@ def _handle_batch_download(
                 skip_transcript=skip_transcript,
                 skip_chat=skip_chat,
                 skip_timeline=skip_timeline,
-                skip_speakers=skip_speakers,
-                speakers_mode=speakers_mode,
-                stj_min_segment_sec=stj_min_segment_sec,
-                stj_merge_gap_sec=stj_merge_gap_sec,
-                include_unknown=include_unknown,
                 dry_run=False,
                 log_file=None,
                 formatter=formatter,
@@ -288,6 +284,11 @@ def _handle_batch_download(
                 wait=None,
                 filename_template=filename_template,
                 folder_template=folder_template,
+                skip_speakers=skip_speakers,
+                speakers_mode=speakers_mode,
+                stj_min_segment_sec=stj_min_segment_sec,
+                stj_merge_gap_sec=stj_merge_gap_sec,
+                include_unknown=include_unknown,
             )
             success_count += 1
             if json_mode:
@@ -355,11 +356,6 @@ def _handle_download_mode(
     skip_transcript: bool,
     skip_chat: bool,
     skip_timeline: bool,
-    skip_speakers: bool | None,
-    speakers_mode: str,
-    stj_min_segment_sec: float,
-    stj_merge_gap_sec: float,
-    include_unknown: bool,
     dry_run: bool,
     log_file: Path | None,
     formatter: OutputFormatter,
@@ -369,6 +365,12 @@ def _handle_download_mode(
     wait: int | None,
     filename_template: str | None = None,
     folder_template: str | None = None,
+    *,
+    skip_speakers: bool | None = None,
+    speakers_mode: str = "first",
+    stj_min_segment_sec: float = 1.0,
+    stj_merge_gap_sec: float = 1.5,
+    include_unknown: bool = False,
 ) -> None:
     """Handle download mode: Download recordings."""
 
