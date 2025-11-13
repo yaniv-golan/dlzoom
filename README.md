@@ -1,5 +1,13 @@
 # dlzoom
 
+[![CI](https://github.com/yaniv-golan/dlzoom/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yaniv-golan/dlzoom/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/dlzoom)](https://pypi.org/project/dlzoom/)
+[![Python versions](https://img.shields.io/pypi/pyversions/dlzoom)](https://pypi.org/project/dlzoom/)
+[![License: MIT](https://img.shields.io/github/license/yaniv-golan/dlzoom)](LICENSE)
+[![PyPI downloads](https://img.shields.io/pypi/dm/dlzoom)](https://pypi.org/project/dlzoom/)
+[![Docker pulls](https://img.shields.io/docker/pulls/yanivgolan1/dlzoom)](https://hub.docker.com/r/yanivgolan1/dlzoom)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://pre-commit.com/)
+
 **Download Zoom cloud recordings from the command line.**
 
 Simple CLI tool to download audio recordings and metadata from Zoom meetings using meeting IDs.

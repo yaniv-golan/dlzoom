@@ -1,5 +1,9 @@
 # Zoom Broker
 
+[![JS CI](https://github.com/yaniv-golan/dlzoom/actions/workflows/js.yml/badge.svg?branch=main)](https://github.com/yaniv-golan/dlzoom/actions/workflows/js.yml)
+![Node Version](https://img.shields.io/badge/node-%3E%3D20%20%3C21-339933?logo=node.js&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../LICENSE)
+
 **Zoom Broker** is a minimal Cloudflare Worker that handles the OAuth 2.0 Authorization Code flow for Zoom on behalf of the CLI.
 It securely stores your Zoom OAuth credentials and issues short-lived access tokens for per-user access to the Zoom API (e.g., listing and downloading cloud recordings).
 
