@@ -367,6 +367,8 @@ dlzoom download 123456789 --skip-timeline
 
 By default, dlzoom generates a compact STJ file of speaker segments after downloading the timeline. This is useful for AI transcription prompts and diarization-aware tools.
 
+Spec reference: https://github.com/yaniv-golan/STJ/blob/main/spec/latest/stj-specification.md
+
 ```bash
 # Default behavior (generates my_meeting_speakers.stjson)
 dlzoom download 123456789 --output-name my_meeting
@@ -635,7 +637,7 @@ dlzoom download 123456789 --config config.yaml
 
 **Minimal STJ speakers (diarization):**
 
-- Format: STJ v0.6 JSON (`.stjson`)
+- Format: STJ v0.6 JSON (`.stjson`) — spec: https://github.com/yaniv-golan/STJ/blob/main/spec/latest/stj-specification.md
 - Naming: `{meeting_id}_speakers.stjson` (or `{output_name}_speakers.stjson`)
 - Contains: Minimal diarization segments with `start`, `end`, `speaker_id`, `text:""`
 - Defaults: Generated automatically when a timeline is present; disable with `--skip-speakers` or `DLZOOM_SPEAKERS=0`

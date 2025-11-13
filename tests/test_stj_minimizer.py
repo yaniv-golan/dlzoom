@@ -1,4 +1,3 @@
-import json
 from dlzoom.stj_minimizer import timeline_to_minimal_stj
 
 
@@ -9,10 +8,13 @@ def _synthetic_timeline():
         "timeline": [
             {"ts": "00:00:05.000", "users": []},
             {"ts": "00:00:10.000", "users": [{"username": "Alice", "zoom_userid": "Z_A"}]},
-            {"ts": "00:00:12.000", "users": [
-                {"username": "Bob", "zoom_userid": "Z_B"},
-                {"username": "Carol", "zoom_userid": "Z_C"}
-            ]},
+            {
+                "ts": "00:00:12.000",
+                "users": [
+                    {"username": "Bob", "zoom_userid": "Z_B"},
+                    {"username": "Carol", "zoom_userid": "Z_C"},
+                ],
+            },
             {"ts": "00:00:13.100", "users": [{"username": "Carol", "zoom_userid": "Z_C"}]},
             {"ts": "00:00:15.000", "users": []},
         ]
@@ -31,7 +33,10 @@ def test_minimal_stj_basic_first_mode():
         assert isinstance(seg["text"], str)
 
     # First non-empty users at 10s should create segment 10.0 -> 12.0 for Alice
-    assert any(abs(s["start"] - 10.0) < 1e-6 and abs(s["end"] - 12.0) < 1e-6 and s["speaker_id"] == "Z_A" for s in segments)
+    assert any(
+        abs(s["start"] - 10.0) < 1e-6 and abs(s["end"] - 12.0) < 1e-6 and s["speaker_id"] == "Z_A"
+        for s in segments
+    )
 
 
 def test_multiple_mode_uses_multiple_id():

@@ -1,5 +1,6 @@
-from pathlib import Path
 import json
+from pathlib import Path
+
 from dlzoom.downloader import Downloader
 
 
@@ -33,10 +34,20 @@ def test_downloader_generates_stj_by_default(monkeypatch, tmp_path):
         return output_path
 
     monkeypatch.setenv("DLZOOM_SPEAKERS", "1")
-    monkeypatch.setitem(__import__("sys").modules, "dlzoom.stj_minimizer", __import__("types").SimpleNamespace(write_minimal_stj_from_file=fake_writer))
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "dlzoom.stj_minimizer",
+        __import__("types").SimpleNamespace(write_minimal_stj_from_file=fake_writer),
+    )
 
     files = d.download_transcripts_and_chat(
-        recording_files=[{"file_extension": "JSON", "file_type": "TIMELINE", "download_url": "https://zoom.us/rec/download/foo"}],
+        recording_files=[
+            {
+                "file_extension": "JSON",
+                "file_type": "TIMELINE",
+                "download_url": "https://zoom.us/rec/download/foo",
+            }
+        ],
         meeting_topic="Topic",
         instance_start=None,
         show_progress=False,
@@ -61,10 +72,20 @@ def test_downloader_skip_speakers(monkeypatch, tmp_path):
     def fake_writer(*a, **k):
         wrote["called"] = True
 
-    monkeypatch.setitem(__import__("sys").modules, "dlzoom.stj_minimizer", __import__("types").SimpleNamespace(write_minimal_stj_from_file=fake_writer))
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "dlzoom.stj_minimizer",
+        __import__("types").SimpleNamespace(write_minimal_stj_from_file=fake_writer),
+    )
 
     d.download_transcripts_and_chat(
-        recording_files=[{"file_extension": "JSON", "file_type": "TIMELINE", "download_url": "https://zoom.us/rec/download/foo"}],
+        recording_files=[
+            {
+                "file_extension": "JSON",
+                "file_type": "TIMELINE",
+                "download_url": "https://zoom.us/rec/download/foo",
+            }
+        ],
         meeting_topic="Topic",
         instance_start=None,
         show_progress=False,
@@ -75,4 +96,3 @@ def test_downloader_skip_speakers(monkeypatch, tmp_path):
     )
 
     assert wrote["called"] is False
-

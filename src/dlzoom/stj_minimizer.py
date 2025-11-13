@@ -8,14 +8,14 @@ safe to run post-timeline download.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
-
 import json
 import logging
 import re
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +27,15 @@ def _parse_hhmmss_ms(ts: str) -> float:
     """
     try:
         # Fast path when format is HH:MM:SS.mmm
-        h, m, s = ts.split(":")
+        h, mm_str, s = ts.split(":")
         sec = float(s)
-        return int(h) * 3600 + int(m) * 60 + sec
+        return int(h) * 3600 + int(mm_str) * 60 + sec
     except Exception:
         # Fallback: extract numerical parts
-        m = re.match(r"^(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$", ts.strip())
-        if not m:
+        match = re.match(r"^(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$", ts.strip())
+        if not match:
             raise ValueError(f"Invalid timestamp: {ts!r}")
-        hh, mm, ss, ms = m.groups()
+        hh, mm, ss, ms = match.groups()
         base = int(hh) * 3600 + int(mm) * 60 + int(ss)
         if ms:
             frac = float(f"0.{ms}")
@@ -56,7 +56,7 @@ class _Speaker:
     name: str
 
 
-def _choose_speaker_id(users: list[dict[str, Any]] | None, mode: str) -> Optional[str]:
+def _choose_speaker_id(users: list[dict[str, Any]] | None, mode: str) -> str | None:
     if not users:
         return None
     if len(users) > 1 and mode == "multiple":
@@ -72,12 +72,12 @@ def _choose_speaker_id(users: list[dict[str, Any]] | None, mode: str) -> Optiona
     return _slugify(uname)
 
 
-def _build_speakers(entries: Iterable[dict[str, Any]], *,
-                    include_unknown: bool,
-                    mode: str) -> List[_Speaker]:
+def _build_speakers(
+    entries: Iterable[dict[str, Any]], *, include_unknown: bool, mode: str
+) -> list[_Speaker]:
     # Deterministic map of id -> name with collision handling for slugified names
-    id_to_name: Dict[str, str] = {}
-    slug_counts: Dict[str, int] = {}
+    id_to_name: dict[str, str] = {}
+    slug_counts: dict[str, int] = {}
 
     def add_user(u: dict[str, Any]) -> None:
         zid = (u.get("zoom_userid") or "").strip()
@@ -120,15 +120,15 @@ def _build_speakers(entries: Iterable[dict[str, Any]], *,
     return speakers
 
 
-def _merge_and_filter_segments(segments: List[Tuple[float, float, str]], *,
-                               min_segment_sec: float,
-                               merge_gap_sec: float) -> List[Tuple[float, float, str]]:
+def _merge_and_filter_segments(
+    segments: list[tuple[float, float, str]], *, min_segment_sec: float, merge_gap_sec: float
+) -> list[tuple[float, float, str]]:
     if not segments:
         return []
     # Sort by start time
     segments.sort(key=lambda t: t[0])
 
-    merged: List[Tuple[float, float, str]] = []
+    merged: list[tuple[float, float, str]] = []
     for s, e, sid in segments:
         if e <= s:
             continue  # drop zero/negative length
@@ -143,7 +143,7 @@ def _merge_and_filter_segments(segments: List[Tuple[float, float, str]], *,
             merged.append((s, e, sid))
 
     # Drop short segments or try to fuse if neighbors are same speaker
-    result: List[Tuple[float, float, str]] = []
+    result: list[tuple[float, float, str]] = []
     for i, (s, e, sid) in enumerate(merged):
         dur = e - s
         if dur + 1e-9 >= min_segment_sec:
@@ -167,12 +167,12 @@ def _merge_and_filter_segments(segments: List[Tuple[float, float, str]], *,
 def timeline_to_minimal_stj(
     timeline: dict,
     *,
-    duration_sec: Optional[float] = None,
+    duration_sec: float | None = None,
     mode: str = "first",
     min_segment_sec: float = 1.0,
     merge_gap_sec: float = 1.5,
     include_unknown: bool = False,
-    timeline_source: Optional[str] = None,
+    timeline_source: str | None = None,
 ) -> dict:
     """Convert Zoom timeline JSON to minimal STJ dict.
 
@@ -198,7 +198,7 @@ def timeline_to_minimal_stj(
     used_speakers: set[str] = set()
 
     # Build raw segments
-    raw_segments: List[Tuple[float, float, str]] = []
+    raw_segments: list[tuple[float, float, str]] = []
     for i, e in enumerate(entries):
         ts = e.get("ts")
         try:
@@ -237,11 +237,7 @@ def timeline_to_minimal_stj(
 
     # Prepare speakers array with only referenced speakers to keep minimal
     # but keep synthetic ids if policy uses them and they appear in used_speakers
-    speakers = [
-        {"id": sp.id, "name": sp.name}
-        for sp in speakers_list
-        if sp.id in used_speakers
-    ]
+    speakers = [{"id": sp.id, "name": sp.name} for sp in speakers_list if sp.id in used_speakers]
     # Ensure order stability by sort by name then id (already sorted in build)
 
     # Metadata
@@ -250,12 +246,12 @@ def timeline_to_minimal_stj(
     except Exception:
         _dlzoom_version = ""
 
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "transcriber": {"name": "dlzoom", "version": _dlzoom_version},
-        "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "extensions": {"dlzoom": {"mode": "diarization_only", "transcription_pending": True}},
     }
-    source: Dict[str, Any] = {"extensions": {"zoom": {"has_timeline": bool(entries)}}}
+    source: dict[str, Any] = {"extensions": {"zoom": {"has_timeline": bool(entries)}}}
     if duration_sec is not None:
         source["duration"] = float(duration_sec)
     source["languages"] = ["und"]
@@ -283,7 +279,7 @@ def write_minimal_stj_from_file(
     timeline_path: Path,
     output_path: Path,
     *,
-    duration_sec: Optional[float] = None,
+    duration_sec: float | None = None,
     mode: str = "first",
     min_segment_sec: float = 1.0,
     merge_gap_sec: float = 1.5,
@@ -291,7 +287,7 @@ def write_minimal_stj_from_file(
 ) -> Path:
     """Read a Zoom timeline JSON file and write minimal STJ to output_path."""
     try:
-        with open(timeline_path, "r", encoding="utf-8") as f:
+        with open(timeline_path, encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
         raise RuntimeError(f"Failed to read timeline JSON: {timeline_path}: {e}")
@@ -310,4 +306,3 @@ def write_minimal_stj_from_file(
         json.dump(stj, f, indent=2, ensure_ascii=False)
         f.write("\n")
     return output_path
-
