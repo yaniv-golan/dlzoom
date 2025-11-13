@@ -805,5 +805,9 @@ def download(
 # _handle_list_mode removed in v0.2.0; use `dlzoom recordings --meeting-id` instead
 
 
-if __name__ == "__main__":
+def main() -> None:
     cli()
+
+
+if __name__ == "__main__":
+    main()
