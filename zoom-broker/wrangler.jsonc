@@ -13,7 +13,7 @@
 	"kv_namespaces": [
 		{
 			"binding": "AUTH",
-			"id": "<your-kv-namespace-id>",
+			"id": "609bcc2a99ab4a1ab2c323bf7d0cd61f",
 			"remote": true
 		}
 	]
