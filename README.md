@@ -8,66 +8,165 @@
 [![Docker pulls](https://img.shields.io/docker/pulls/yanivgolan1/dlzoom)](https://hub.docker.com/r/yanivgolan1/dlzoom)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://pre-commit.com/)
 
-**Download Zoom cloud recordings from the command line.**
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yaniv-golan/dlzoom/main/assets/banner.png"
+       alt="dlzoom — Download Zoom cloud recordings from the command line" />
+</p>
 
-Simple CLI tool to download audio recordings and metadata from Zoom meetings using meeting IDs.
+Download Zoom cloud recordings from the command line.
 
-> Status
-> Hosted user sign‑in (`dlzoom login`) will be available after Zoom publishes the app in the Marketplace. Until then, use one of these options:
-> - Self‑host the OAuth broker under `zoom-broker/` and run `dlzoom login --auth-url <your_broker_url>`
-> - Or use Server‑to‑Server (S2S) OAuth by setting `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`
+Built for power users and teams running custom transcription pipelines: get clean audio (M4A) and a diarization‑first minimal STJ file you can feed into your ASR of choice (e.g., Whisper) to add richer context than Zoom’s default transcription and support languages Zoom doesn’t handle well.
 
-## Features
+## Why dlzoom
 
-- 🎵 Download audio recordings (M4A format)
-- 📝 Download transcripts, chat logs, and timelines
-- 🔄 Automatic audio extraction from video files (MP4 → M4A)
-- 🔐 Authentication: Hosted user OAuth (default) or Server-to-Server OAuth
-- 📋 JSON output for automation
-- 🎯 Support for recurring meetings and PMI
-- ⏳ Wait for recording processing with `--wait`
-- 🔍 Check recording availability before downloading
-- 🛡️ Secure (credentials never exposed in logs)
-- 🔁 Automatic retry with exponential backoff
-- 💪 Production-ready with 119 tests
+- 🎯 Purpose-built for transcription workflows: audio (M4A) + minimal STJ diarization JSON by default
+- 🔄 Resilient downloads: resume partials, retries with backoff, dedupe by size
+- 🧰 Automation-first: JSON output, batch by date range, structured logs, file/folder templates
+- 🔐 Secure by design: OAuth via broker (no client secret in CLI), S2S for admins, no secrets in logs
+- 🐳 Docker image includes ffmpeg; no local deps required
+- 🧪 Comprehensive tests and CI
 
-## Installation
+> Authentication note
+> Hosted user sign‑in (`dlzoom login`) will be enabled after Zoom approves the app in the Marketplace. Until then, either self‑host the OAuth broker under `zoom-broker/` or use Server‑to‑Server (S2S) OAuth.
 
-Choose your preferred method:
+## 60‑Second Quickstart
 
-### 🚀 Quick Try (uvx - Instant Run, No Install)
-
-**Fastest way to try dlzoom** - requires Python 3.11+ and ffmpeg:
+Requires Python 3.11+ and ffmpeg (Docker users: both included in the image).
 
 ```bash
-# Install uv first (if not installed)
+# Install uv (if missing)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Run dlzoom instantly (no installation needed!)
+# Try dlzoom instantly (no install)
 uvx dlzoom download 123456789 --check-availability
 ```
 
-### 📦 PyPI Install (Recommended for Regular Use)
+Outputs include audio (M4A), transcript (VTT), chat (TXT), timeline (JSON), metadata JSON, and a minimal STJ diarization file (`<name>_speakers.stjson`) for your ASR pipeline.
+
+## Pick Your Auth
+
+- I’m downloading my own recordings → User OAuth
+  - Today: deploy the Cloudflare Worker in `zoom-broker/` and run `dlzoom login --auth-url <your-worker-url>`.
+  - Soon: use the hosted sign‑in once published to the Zoom Marketplace.
+- I’m an admin or running automation/CI → Server‑to‑Server (S2S) OAuth
+  - Set `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` and run `dlzoom`.
+
+Links to both flows are in Authentication below.
+
+## Transcription & AI Workflows
+
+- Use your preferred ASR (e.g., Whisper, cloud STT) on the M4A file.
+- dlzoom also emits a minimal STJ diarization file you can use to tag speakers or structure prompts.
+- Works well when you need extra context beyond Zoom’s default transcript, or for languages/dialects Zoom struggles with.
+
+Examples:
 
 ```bash
-# Install with pip
+# Download and name outputs
+dlzoom download 123456789 --output-name my_meeting
+
+# Resulting files include:
+#   my_meeting.m4a (or extracted from MP4 if audio-only not provided)
+#   my_meeting_transcript.vtt
+#   my_meeting_chat.txt
+#   my_meeting_timeline.json
+#   my_meeting_speakers.stjson  # diarization-only STJ
+```
+
+Tuning diarization output:
+
+```bash
+# Disable diarization JSON entirely
+dlzoom download 123456789 --skip-speakers
+
+# Handle multi-user timestamps and include unknown speakers
+dlzoom download 123456789 --speakers-mode multiple --include-unknown
+
+# Merge and minimum-segment tuning
+dlzoom download 123456789 --stj-min-seg-sec 1.0 --stj-merge-gap-sec 1.5
+
+# Env toggle to disable generation by default
+export DLZOOM_SPEAKERS=0
+```
+
+STJ spec: https://github.com/yaniv-golan/STJ/blob/main/spec/latest/stj-specification.md
+
+## Browse and Download
+
+```bash
+# Browse last 7 days
+dlzoom recordings --range last-7-days
+
+# Specific window
+dlzoom recordings --from-date 2025-01-01 --to-date 2025-01-31
+
+# Filter by topic
+dlzoom recordings --range today --topic "standup"
+
+# Inspect instances of a specific meeting (recurring/PMI)
+dlzoom recordings --meeting-id 123456789
+
+# Download (audio + transcript + chat + timeline)
+dlzoom download 123456789
+
+# Check availability without downloading
+dlzoom download 123456789 --check-availability
+
+# Wait up to 60 minutes for processing
+dlzoom download 123456789 --wait 60
+
+# Custom naming and output directory
+dlzoom download 123456789 --output-name "my_meeting" --output-dir ./recordings
+
+# Dry run
+dlzoom download 123456789 --dry-run
+
+# Tip: meeting IDs with spaces pasted from Zoom are normalized automatically
+dlzoom download "882 9060 9309"
+```
+
+Batch by date window and automate:
+
+```bash
+#!/bin/bash
+for id in 111111111 222222222 333333333; do
+  dlzoom download "$id" --output-dir ./recordings
+done
+```
+
+JSON output for pipelines:
+
+```bash
+dlzoom download 123456789 --json > recording.json
+```
+
+## Installation
+
+Choose your preferred method.
+
+### 🚀 Quick Try (uvx — instant, no install)
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uvx dlzoom download 123456789 --check-availability
+```
+
+### 📦 PyPI (recommended for regular use)
+
+```bash
 pip install dlzoom
 
-# Or with uv (10-100x faster)
+# or with uv (fast)
 uv pip install dlzoom
 
-# Or with uv tool (isolated installation)
+# or install as a tool (isolated)
 uv tool install dlzoom
 ```
 
-**Note:** Requires Python 3.11+ and ffmpeg (see below).
-
-### 🐳 Docker (Zero Dependencies - Everything Included!)
-
-**Best for:** Production, CI/CD, no local dependencies
+### 🐳 Docker (zero dependencies)
 
 ```bash
-# Run with Docker (includes Python + ffmpeg)
+# Includes Python + ffmpeg
 docker run -it --rm \
   -v $(pwd)/recordings:/app/downloads \
   -e ZOOM_ACCOUNT_ID="your_account_id" \
@@ -75,11 +174,8 @@ docker run -it --rm \
   -e ZOOM_CLIENT_SECRET="your_secret" \
   yanivgolan1/dlzoom:latest \
   download 123456789
-```
 
-**Or use GitHub Container Registry:**
-
-```bash
+# Or GHCR
 docker run -it --rm \
   -v $(pwd)/recordings:/app/downloads \
   -e ZOOM_ACCOUNT_ID="your_account_id" \
@@ -89,27 +185,20 @@ docker run -it --rm \
   download 123456789
 ```
 
-### 🔧 From Source (Development)
+### 🔧 From source (development)
 
 ```bash
-# Clone the repository
 git clone https://github.com/yaniv-golan/dlzoom.git
 cd dlzoom
-
-# Create virtual environment (recommended)
 python3.11 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
-### Prerequisites (for non-Docker installations)
+### Prerequisites (non‑Docker)
 
-- **Python 3.11+** (required)
-- **ffmpeg** (required for audio extraction from video files)
-
-**Install ffmpeg:**
+- Python 3.11+
+- ffmpeg (for audio extraction from MP4)
 
 ```bash
 # macOS
@@ -118,49 +207,35 @@ brew install ffmpeg
 # Ubuntu/Debian
 sudo apt install ffmpeg
 
-# Windows (via Chocolatey)
+# Windows (Chocolatey)
 choco install ffmpeg
 
-# Windows (via winget)
+# Windows (winget)
 winget install ffmpeg
 ```
 
-> **Docker users:** No need to install Python or ffmpeg - everything is included!
+## Authentication
 
-## Quick Start
+### User OAuth (recommended for individuals)
 
-### 1. Sign In (User OAuth)
-
-Hosted sign‑in is coming soon (pending Zoom Marketplace approval). For now, pick one:
-
-- Self‑host the OAuth broker and sign in:
-  ```bash
-  # Deploy the broker (see zoom-broker/README.md for full steps)
-  cd zoom-broker
-  npx wrangler secret put ZOOM_CLIENT_ID
-  npx wrangler secret put ZOOM_CLIENT_SECRET
-  npx wrangler kv namespace create AUTH
-  npx wrangler deploy
-
-  # Back in your project root, sign in via your broker
-  dlzoom login --auth-url https://<your-worker>.workers.dev
-  ```
-
-- Or use Server‑to‑Server (S2S) OAuth (no broker): see the next section.
-
-### 2. Configure S2S Credentials (Alternative to user sign‑in)
-
-Create a `.env` file in your working directory:
+Hosted sign‑in will be available after Zoom Marketplace approval. Until then, self‑host the OAuth broker in `zoom-broker/`:
 
 ```bash
-ZOOM_ACCOUNT_ID=your_account_id_here
-ZOOM_CLIENT_ID=your_client_id_here
-ZOOM_CLIENT_SECRET=your_client_secret_here
+cd zoom-broker
+npx wrangler secret put ZOOM_CLIENT_ID
+npx wrangler secret put ZOOM_CLIENT_SECRET
+npx wrangler kv namespace create AUTH
+npx wrangler deploy
+
+# Back in your project root
+dlzoom login --auth-url https://<your-worker>.workers.dev
 ```
 
-> **⚠️ Security Warning**: If your project directory is in a cloud-synced folder (iCloud, Dropbox, Google Drive, etc.), your `.env` file containing credentials may be uploaded to cloud storage. Consider using environment variables instead, moving the project to a non-synced directory, or using a config file outside the project directory with `--config`.
+Security hardening: set `ALLOWED_ORIGIN` in the Worker to restrict token endpoints. See `zoom-broker/README.md`.
 
-Or set environment variables:
+### Server‑to‑Server (S2S) OAuth (admins/automation)
+
+Create a `.env` or export environment variables:
 
 ```bash
 export ZOOM_ACCOUNT_ID="your_account_id"
@@ -170,7 +245,7 @@ export ZOOM_CLIENT_SECRET="your_client_secret"
 
 Or use a config file:
 
-```bash
+```yaml
 # config.yaml
 zoom_account_id: "your_account_id"
 zoom_client_id: "your_client_id"
@@ -178,219 +253,68 @@ zoom_client_secret: "your_client_secret"
 log_level: "INFO"
 ```
 
-#### Automatic .env loading and opt-out
+Automatic .env loading:
 
-- dlzoom automatically loads environment variables from a `.env` file at startup. It searches from your current working directory upwards (like `git`), and loads the first `.env` it finds.
-- Loading uses `override=False`, so variables already present in your shell/environment take precedence over values in `.env`.
-- To disable auto-loading (e.g., for CI or scripts that must be fully deterministic), set:
+- dlzoom searches upward from your CWD and loads the first `.env` it finds (does not override existing env vars).
+- Opt out by setting `DLZOOM_NO_DOTENV=1` (useful in CI or deterministic scripts).
 
-```bash
-export DLZOOM_NO_DOTENV=1
-```
+Optional scopes for User OAuth (improve fidelity):
 
-Tips and caveats:
-- Prefer explicit environment variables for automation where you don’t want a parent directory `.env` to influence behavior.
-- If your project lives in a cloud‑synced folder (Dropbox, iCloud, Google Drive), treat `.env` as sensitive; consider using environment variables or a config file stored outside that folder.
+- Required: `cloud_recording:read:list_user_recordings`, `cloud_recording:read:list_recording_files`
+- Optional: `meeting:read:meeting` (better recurrence detection), `user:read:user` (enables `whoami` details)
 
-### 3. Browse and Download
+## File Naming and Templates
 
-Browse your recordings by date:
+Use `--filename-template` and `--folder-template` to structure outputs.
 
-```bash
-# Last 7 days
-dlzoom recordings --range last-7-days
+Variables:
 
-# Specific window
-dlzoom recordings --from-date 2025-01-01 --to-date 2025-01-31
+- `{topic}`, `{meeting_id}`, `{host_email}`
+- `{start_time:%Y%m%d}` (strftime format), `{duration}`
 
-# Filter by topic (user-wide mode)
-dlzoom recordings --range today --topic "standup"
-```
-
-Inspect instances for a specific meeting (replaces the old `download --list`):
+Examples:
 
 ```bash
-dlzoom recordings --meeting-id 123456789
-```
+dlzoom download 123456789 \
+  --filename-template "{start_time:%Y%m%d}_{topic}"
 
-Download a recording (audio + transcript + chat + timeline):
-
-```bash
-dlzoom download 123456789
-```
-
-Tip: You can paste meeting IDs directly from Zoom. Spaces are removed automatically:
-
-```bash
-dlzoom download "882 9060 9309"  # Works! Spaces are removed automatically
-dlzoom download 88290609309      # Also works
-```
-
-## Usage
-
-### Basic Commands
-
-**Check if recording is available:**
-
-```bash
-dlzoom download 123456789 --check-availability
-```
-
-Use `dlzoom recordings --meeting-id 123456789` instead of the removed `download --list`.
-
-**Download recording (audio + transcript + chat + timeline):**
-
-```bash
-dlzoom download 123456789
-```
-
-**Download with custom output name:**
-
-```bash
-dlzoom download 123456789 --output-name "my_meeting"
-```
-
-**Download to specific directory:**
-
-```bash
-dlzoom download 123456789 --output-dir ~/Downloads/zoom
-```
-
-**Wait for recording to finish processing:**
-
-```bash
-dlzoom download 123456789 --wait 30
-```
-
-### Advanced Options
-
-**Use config file:**
-
-```bash
-dlzoom download 123456789 --config config.yaml
-```
-
-**Verbose output (see detailed logs):**
-
-```bash
-dlzoom download 123456789 --verbose
-```
-
-**Debug mode (full API responses):**
-
-```bash
-dlzoom download 123456789 --debug
-```
-
-**JSON output (for automation):**
-
-```bash
-dlzoom download 123456789 --json
-```
-
-### Other Commands
-
-- Show current account:
-
-```bash
-dlzoom whoami
-```
-
-- Sign out and remove local tokens:
-
-```bash
-dlzoom logout
-```
-
-### Optional Permissions (Advanced)
-
-dlzoom works with minimal permissions by default. You can optionally add these to improve fidelity:
-
-**Required Scopes (Minimum):**
-- `cloud_recording:read:list_user_recordings` - List your cloud recordings
-- `cloud_recording:read:list_recording_files` - Access recording file details for download
-
-**Optional Scopes (Enhanced Features):**
-- `meeting:read:meeting` - Definitively mark recurring meetings by checking meeting type; without it, recurrence is inferred only within the fetched date range
-- `user:read:user` - Show your name/email in `whoami` when using user tokens
-
-All scopes use Zoom's granular scope naming (user-managed OAuth). Behavior degrades gracefully if optional scopes are not enabled.
-```
-
-**Dry run (see what would be downloaded):**
-
-```bash
-dlzoom download 123456789 --dry-run
-```
-
-**Custom filename template:**
-
-```bash
-dlzoom download 123456789\
-  --filename-template "{topic}_{start_time:%Y%m%d}"
-```
-
-**Custom folder structure:**
-
-```bash
-dlzoom download 123456789\
+dlzoom download 123456789 \
   --folder-template "{start_time:%Y}/{start_time:%m}"
+
+dlzoom download 123456789 \
+  --filename-template "{host_email}_{topic}_{start_time:%Y%m%d}"
 ```
 
-**Select specific recording instance (for recurring meetings):**
+## Automation (CI/CD)
 
-```bash
-dlzoom download 123456789 --recording-id "abc123def456"
+Example GitHub Actions job (S2S):
+
+```yaml
+name: archive-zoom
+on:
+  schedule: [{ cron: '0 3 * * *' }]
+  workflow_dispatch: {}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv tool install dlzoom
+      - env:
+          ZOOM_ACCOUNT_ID: ${{ secrets.ZOOM_ACCOUNT_ID }}
+          ZOOM_CLIENT_ID: ${{ secrets.ZOOM_CLIENT_ID }}
+          ZOOM_CLIENT_SECRET: ${{ secrets.ZOOM_CLIENT_SECRET }}
+        run: |
+          mkdir -p recordings
+          dlzoom recordings --range last-7-days -j > list.json
+          dlzoom download 123456789 --output-dir recordings --json > recording.json
 ```
 
-### Skip Downloads
+## Full CLI Reference
 
-**Skip transcript download:**
-
-```bash
-dlzoom download 123456789 --skip-transcript
-```
-
-**Skip chat log download:**
-
-```bash
-dlzoom download 123456789 --skip-chat
-```
-
-**Skip timeline download:**
-
-```bash
-dlzoom download 123456789 --skip-timeline
-```
-
-### Minimal STJ Diarization (default)
-
-By default, dlzoom generates a compact STJ file of speaker segments after downloading the timeline. This is useful for AI transcription prompts and diarization-aware tools.
-
-Spec reference: https://github.com/yaniv-golan/STJ/blob/main/spec/latest/stj-specification.md
-
-```bash
-# Default behavior (generates my_meeting_speakers.stjson)
-dlzoom download 123456789 --output-name my_meeting
-
-# Disable generation entirely
-dlzoom download 123456789 --skip-speakers
-
-# Handle multi-user timestamps
-dlzoom download 123456789 --speakers-mode multiple
-
-# Tuning
-dlzoom download 123456789 --stj-min-seg-sec 1.0 --stj-merge-gap-sec 1.5
-
-# Include unknown-speaker segments instead of dropping them
-dlzoom download 123456789 --include-unknown
-```
-
-Environment toggle:
-- Set `DLZOOM_SPEAKERS=0` to disable generation by default.
-- Note: `--skip-timeline` also prevents STJ generation.
-
-## Download Options
+<details>
+<summary>dlzoom download — options</summary>
 
 ```
 dlzoom download [OPTIONS] MEETING_ID
@@ -422,7 +346,10 @@ Options:
   --version                      Show version and exit
 ```
 
-## Recordings Options
+</details>
+
+<details>
+<summary>dlzoom recordings — options</summary>
 
 ```
 dlzoom recordings [OPTIONS]
@@ -447,385 +374,61 @@ Common options:
   --help                         Show this message and exit
 ```
 
-## Template Variables
-
-Use in `--filename-template` and `--folder-template`:
-
-- `{topic}` - Meeting topic
-- `{meeting_id}` - Meeting ID
-- `{host_email}` - Host email address
-- `{start_time:%Y%m%d}` - Start time (format with strftime codes)
-- `{duration}` - Meeting duration
-
-**Examples:**
-
-```bash
-# Date-based filename
---filename-template "{start_time:%Y%m%d}_{topic}"
-
-# Organized by date
---folder-template "{start_time:%Y}/{start_time:%m}"
-
-# Include host
---filename-template "{host_email}_{topic}_{start_time:%Y%m%d}"
-```
-
-## Common Use Cases
-
-### Download Latest Recording from Recurring Meeting
-
-```bash
-dlzoom download 123456789 --verbose
-```
-
-### Download Specific Instance
-
-```bash
-# List all instances first (meeting-scoped view)
-dlzoom recordings --meeting-id 123456789
-
-# Download a specific instance by UUID
-dlzoom download 123456789 --recording-id "abc123def456"
-```
-
-### Automated Pipeline (JSON Output)
-
-```bash
-dlzoom download 123456789 --json > recording.json
-```
-
-### Batch Processing
-
-```bash
-#!/bin/bash
-for meeting_id in 111111111 222222222 333333333; do
-    dlzoom download $meeting_id --output-dir ./recordings
-done
-```
-
-### Wait for Recording to Process
-
-```bash
-# Wait up to 60 minutes for processing
-dlzoom download 123456789 --wait 60
-```
+</details>
 
 ## Troubleshooting
 
-### Authentication Failed
+Common errors and fixes:
 
-```
-Error: Authentication failed
-```
+- Authentication failed → Check `.env` or environment variables.
+- Invalid meeting ID → Paste only the ID/UUID. Spaces are fine; they’re removed automatically.
+- ffmpeg not found → Install ffmpeg (or use Docker image). Needed when audio-only is unavailable and dlzoom extracts audio from MP4.
 
-**Solution:** Check your credentials in `.env` or environment variables.
+## Security & Privacy
 
-### Meeting ID Format Invalid
-
-```
-Error: Invalid meeting ID format
-```
-
-**Solution:** Meeting IDs must be:
-
-- 9-12 digit numbers (e.g., `123456789`)
-- Or UUID format (e.g., `abc123XYZ+/=_-`)
-
-### Recording Not Found
-
-```
-Error: Recording not found
-```
-
-**Possible causes:**
-
-- Meeting wasn't recorded
-- Recording not yet processed (use `--wait`)
-- No permission to access recording
-- Wrong meeting ID
-
-**Check availability first:**
-
-```bash
-dlzoom download 123456789 --check-availability
-```
-
-### ffmpeg Not Found
-
-```
-Error: ffmpeg not found in PATH
-```
-
-**Solution:** Install ffmpeg:
-
-```bash
-# macOS
-brew install ffmpeg
-
-# Ubuntu/Debian
-sudo apt install ffmpeg
-```
-
-### Rate Limit Exceeded
-
-```
-Error: Rate limit exceeded
-```
-
-**Solution:** Wait a few minutes and try again. The tool automatically retries with exponential backoff.
-
-### Insufficient Disk Space
-
-```
-Error: Insufficient disk space
-```
-
-**Solution:** Free up space or use `--output-dir` to save to a different location.
-
-## Configuration Files
-
-### JSON Config
-
-```json
-{
-  "zoom_account_id": "your_account_id",
-  "zoom_client_id": "your_client_id",
-  "zoom_client_secret": "your_client_secret",
-  "output_dir": "./recordings",
-  "log_level": "INFO"
-}
-```
-
-### YAML Config
-
-```yaml
-zoom_account_id: "your_account_id"
-zoom_client_id: "your_client_id"
-zoom_client_secret: "your_client_secret"
-output_dir: "./recordings"
-log_level: "INFO"
-```
-
-Use with:
-
-```bash
-dlzoom download 123456789 --config config.yaml
-```
-
-## Output Files
-
-**Audio file:**
-
-- Format: M4A (AAC audio)
-- Naming: `{meeting_id}.m4a` or custom via `--output-name`
-
-**Transcript file:**
-
-- Format: VTT (WebVTT)
-- Naming: `{meeting_id}_transcript.vtt`
-
-**Chat log:**
-
-- Format: TXT
-- Naming: `{meeting_id}_chat.txt`
-
-**Timeline:**
-
-- Format: JSON
-- Naming: `{meeting_id}_timeline.json`
-- Contains: Meeting events (joins, leaves, screen shares, etc.)
-
-**Minimal STJ speakers (diarization):**
-
-- Format: STJ v0.6 JSON (`.stjson`) — spec: https://github.com/yaniv-golan/STJ/blob/main/spec/latest/stj-specification.md
-- Naming: `{meeting_id}_speakers.stjson` (or `{output_name}_speakers.stjson`)
-- Contains: Minimal diarization segments with `start`, `end`, `speaker_id`, `text:""`
-- Defaults: Generated automatically when a timeline is present; disable with `--skip-speakers` or `DLZOOM_SPEAKERS=0`
-- Notes: Prefers `timeline_refine` when available; respects `--skip-timeline`
-
-**Metadata:**
-
-- Format: JSON
-- Naming: `{meeting_id}_metadata.json`
-- Contains: Meeting info, participants, recording details
-
-## Requirements
-
-- Python 3.11 or higher
-- ffmpeg (for audio extraction)
-- Zoom account. For user OAuth, use a self‑hosted broker with `dlzoom login --auth-url <your_broker_url>` until hosted sign‑in is enabled; or use an S2S OAuth app.
-
-Security note (tokens): On Windows, file permission enforcement for `tokens.json` is best‑effort. Treat your token file as sensitive and ensure your user profile is protected.
-
-## Broker Origin Restriction (Optional, when using user sign‑in)
-
-For tighter security on the hosted auth service, you can restrict which origin is allowed to call the token endpoints:
-
-- Set the `ALLOWED_ORIGIN` environment variable on your Cloudflare Worker (e.g., your CLI’s origin or a specific domain). When set, the broker sends `Access-Control-Allow-Origin: <value>` and `Vary: Origin` instead of `*`.
-- See `zoom-broker/README.md` for details. If you don’t set it, the broker defaults to `*` — acceptable for CLI usage but less restrictive.
-
-## Development
-
-```bash
-# Clone repository
-git clone <repo-url>
-cd dlzoom
-
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
-
-# Install in development mode
-pip install -e .
-
-# Run tests
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ --cov=src/dlzoom --cov-report=term-missing
-```
-
-## Version
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed release notes. Current version: 0.2.0.
-
-## Roadmap
-
-Planned for future releases:
-
-- 🎨 More output formats (TSV)
-- 🔐 Token encryption via system keychain
-- 📱 Multiple profiles support
-- 📦 Optional SBOM generation in CI
-
-## Known Limitations
-
-### Feature Limitations
-
-- Audio quality parameter not exposed via CLI (internal only)
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
+- No secrets in logs; rigorous input validation; atomic file writes.
+- User OAuth tokens stored at `~/.dlzoom/` (0600). S2S credentials via env or config file.
+- OAuth broker: restrict CORS with `ALLOWED_ORIGIN` in production. See `zoom-broker/README.md`.
+- If your working directory is cloud‑synced (iCloud/Dropbox/etc.), consider env vars instead of a `.env` file or place config outside the synced folder.
 
 ## Contributing
 
-We welcome contributions! Here's how you can help:
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md). Please also review our [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
-### Quick Start for Contributors
+Quick start for contributors:
 
-1. **Fork and clone** the repository
-2. **Set up development environment:**
-
-   ```bash
-   python3.11 -m venv .venv
-   source .venv/bin/activate
-   pip install -e ".[dev]"
-   ```
-
-3. **Run tests:**
-
-   ```bash
-   pytest tests/ -v
-   ```
-
-4. **Make your changes** and ensure tests pass
-5. **Submit a pull request**
-
-### Guidelines
-
-- Follow [Conventional Commits](https://www.conventionalcommits.org/) for commit messages
-- Add tests for new features
-- Update documentation as needed
-- Ensure all CI checks pass
-
-### Commit Message Format
-
-```
-<type>(<scope>): <subject>
-
-Examples:
-feat(cli): add support for CSV export
-fix(auth): handle expired OAuth tokens
-docs: update installation instructions
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest tests/ -v
 ```
 
-**Types:**
+## Version & Roadmap
 
-- `feat` - New feature
-- `fix` - Bug fix
-- `docs` - Documentation
-- `test` - Tests
-- `refactor` - Code refactoring
-- `chore` - Maintenance
+- Releases: see [CHANGELOG.md](CHANGELOG.md)
+- Roadmap highlights:
+  - 🎨 More output formats (TSV)
+  - 🔐 Token encryption via system keychain
+  - 📱 Multiple profiles support
+  - 📦 Optional SBOM generation in CI
 
-For detailed guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
+## License
 
-Code of Conduct
-- See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
-
-## Security
-
-Security is important to us. If you discover a security vulnerability:
-
-- **Do not** open a public issue
-- **Email** [yaniv@golan.name](mailto:yaniv@golan.name) with details
-- See [SECURITY.md](SECURITY.md) for our security policy
-
-### Security Features
-
-- ✅ Credentials never logged or exposed
-- ✅ Input validation (prevents injection attacks)
-- ✅ Atomic file operations
-- ✅ Automatic security scanning (Trivy)
-- ✅ Docker images run as non-root user
+MIT — see [LICENSE](LICENSE).
 
 ## Support
-
-For issues and questions:
 
 - 🐛 [Report bugs](https://github.com/yaniv-golan/dlzoom/issues)
 - 💡 [Request features](https://github.com/yaniv-golan/dlzoom/issues)
 - 💬 [GitHub Discussions](https://github.com/yaniv-golan/dlzoom/discussions)
-- 📖 [Documentation](https://github.com/yaniv-golan/dlzoom)
+- 📖 Documentation / Architecture: see `docs/`
 
 ## Credits
 
 Built with:
 
-- [Click](https://click.palletsprojects.com/) / [Rich-Click](https://github.com/ewels/rich-click) - CLI framework
-- [Rich](https://rich.readthedocs.io/) - Terminal output
-- [Requests](https://requests.readthedocs.io/) - HTTP client
-- [pytest](https://pytest.org/) - Testing framework
-
-## Acknowledgments
-
-Thanks to all contributors and the open source community.
-## Architecture
-
-This is a **monorepo** containing two independently deployable components:
-
-### Repository Structure
-
-```
-dlzoom/
-├── src/dlzoom/           # Python CLI (primary deliverable)
-├── tests/                # Python test suite
-├── zoom-broker/          # Cloudflare Worker (OAuth broker)
-├── docs/                 # Documentation
-│   ├── architecture.md   # Detailed architecture overview
-│   └── zoom-app/         # Zoom App marketplace docs
-└── pyproject.toml        # Python package configuration
-```
-
-**Components:**
-- **Python CLI** (`src/dlzoom/`): Command-line tool to browse and download Zoom cloud recordings. Published to PyPI as `dlzoom`.
-- **OAuth Broker** (`zoom-broker/`): Cloudflare Worker that performs OAuth code exchange and token refresh on behalf of the CLI. Optional component for user OAuth mode.
-
-**Why a monorepo?**
-- Simplified development workflow (single repo to clone, single issue tracker)
-- Shared documentation and versioning strategy
-- Python CLI is the primary deliverable; broker is a supporting service
-- Each component remains independently deployable
-
-📖 **See [`docs/architecture.md`](docs/architecture.md) for detailed architecture, data flows, security model, and deployment options.**
+- Click / Rich‑Click — CLI framework
+- Rich — terminal output
+- Requests — HTTP client
+- pytest — testing framework
