@@ -258,3 +258,54 @@ def test_batch_download_falls_back_to_uuid_when_no_start(monkeypatch, tmp_path):
     )
 
     assert recorded_output_names == ["321_abc_def"]
+
+
+def test_batch_download_respects_dry_run(monkeypatch, tmp_path):
+    fake_items = [
+        {"id": "1010", "topic": "Preview", "start_time": "2024-06-01T08:00:00Z"},
+    ]
+
+    monkeypatch.setattr(
+        "dlzoom.handlers._iterate_account_recordings", lambda *args, **kwargs: iter(fake_items)
+    )
+
+    called: list[bool] = []
+
+    def fake_download_mode(**kwargs):
+        called.append(kwargs["dry_run"])
+
+    monkeypatch.setattr("dlzoom.handlers._handle_download_mode", fake_download_mode)
+
+    client = ZoomClient("acct", "cid", "sec")
+    selector = RecordingSelector()
+
+    _handle_batch_download(
+        client=client,
+        selector=selector,
+        from_date="2024-06-01",
+        to_date="2024-06-02",
+        scope="account",
+        user_id=None,
+        page_size=300,
+        account_id="acct",
+        output_dir=Path(tmp_path),
+        skip_transcript=False,
+        skip_chat=False,
+        skip_timeline=False,
+        formatter=None,
+        verbose=False,
+        debug=False,
+        json_mode=True,
+        filename_template=None,
+        folder_template=None,
+        skip_speakers=None,
+        speakers_mode="first",
+        stj_min_segment_sec=1.0,
+        stj_merge_gap_sec=1.5,
+        include_unknown=False,
+        base_output_name="1010",
+        user_supplied_output_name=False,
+        dry_run=True,
+    )
+
+    assert called == [True]

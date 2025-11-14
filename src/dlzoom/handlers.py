@@ -632,6 +632,7 @@ def _handle_batch_download(
     include_unknown: bool = False,
     base_output_name: str | None = None,
     user_supplied_output_name: bool = False,
+    dry_run: bool = False,
 ) -> None:
     """Batch download helper used by the `download` command when a date range is supplied."""
 
@@ -723,7 +724,7 @@ def _handle_batch_download(
                 skip_transcript=skip_transcript,
                 skip_chat=skip_chat,
                 skip_timeline=skip_timeline,
-                dry_run=False,
+                dry_run=dry_run,
                 log_file=None,
                 formatter=formatter,
                 verbose=verbose,

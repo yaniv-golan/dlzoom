@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Respect skip cascade: `--skip-timeline` also prevents STJ generation
 - Deterministic STJ output (rounded to 3 decimals) and idempotent regeneration
 - Batch downloads now honor `--output-name`; when omitted they auto-append UTC timestamps (or recording UUIDs) per meeting to prevent filename collisions
+- Batch downloads once again respect `--dry-run`, letting operators preview large date windows without pulling files
 
 ### Documentation
 - Added design plan: `docs/internal/stj-minimal-json-plan.md`
