@@ -828,6 +828,7 @@ def download(
                 base_output_name=output_name,
                 user_supplied_output_name=user_supplied_output_name,
                 dry_run=dry_run,
+                wait=wait,
             )
             return
 

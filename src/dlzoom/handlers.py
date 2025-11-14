@@ -633,6 +633,7 @@ def _handle_batch_download(
     base_output_name: str | None = None,
     user_supplied_output_name: bool = False,
     dry_run: bool = False,
+    wait: int | None = None,
 ) -> None:
     """Batch download helper used by the `download` command when a date range is supplied."""
 
@@ -730,7 +731,7 @@ def _handle_batch_download(
                 verbose=verbose,
                 debug=debug,
                 json_mode=False,  # suppress individual JSON
-                wait=None,
+                wait=wait,
                 filename_template=filename_template,
                 folder_template=folder_template,
                 skip_speakers=skip_speakers,
