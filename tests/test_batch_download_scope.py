@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 
-from dlzoom.handlers import _handle_batch_download
+from dlzoom.handlers import _handle_batch_check_availability, _handle_batch_download
+from dlzoom.output import OutputFormatter
 from dlzoom.recorder_selector import RecordingSelector
 from dlzoom.zoom_client import ZoomClient
 
@@ -411,3 +412,135 @@ def test_batch_download_writes_log_file(monkeypatch, tmp_path):
     )
 
     assert emissions == [log_path]
+
+
+def test_batch_check_availability_json(monkeypatch, capsys):
+    fake_items = [
+        {"id": "1001", "topic": "Ready", "start_time": "2024-09-01T10:00:00Z"},
+        {"id": "1002", "topic": "Processing", "start_time": "2024-09-02T10:00:00Z"},
+    ]
+
+    monkeypatch.setattr(
+        "dlzoom.handlers._iterate_account_recordings", lambda *args, **kwargs: iter(fake_items)
+    )
+
+    def fake_check_availability(
+        client,
+        selector,
+        meeting_id,
+        recording_id,
+        formatter,
+        wait,
+        json_mode,
+        capture_result=False,
+    ):
+        assert capture_result is True
+        if meeting_id == "1001":
+            return {
+                "status": "success",
+                "command": "check_availability",
+                "meeting_id": meeting_id,
+                "available": True,
+                "recording_status": "completed",
+            }
+        return {
+            "status": "success",
+            "command": "check_availability",
+            "meeting_id": meeting_id,
+            "available": False,
+            "recording_status": "processing",
+        }
+
+    monkeypatch.setattr("dlzoom.handlers._handle_check_availability", fake_check_availability)
+
+    client = ZoomClient("acct", "cid", "sec")
+    selector = RecordingSelector()
+    formatter = OutputFormatter("json")
+
+    _handle_batch_check_availability(
+        client=client,
+        selector=selector,
+        from_date="2024-09-01",
+        to_date="2024-09-03",
+        scope="account",
+        user_id=None,
+        page_size=300,
+        account_id="acct",
+        formatter=formatter,
+        verbose=False,
+        debug=False,
+        json_mode=True,
+        wait=None,
+    )
+
+    data = json.loads(capsys.readouterr().out)
+    assert data["command"] == "batch-check-availability"
+    assert data["total_meetings"] == 2
+    assert data["ready"] == 1
+    assert data["processing"] == 1
+    assert len(data["results"]) == 2
+    assert {res["meeting_id"] for res in data["results"]} == {"1001", "1002"}
+
+
+def test_batch_check_availability_human(monkeypatch, capsys):
+    fake_items = [
+        {"id": "2001", "topic": "Ready", "start_time": "2024-09-10T12:00:00Z"},
+        {"id": "2002", "topic": "Error", "start_time": "2024-09-11T12:00:00Z"},
+    ]
+
+    monkeypatch.setattr(
+        "dlzoom.handlers._iterate_account_recordings", lambda *args, **kwargs: iter(fake_items)
+    )
+
+    def fake_check_availability(
+        client,
+        selector,
+        meeting_id,
+        recording_id,
+        formatter,
+        wait,
+        json_mode,
+        capture_result=False,
+    ):
+        assert capture_result is True
+        if meeting_id == "2001":
+            return {
+                "status": "success",
+                "command": "check_availability",
+                "meeting_id": meeting_id,
+                "available": True,
+                "recording_status": "completed",
+            }
+        return {
+            "status": "error",
+            "command": "check_availability",
+            "meeting_id": meeting_id,
+            "error": {"code": "ZOOM_API_ERROR", "message": "boom"},
+        }
+
+    monkeypatch.setattr("dlzoom.handlers._handle_check_availability", fake_check_availability)
+
+    client = ZoomClient("acct", "cid", "sec")
+    selector = RecordingSelector()
+    formatter = OutputFormatter("human")
+
+    _handle_batch_check_availability(
+        client=client,
+        selector=selector,
+        from_date="2024-09-10",
+        to_date="2024-09-12",
+        scope="account",
+        user_id=None,
+        page_size=300,
+        account_id="acct",
+        formatter=formatter,
+        verbose=False,
+        debug=False,
+        json_mode=False,
+        wait=None,
+    )
+
+    stdout = capsys.readouterr().out
+    assert "[2001] status: ready" in stdout
+    assert "[2002] boom" in stdout
+    assert "Availability check complete" in stdout

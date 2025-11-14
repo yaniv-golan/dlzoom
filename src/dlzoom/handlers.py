@@ -465,16 +465,41 @@ def _handle_check_availability(
     formatter: OutputFormatter,
     wait: int | None,
     json_mode: bool = False,
-) -> None:
+    *,
+    capture_result: bool = False,
+) -> dict[str, Any] | None:
     """Handle --check-availability mode: Check if recording is ready."""
-    if json_mode:
+    if json_mode or capture_result:
         formatter.set_silent(True)
+    else:
+        formatter.set_silent(False)
 
-    formatter.output_info(f"Checking availability for meeting {meeting_id}...")
+    if not capture_result:
+        formatter.output_info(f"Checking availability for meeting {meeting_id}...")
 
     max_wait_seconds = (wait * 60) if wait else 0
     start_time = time.time()
     poll_interval = 30  # seconds
+
+    def _emit_result(
+        result: dict[str, Any],
+        *,
+        human_success: str | None = None,
+        human_info: str | None = None,
+        human_error: str | None = None,
+    ) -> dict[str, Any] | None:
+        if capture_result:
+            return result
+        if json_mode:
+            print(_json.dumps(result, indent=2))
+            return None
+        if human_error:
+            formatter.output_error(human_error)
+        elif human_success:
+            formatter.output_success(human_success)
+        elif human_info:
+            formatter.output_info(human_info)
+        return None
 
     while True:
         try:
@@ -503,28 +528,25 @@ def _handle_check_availability(
                     )
 
                     if all_completed:
-                        if json_mode:
-                            result = {
-                                "status": "success",
-                                "command": "check_availability",
-                                "meeting_id": meeting_id,
-                                "recording_uuid": recording_uuid,
-                                "available": True,
-                                "recording_status": "completed",
-                                "has_audio": has_audio,
-                                "audio_type": audio_type,
-                                "processing_time_remaining": 0,
-                                "ready_to_download": True,
-                            }
-                            print(_json.dumps(result, indent=2))
-                        else:
-                            formatter.output_success(
-                                f"Recording is ready ({len(recording_files)} files)"
-                            )
-                        return
+                        success_result = {
+                            "status": "success",
+                            "command": "check_availability",
+                            "meeting_id": meeting_id,
+                            "recording_uuid": recording_uuid,
+                            "available": True,
+                            "recording_status": "completed",
+                            "has_audio": has_audio,
+                            "audio_type": audio_type,
+                            "processing_time_remaining": 0,
+                            "ready_to_download": True,
+                        }
+                        return _emit_result(
+                            success_result,
+                            human_success=f"Recording is ready ({len(recording_files)} files)",
+                        )
                     else:
-                        if not wait and json_mode:
-                            result = {
+                        if not wait:
+                            processing_result = {
                                 "status": "success",
                                 "command": "check_availability",
                                 "meeting_id": meeting_id,
@@ -533,41 +555,38 @@ def _handle_check_availability(
                                 "recording_status": "processing",
                                 "has_audio": has_audio,
                                 "audio_type": audio_type,
+                                "ready_to_download": False,
                             }
-                            print(_json.dumps(result, indent=2))
-                            return
-
-                        if not wait:
-                            formatter.output_info(
-                                "Recording is still processing. Use --wait to wait "
-                                "until it's ready."
+                            return _emit_result(
+                                processing_result,
+                                human_info=(
+                                    "Recording is still processing. "
+                                    "Use --wait to wait until it's ready."
+                                ),
                             )
-                            return
 
                         elapsed = time.time() - start_time
                         remaining = max(0, max_wait_seconds - int(elapsed))
 
                         if elapsed >= max_wait_seconds:
-                            if json_mode:
-                                result = {
-                                    "status": "success",
-                                    "command": "check_availability",
-                                    "meeting_id": meeting_id,
-                                    "recording_uuid": recording_uuid,
-                                    "available": False,
-                                    "recording_status": "processing",
-                                    "has_audio": has_audio,
-                                    "audio_type": audio_type,
-                                    "processing_time_remaining": 0,
-                                }
-                                print(_json.dumps(result, indent=2))
-                            else:
-                                formatter.output_info(
-                                    "Recording is still processing (wait timed out)"
-                                )
-                            return
+                            timeout_result = {
+                                "status": "success",
+                                "command": "check_availability",
+                                "meeting_id": meeting_id,
+                                "recording_uuid": recording_uuid,
+                                "available": False,
+                                "recording_status": "processing",
+                                "has_audio": has_audio,
+                                "audio_type": audio_type,
+                                "processing_time_remaining": 0,
+                                "ready_to_download": False,
+                            }
+                            return _emit_result(
+                                timeout_result,
+                                human_info="Recording is still processing (wait timed out)",
+                            )
 
-                        if not json_mode:
+                        if not json_mode and not capture_result:
                             formatter.output_info(
                                 "Recording is processing; checking again in "
                                 f"{poll_interval} seconds (time left: "
@@ -576,33 +595,25 @@ def _handle_check_availability(
                         time.sleep(poll_interval)
                         continue
 
-            if json_mode:
-                error = {
-                    "status": "error",
-                    "error": {
-                        "code": "RECORDING_NOT_FOUND",
-                        "message": "Recording not found",
-                    },
-                }
-                print(_json.dumps(error, indent=2))
-                return
-            formatter.output_error("Recording not found")
-            return
+            error_result = {
+                "status": "error",
+                "command": "check_availability",
+                "meeting_id": meeting_id,
+                "error": {
+                    "code": "RECORDING_NOT_FOUND",
+                    "message": "Recording not found",
+                },
+            }
+            return _emit_result(error_result, human_error="Recording not found")
 
         except ZoomAPIError as e:
-            if json_mode:
-                print(
-                    _json.dumps(
-                        {
-                            "status": "error",
-                            "error": {"code": "ZOOM_API_ERROR", "message": str(e)},
-                        },
-                        indent=2,
-                    )
-                )
-                return
-            formatter.output_error(f"Zoom API error: {e}")
-            return
+            error_result = {
+                "status": "error",
+                "command": "check_availability",
+                "meeting_id": meeting_id,
+                "error": {"code": "ZOOM_API_ERROR", "message": str(e)},
+            }
+            return _emit_result(error_result, human_error=f"Zoom API error: {e}")
 
 
 def _handle_batch_download(
@@ -809,6 +820,186 @@ def _handle_batch_download(
         console.print(f"  Success: {success_count}/{total_meetings}")
         if failed_count > 0:
             console.print(f"  Failed: {failed_count}/{total_meetings}")
+
+
+def _handle_batch_check_availability(
+    client: ZoomClient | ZoomUserClient,
+    selector: RecordingSelector,
+    from_date: str | None,
+    to_date: str | None,
+    formatter: OutputFormatter,
+    verbose: bool,
+    debug: bool,
+    json_mode: bool,
+    *,
+    scope: ScopeLiteral,
+    user_id: str | None,
+    page_size: int = 300,
+    account_id: str | None = None,
+    wait: int | None = None,
+) -> None:
+    """Batch helper for --check-availability with date ranges."""
+
+    if scope == "account":
+        if not isinstance(client, ZoomClient):
+            raise ConfigError("Account scope batch availability requires S2S ZoomClient")
+        meeting_iter = _iterate_account_recordings(
+            client,
+            from_date=from_date,
+            to_date=to_date,
+            page_size=page_size,
+            debug=debug,
+        )
+    else:
+        if not user_id:
+            raise ConfigError(
+                "--scope=user batch availability requires --user-id or config default"
+            )
+        meeting_iter = _iterate_user_recordings(
+            client,
+            user_id=user_id,
+            from_date=from_date,
+            to_date=to_date,
+            page_size=page_size,
+            debug=debug,
+        )
+
+    items = list(meeting_iter)
+    if not items:
+        if json_mode:
+            print(
+                json_dumps(
+                    {
+                        "status": "success",
+                        "command": "batch-check-availability",
+                        "from_date": from_date,
+                        "to_date": to_date,
+                        "total_meetings": 0,
+                        "scope": scope,
+                        "user_id": user_id if scope == "user" else None,
+                        "account_id": account_id if scope == "account" else None,
+                        "page_size": min(page_size, 300),
+                        "results": [],
+                    }
+                )
+            )
+            return
+        formatter.output_info("No recordings found in the specified date range")
+        return
+
+    def _parse_start_time(rec: dict[str, Any]) -> float:
+        try:
+            start = rec.get("start_time", "")
+            return datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp()
+        except Exception:
+            return 0.0
+
+    items.sort(key=_parse_start_time, reverse=True)
+
+    total_meetings = len(items)
+    success_count = 0
+    ready_count = 0
+    processing_count = 0
+    failed_count = 0
+    results: list[dict[str, Any]] = []
+
+    for meeting in items:
+        meeting_id = meeting.get("id") or meeting.get("meeting_id")
+        meeting_topic = meeting.get("topic", "Zoom Recording")
+        if meeting_id is None:
+            failed_count += 1
+            results.append(
+                {
+                    "status": "error",
+                    "command": "check_availability",
+                    "meeting_id": None,
+                    "meeting_topic": meeting_topic,
+                    "error": {
+                        "code": "INVALID_MEETING",
+                        "message": "Meeting entry missing identifier",
+                    },
+                }
+            )
+            continue
+
+        availability = _handle_check_availability(
+            client,
+            selector,
+            str(meeting_id),
+            recording_id=None,
+            formatter=formatter,
+            wait=wait,
+            json_mode=json_mode,
+            capture_result=True,
+        )
+        if availability is None:
+            availability = {
+                "status": "error",
+                "command": "check_availability",
+                "meeting_id": str(meeting_id),
+                "meeting_topic": meeting_topic,
+                "error": {
+                    "code": "UNKNOWN_RESULT",
+                    "message": "No availability data returned",
+                },
+            }
+
+        availability.setdefault("meeting_id", str(meeting_id))
+        availability.setdefault("meeting_topic", meeting_topic)
+
+        if availability.get("status") == "success":
+            success_count += 1
+            if availability.get("available"):
+                ready_count += 1
+            else:
+                processing_count += 1
+            if not json_mode:
+                state = (
+                    "ready"
+                    if availability.get("available")
+                    else availability.get("recording_status", "processing")
+                )
+                formatter.output_info(f"[{meeting_id}] status: {state}")
+        else:
+            failed_count += 1
+            if not json_mode:
+                err_msg = availability.get("error", {}).get("message", "Availability check failed")
+                formatter.output_error(f"[{meeting_id}] {err_msg}")
+
+        results.append(availability)
+
+    if json_mode:
+        status = (
+            "success"
+            if failed_count == 0 and processing_count == 0
+            else ("partial_success" if success_count > 0 else "error")
+        )
+        print(
+            json_dumps(
+                {
+                    "status": status,
+                    "command": "batch-check-availability",
+                    "from_date": from_date,
+                    "to_date": to_date,
+                    "total_meetings": total_meetings,
+                    "ready": ready_count,
+                    "processing": processing_count,
+                    "failed": failed_count,
+                    "scope": scope,
+                    "user_id": user_id if scope == "user" else None,
+                    "account_id": account_id if scope == "account" else None,
+                    "page_size": min(page_size, 300),
+                    "results": results,
+                }
+            )
+        )
+        return
+
+    formatter.output_info(
+        f"Availability check complete: {ready_count} ready, "
+        f"{processing_count} still processing, {failed_count} errors "
+        f"(total {total_meetings})"
+    )
 
 
 def _handle_download_mode(

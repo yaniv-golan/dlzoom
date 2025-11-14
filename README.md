@@ -140,7 +140,7 @@ dlzoom download 123456789 --dry-run
 dlzoom download "882 9060 9309"
 ```
 
-Date-range downloads (`--from-date/--to-date`) reuse any explicit `--output-name` you provide; otherwise they append a UTC timestamp (or the recording UUID when no timestamp is available) to prevent recurring IDs from overwriting each other. Pair `--from-date/--to-date` with `--dry-run` to preview every meeting in the range without downloading files, `--wait 30` to keep polling for in-progress recordings before the downloads begin, or `--log-file ~/dlzoom.jsonl` to capture structured results for every meeting in the batch.
+Date-range downloads (`--from-date/--to-date`) reuse any explicit `--output-name` you provide; otherwise they append a UTC timestamp (or the recording UUID when no timestamp is available) to prevent recurring IDs from overwriting each other. Pair `--from-date/--to-date` with `--dry-run` to preview every meeting in the range without downloading files, `--wait 30` to keep polling for in-progress recordings before the downloads begin, `--log-file ~/dlzoom.jsonl` to capture structured results for every meeting, or `--check-availability` to scan the whole window without downloading anything.
 
 Batch by date window and automate:
 

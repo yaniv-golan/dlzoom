@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Batch downloads once again respect `--dry-run`, letting operators preview large date windows without pulling files
 - Batch downloads now pass through `--wait`, so operators can pause until recordings finish processing before the download loop starts
 - Batch downloads now honor `--log-file`, writing structured JSONL entries for every meeting in the range
+- `--check-availability` works with `--from-date/--to-date`, returning a summary across the date window instead of silently exiting
 
 ### Documentation
 - Added design plan: `docs/internal/stj-minimal-json-plan.md`
