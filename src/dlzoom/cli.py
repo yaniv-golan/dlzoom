@@ -829,6 +829,7 @@ def download(
                 user_supplied_output_name=user_supplied_output_name,
                 dry_run=dry_run,
                 wait=wait,
+                log_file=Path(log_file).expanduser() if log_file else None,
             )
             return
 

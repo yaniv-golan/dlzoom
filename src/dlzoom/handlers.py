@@ -634,6 +634,7 @@ def _handle_batch_download(
     user_supplied_output_name: bool = False,
     dry_run: bool = False,
     wait: int | None = None,
+    log_file: Path | None = None,
 ) -> None:
     """Batch download helper used by the `download` command when a date range is supplied."""
 
@@ -695,6 +696,7 @@ def _handle_batch_download(
     items.sort(key=_parse_start_time, reverse=True)
 
     sanitize_helper = TemplateParser()
+    log_path = log_file.expanduser() if log_file else None
 
     total_meetings = len(items)
     success_count = 0
@@ -726,7 +728,7 @@ def _handle_batch_download(
                 skip_chat=skip_chat,
                 skip_timeline=skip_timeline,
                 dry_run=dry_run,
-                log_file=None,
+                log_file=log_path,
                 formatter=formatter,
                 verbose=verbose,
                 debug=debug,
