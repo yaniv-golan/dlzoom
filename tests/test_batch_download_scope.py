@@ -7,9 +7,7 @@ from dlzoom.zoom_client import ZoomClient
 
 
 def test_batch_download_account_scope_includes_metadata(monkeypatch, tmp_path, capsys):
-    fake_items = [
-        {"id": "123", "topic": "All Hands", "start_time": "2024-01-10T10:00:00Z"}
-    ]
+    fake_items = [{"id": "123", "topic": "All Hands", "start_time": "2024-01-10T10:00:00Z"}]
 
     iter_calls = []
 
