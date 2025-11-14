@@ -100,3 +100,36 @@ def test_duplicate_names_get_slug_suffixes():
     speaker_ids = {sp["id"] for sp in stj["stj"]["transcript"]["speakers"]}
     assert "alex" in speaker_ids
     assert "alex-2" in speaker_ids
+
+
+def test_context_metadata_applied():
+    data = _synthetic_timeline()
+    context = {
+        "source_uri": "zoom://meetings/123/recordings/abc",
+        "meeting": {
+            "id": "123",
+            "uuid": "abc",
+            "recording_uuid": "abc",
+            "topic": "Weekly Sync",
+            "start_time": "2024-01-01T10:00:00Z",
+            "timezone": "UTC",
+            "duration": 30,
+            "host_email": "host@example.com",
+            "host_id": "HOST123",
+        },
+        "scope": {"mode": "account", "account_id": "acct", "user_id": None},
+        "recording_files": [{"id": "file1", "file_type": "TIMELINE"}],
+        "flags": {"has_chat": True, "has_transcript": False, "has_timeline": True},
+        "cli": {"speakers_mode": "first"},
+        "generated": {"timeline_path": "/tmp/timeline.json"},
+    }
+    stj = timeline_to_minimal_stj(data, duration_sec=16.0, context=context)
+    metadata = stj["stj"]["metadata"]
+    assert metadata["source"]["uri"] == "zoom://meetings/123/recordings/abc"
+    zoom_ext = metadata["source"]["extensions"]["zoom"]
+    assert zoom_ext["meeting_id"] == "123"
+    assert zoom_ext["account_id"] == "acct"
+    dlzoom_ext = metadata["extensions"]["dlzoom"]
+    assert dlzoom_ext["topic"] == "Weekly Sync"
+    assert dlzoom_ext["host"]["email"] == "host@example.com"
+    assert dlzoom_ext["flags"]["has_chat"] is True

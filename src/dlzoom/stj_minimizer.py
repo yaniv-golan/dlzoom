@@ -224,6 +224,68 @@ def _merge_and_filter_segments(
     return result
 
 
+def _apply_context_to_metadata(metadata: dict[str, Any], context: dict[str, Any]) -> None:
+    source = metadata.setdefault("source", {})
+    meeting = context.get("meeting") or {}
+    scope = context.get("scope") or {}
+    recording_files = context.get("recording_files")
+    flags = context.get("flags") or {}
+    cli = context.get("cli") or {}
+
+    source_uri = context.get("source_uri")
+    if source_uri:
+        source["uri"] = source_uri
+    duration = meeting.get("duration")
+    if duration is not None and "duration" not in source:
+        try:
+            source["duration"] = float(duration)
+        except (TypeError, ValueError):
+            pass
+
+    zoom_ext = source.setdefault("extensions", {}).setdefault("zoom", {})
+    if meeting.get("id"):
+        zoom_ext["meeting_id"] = meeting.get("id")
+    if meeting.get("uuid"):
+        zoom_ext["meeting_uuid"] = meeting.get("uuid")
+    if meeting.get("recording_uuid"):
+        zoom_ext["recording_uuid"] = meeting.get("recording_uuid")
+    if recording_files:
+        zoom_ext["recording_files"] = recording_files
+        zoom_ext["recording_files_count"] = len(recording_files)
+    if scope.get("mode"):
+        zoom_ext["scope"] = scope.get("mode")
+    if scope.get("user_id"):
+        zoom_ext["scope_user_id"] = scope.get("user_id")
+    if scope.get("account_id"):
+        zoom_ext["account_id"] = scope.get("account_id")
+
+    dlzoom_ext = metadata.setdefault("extensions", {}).setdefault("dlzoom", {})
+    if meeting.get("topic"):
+        dlzoom_ext["topic"] = meeting.get("topic")
+    host = {}
+    if meeting.get("host_email"):
+        host["email"] = meeting.get("host_email")
+    if meeting.get("host_id"):
+        host["id"] = meeting.get("host_id")
+    if meeting.get("host_name"):
+        host["name"] = meeting.get("host_name")
+    if host:
+        dlzoom_ext["host"] = host
+    if meeting.get("start_time"):
+        dlzoom_ext["start_time"] = meeting.get("start_time")
+    if meeting.get("timezone"):
+        dlzoom_ext["timezone"] = meeting.get("timezone")
+    if meeting.get("duration") is not None:
+        dlzoom_ext["duration_minutes"] = meeting.get("duration")
+    if flags:
+        dlzoom_ext["flags"] = flags
+    if cli:
+        dlzoom_ext["cli"] = cli
+    generated = context.get("generated")
+    if generated:
+        dlzoom_ext["generated"] = generated
+
+
 def timeline_to_minimal_stj(
     timeline: dict,
     *,
@@ -233,6 +295,7 @@ def timeline_to_minimal_stj(
     merge_gap_sec: float = 1.5,
     include_unknown: bool = False,
     timeline_source: str | None = None,
+    context: dict[str, Any] | None = None,
 ) -> dict:
     """Convert Zoom timeline JSON to minimal STJ dict.
 
@@ -316,6 +379,9 @@ def timeline_to_minimal_stj(
         source["extensions"]["zoom"]["timeline_source"] = source_name
     metadata["source"] = source
 
+    if context:
+        _apply_context_to_metadata(metadata, context)
+
     stj = {
         "stj": {
             "version": "0.6.0",
@@ -341,6 +407,7 @@ def write_minimal_stj_from_file(
     min_segment_sec: float = 1.0,
     merge_gap_sec: float = 1.5,
     include_unknown: bool = False,
+    context: dict[str, Any] | None = None,
 ) -> Path:
     """Read a Zoom timeline JSON file and write minimal STJ to output_path."""
     try:
@@ -356,6 +423,7 @@ def write_minimal_stj_from_file(
         min_segment_sec=min_segment_sec,
         merge_gap_sec=merge_gap_sec,
         include_unknown=include_unknown,
+        context=context,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

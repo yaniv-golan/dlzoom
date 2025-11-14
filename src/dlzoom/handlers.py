@@ -35,6 +35,7 @@ from typing import Any, Literal
 
 from rich.console import Console
 
+from dlzoom import __version__ as dlzoom_version
 from dlzoom.audio_extractor import AudioExtractor
 from dlzoom.downloader import Downloader, DownloadError
 from dlzoom.exceptions import (
@@ -300,6 +301,111 @@ def _scrub_download_url(raw_url: str | None) -> str | None:
         return rebuilt
     except Exception:
         return raw_url
+
+
+def _build_stj_context(
+    *,
+    meeting_id: str,
+    meeting_uuid: str | None,
+    recording_uuid: str | None,
+    meeting_topic: str,
+    instance: dict[str, Any],
+    recording_files: list[dict[str, Any]],
+    scope: ScopeLiteral | None,
+    scope_user_id: str | None,
+    account_id: str | None,
+    speakers_mode: str,
+    stj_min_segment_sec: float,
+    stj_merge_gap_sec: float,
+    include_unknown: bool,
+    skip_transcript: bool,
+    skip_chat: bool,
+    skip_timeline: bool,
+    skip_speakers: bool | None,
+) -> dict[str, Any]:
+    """Assemble metadata context for STJ generation."""
+
+    def _to_bool(value: bool | None) -> bool:
+        return bool(value)
+
+    has_chat = False
+    has_timeline = False
+    has_transcript = False
+    recording_summaries: list[dict[str, Any]] = []
+    for rf in recording_files:
+        file_type = str(rf.get("file_type") or "").upper()
+        file_ext = str(rf.get("file_extension") or "").lower()
+        if file_type == "CHAT" or file_ext == "txt":
+            has_chat = True
+        if file_type == "TIMELINE" or (file_ext == "json" and file_type != "CHAT"):
+            has_timeline = True
+        if file_type in {"TRANSCRIPT", "CC"} or file_ext == "vtt":
+            has_transcript = True
+        recording_summaries.append(
+            {
+                "id": rf.get("id"),
+                "recording_type": rf.get("recording_type"),
+                "file_type": rf.get("file_type"),
+                "file_extension": rf.get("file_extension"),
+                "recording_start": rf.get("recording_start"),
+                "recording_end": rf.get("recording_end"),
+                "status": rf.get("status"),
+                "file_size": rf.get("file_size"),
+                "download_url": _scrub_download_url(rf.get("download_url")),
+            }
+        )
+
+    meeting_info = {
+        "id": meeting_id,
+        "uuid": meeting_uuid,
+        "recording_uuid": recording_uuid,
+        "topic": meeting_topic,
+        "start_time": instance.get("start_time"),
+        "timezone": instance.get("timezone"),
+        "duration": instance.get("duration"),
+        "host_id": instance.get("host_id"),
+        "host_email": instance.get("host_email"),
+        "host_name": instance.get("host_name"),
+    }
+
+    scope_info: dict[str, Any] = {}
+    if scope:
+        scope_info["mode"] = scope
+    if scope_user_id:
+        scope_info["user_id"] = scope_user_id
+    if account_id:
+        scope_info["account_id"] = account_id
+
+    cli_info = {
+        "speakers_mode": speakers_mode,
+        "min_segment_sec": stj_min_segment_sec,
+        "merge_gap_sec": stj_merge_gap_sec,
+        "include_unknown": include_unknown,
+        "skip_transcript": skip_transcript,
+        "skip_chat": skip_chat,
+        "skip_timeline": skip_timeline,
+        "skip_speakers": _to_bool(skip_speakers),
+    }
+
+    if meeting_uuid:
+        source_uri = f"zoom://meetings/{meeting_id}/recordings/{meeting_uuid}"
+    else:
+        source_uri = f"zoom://meetings/{meeting_id}"
+
+    context = {
+        "dlzoom_version": dlzoom_version,
+        "source_uri": source_uri,
+        "meeting": meeting_info,
+        "scope": scope_info,
+        "recording_files": recording_summaries,
+        "cli": cli_info,
+        "flags": {
+            "has_chat": has_chat,
+            "has_transcript": has_transcript,
+            "has_timeline": has_timeline,
+        },
+    }
+    return context
 
 
 def _handle_check_availability(
@@ -746,6 +852,26 @@ def _handle_download_mode(
     instance_start = instance.get("start_time")
     meeting_uuid = instance.get("uuid")
 
+    stj_context = _build_stj_context(
+        meeting_id=meeting_id,
+        meeting_uuid=meeting_uuid,
+        recording_uuid=meeting_uuid,
+        meeting_topic=meeting_topic,
+        instance=instance,
+        recording_files=recording_files,
+        scope=scope,
+        scope_user_id=scope_user_id,
+        account_id=account_id,
+        speakers_mode=speakers_mode,
+        stj_min_segment_sec=stj_min_segment_sec,
+        stj_merge_gap_sec=stj_merge_gap_sec,
+        include_unknown=include_unknown,
+        skip_transcript=skip_transcript,
+        skip_chat=skip_chat,
+        skip_timeline=skip_timeline,
+        skip_speakers=skip_speakers,
+    )
+
     # Apply templates if provided
     if filename_template or folder_template:
         parser = TemplateParser(filename_template, folder_template)
@@ -801,7 +927,7 @@ def _handle_download_mode(
     if not client_has_method:
         raise AttributeError("Client does not provide _get_access_token()")
     access_token = client._get_access_token()
-    downloader = Downloader(output_dir, access_token, output_name)
+    downloader = Downloader(output_dir, access_token, output_name, stj_context=stj_context)
     extractor = AudioExtractor()
     downloaded_files: list[Path] = []
 

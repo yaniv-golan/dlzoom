@@ -92,6 +92,10 @@ export DLZOOM_SPEAKERS=0
 ```
 
 STJ spec: https://github.com/yaniv-golan/STJ/blob/main/spec/latest/stj-specification.md
+Every generated STJ file includes `metadata.source.extensions.zoom` and `metadata.extensions.dlzoom`
+entries so you can trace the diarization back to the exact Zoom meeting (meeting/account IDs,
+scope used, host details, CLI parameters, and a scrubbed summary of the downloaded recording
+files).
 
 Speaker IDs inside the STJ file are human-friendly slugs (e.g., `yaniv-golan`), while the raw Zoom participant/user IDs are preserved under `speakers[].extensions.zoom` for lossless correlation.
 

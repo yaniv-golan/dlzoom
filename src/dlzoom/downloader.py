@@ -2,6 +2,7 @@
 File downloader with streaming, progress tracking, and retry logic
 """
 
+import copy
 import logging
 import os
 import shutil
@@ -31,6 +32,8 @@ class Downloader:
         access_token: str,
         output_name: str | None = None,
         overwrite: bool = False,
+        *,
+        stj_context: dict[str, Any] | None = None,
     ):
         self.output_dir = Path(output_dir)
         self.access_token = access_token
@@ -38,6 +41,16 @@ class Downloader:
         self.overwrite = overwrite
         self.logger = logging.getLogger(__name__)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.stj_context = stj_context
+
+    def _context_for_stj(self, *, timeline_path: Path, stj_path: Path) -> dict[str, Any] | None:
+        if not self.stj_context:
+            return None
+        ctx = copy.deepcopy(self.stj_context)
+        generated = ctx.setdefault("generated", {})
+        generated["timeline_path"] = str(timeline_path)
+        generated["stj_output_path"] = str(stj_path)
+        return ctx
 
     def check_disk_space(self, required_bytes: int) -> bool:
         """
@@ -689,6 +702,9 @@ class Downloader:
                             self.logger.info(
                                 f"Generating minimal STJ speakers file: {stj_path.name}"
                             )
+                            context_payload = self._context_for_stj(
+                                timeline_path=path, stj_path=stj_path
+                            )
                             write_minimal_stj_from_file(
                                 timeline_path=path,
                                 output_path=stj_path,
@@ -697,6 +713,7 @@ class Downloader:
                                 min_segment_sec=stj_min_segment_sec,
                                 merge_gap_sec=stj_merge_gap_sec,
                                 include_unknown=include_unknown,
+                                context=context_payload,
                             )
                     except Exception as e:
                         self.logger.error(f"Failed to generate STJ speakers file: {e}")
