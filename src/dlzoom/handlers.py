@@ -27,9 +27,9 @@ from __future__ import annotations
 import json as _json
 import time
 import urllib.parse
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -274,6 +274,55 @@ def _raise_account_scope_error(exc: ZoomAPIError) -> None:
 
 def json_dumps(data: Any) -> str:
     return _json.dumps(data, indent=2)
+
+
+def _format_start_time_suffix(start_time: str | None) -> str | None:
+    """Return a UTC timestamp suffix suitable for filenames."""
+    if not start_time:
+        return None
+    try:
+        dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    except Exception:
+        return None
+    try:
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        else:
+            dt = dt.astimezone(UTC)
+        return dt.strftime("%Y%m%d-%H%M%S")
+    except Exception:
+        return None
+
+
+def _derive_batch_output_name(
+    *,
+    meeting_id: str | None,
+    start_time: str | None,
+    meeting_uuid: str | None,
+    base_output_name: str | None,
+    user_supplied_output_name: bool,
+    sanitize: Callable[[str], str],
+) -> str:
+    """Compute batch output_name (see docs/internal/batch-output-name-plan.md)."""
+    if user_supplied_output_name and base_output_name:
+        return base_output_name
+
+    safe_meeting_id = sanitize(str(meeting_id)) if meeting_id else "recording"
+    timestamp_suffix = _format_start_time_suffix(start_time)
+    if timestamp_suffix:
+        return sanitize(f"{safe_meeting_id}_{timestamp_suffix}")
+
+    if meeting_uuid:
+        return sanitize(f"{safe_meeting_id}_{meeting_uuid}")
+
+    if base_output_name:
+        # Fallback to CLI-provided base (typically sanitized meeting_id)
+        return base_output_name
+
+    safe_meeting_id = safe_meeting_id or "recording"
+    return safe_meeting_id
 
 
 def _scrub_download_url(raw_url: str | None) -> str | None:
@@ -581,6 +630,8 @@ def _handle_batch_download(
     stj_min_segment_sec: float = 1.0,
     stj_merge_gap_sec: float = 1.5,
     include_unknown: bool = False,
+    base_output_name: str | None = None,
+    user_supplied_output_name: bool = False,
 ) -> None:
     """Batch download helper used by the `download` command when a date range is supplied."""
 
@@ -641,6 +692,8 @@ def _handle_batch_download(
 
     items.sort(key=_parse_start_time, reverse=True)
 
+    sanitize_helper = TemplateParser()
+
     total_meetings = len(items)
     success_count = 0
     failed_count = 0
@@ -650,6 +703,15 @@ def _handle_batch_download(
         meeting_id = m.get("id") or m.get("meeting_id")
         meeting_topic = m.get("topic", "Zoom Recording")
         start_time = m.get("start_time")
+        meeting_uuid = m.get("uuid")
+        per_meeting_output_name = _derive_batch_output_name(
+            meeting_id=str(meeting_id) if meeting_id else None,
+            start_time=start_time,
+            meeting_uuid=meeting_uuid,
+            base_output_name=base_output_name,
+            user_supplied_output_name=user_supplied_output_name,
+            sanitize=sanitize_helper.sanitize_filename,
+        )
         try:
             _handle_download_mode(
                 client=client,
@@ -657,7 +719,7 @@ def _handle_batch_download(
                 meeting_id=str(meeting_id),
                 recording_id=None,
                 output_dir=output_dir,
-                output_name=str(meeting_id),
+                output_name=per_meeting_output_name,
                 skip_transcript=skip_transcript,
                 skip_chat=skip_chat,
                 skip_timeline=skip_timeline,

@@ -126,12 +126,21 @@ dlzoom download 123456789 --wait 60
 # Custom naming and output directory
 dlzoom download 123456789 --output-name "my_meeting" --output-dir ./recordings
 
+# Batch download with explicit name reused per meeting
+dlzoom download --from-date 2024-04-01 --to-date 2024-04-07 --output-name finance_sync
+
+# Batch download without --output-name automatically appends UTC timestamps
+# (e.g., 123456789_20240401-150000) to avoid overwriting recurring meetings.
+dlzoom download --from-date 2024-04-01 --to-date 2024-04-07
+
 # Dry run
 dlzoom download 123456789 --dry-run
 
 # Tip: meeting IDs with spaces pasted from Zoom are normalized automatically
 dlzoom download "882 9060 9309"
 ```
+
+Date-range downloads (`--from-date/--to-date`) reuse any explicit `--output-name` you provide; otherwise they append a UTC timestamp (or the recording UUID when no timestamp is available) to prevent recurring IDs from overwriting each other.
 
 Batch by date window and automate:
 

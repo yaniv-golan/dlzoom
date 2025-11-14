@@ -740,6 +740,8 @@ def download(
         if output_dir:
             cfg.output_dir = Path(output_dir)
 
+        user_supplied_output_name = output_name is not None
+
         # Sanitize output name for filesystem safety
         try:
             from dlzoom.templates import TemplateParser
@@ -823,6 +825,8 @@ def download(
                 stj_min_segment_sec=stj_min_seg_sec,
                 stj_merge_gap_sec=stj_merge_gap_sec,
                 include_unknown=include_unknown,
+                base_output_name=output_name,
+                user_supplied_output_name=user_supplied_output_name,
             )
             return
 

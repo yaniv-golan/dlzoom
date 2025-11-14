@@ -106,3 +106,155 @@ def test_batch_download_user_scope_sets_user_id(monkeypatch, tmp_path, capsys):
     assert data["scope"] == "user"
     assert data["user_id"] == "user@example.com"
     assert data["results"][0]["user_id"] == "user@example.com"
+
+
+def test_batch_download_preserves_user_output_name(monkeypatch, tmp_path):
+    fake_items = [
+        {"id": "777", "topic": "Weekly Sync", "start_time": "2024-03-01T12:00:00Z"},
+        {"id": "888", "topic": "Weekly Sync", "start_time": "2024-03-08T12:00:00Z"},
+    ]
+
+    monkeypatch.setattr(
+        "dlzoom.handlers._iterate_account_recordings", lambda *args, **kwargs: iter(fake_items)
+    )
+
+    recorded_output_names: list[str] = []
+
+    def fake_download_mode(**kwargs):
+        recorded_output_names.append(kwargs["output_name"])
+
+    monkeypatch.setattr("dlzoom.handlers._handle_download_mode", fake_download_mode)
+
+    client = ZoomClient("acct", "cid", "sec")
+    selector = RecordingSelector()
+
+    _handle_batch_download(
+        client=client,
+        selector=selector,
+        from_date="2024-03-01",
+        to_date="2024-03-09",
+        scope="account",
+        user_id=None,
+        page_size=300,
+        account_id="acct",
+        output_dir=Path(tmp_path),
+        skip_transcript=False,
+        skip_chat=False,
+        skip_timeline=False,
+        formatter=None,
+        verbose=False,
+        debug=False,
+        json_mode=True,
+        filename_template=None,
+        folder_template=None,
+        skip_speakers=None,
+        speakers_mode="first",
+        stj_min_segment_sec=1.0,
+        stj_merge_gap_sec=1.5,
+        include_unknown=False,
+        base_output_name="custom_name",
+        user_supplied_output_name=True,
+    )
+
+    assert recorded_output_names == ["custom_name", "custom_name"]
+
+
+def test_batch_download_generates_timestamped_names(monkeypatch, tmp_path):
+    fake_items = [
+        {"id": "999", "topic": "Recurring", "start_time": "2024-04-10T09:00:00Z"},
+        {"id": "999", "topic": "Recurring", "start_time": "2024-04-11T09:05:00Z"},
+    ]
+
+    monkeypatch.setattr(
+        "dlzoom.handlers._iterate_account_recordings", lambda *args, **kwargs: iter(fake_items)
+    )
+
+    recorded_output_names: list[str] = []
+
+    def fake_download_mode(**kwargs):
+        recorded_output_names.append(kwargs["output_name"])
+
+    monkeypatch.setattr("dlzoom.handlers._handle_download_mode", fake_download_mode)
+
+    client = ZoomClient("acct", "cid", "sec")
+    selector = RecordingSelector()
+
+    _handle_batch_download(
+        client=client,
+        selector=selector,
+        from_date="2024-04-01",
+        to_date="2024-04-30",
+        scope="account",
+        user_id=None,
+        page_size=300,
+        account_id="acct",
+        output_dir=Path(tmp_path),
+        skip_transcript=False,
+        skip_chat=False,
+        skip_timeline=False,
+        formatter=None,
+        verbose=False,
+        debug=False,
+        json_mode=True,
+        filename_template=None,
+        folder_template=None,
+        skip_speakers=None,
+        speakers_mode="first",
+        stj_min_segment_sec=1.0,
+        stj_merge_gap_sec=1.5,
+        include_unknown=False,
+        base_output_name="999",
+        user_supplied_output_name=False,
+    )
+
+    assert recorded_output_names == ["999_20240411-090500", "999_20240410-090000"]
+
+
+def test_batch_download_falls_back_to_uuid_when_no_start(monkeypatch, tmp_path):
+    fake_items = [
+        {"id": "321", "topic": "Ad-hoc", "uuid": "abc/def", "start_time": None},
+    ]
+
+    monkeypatch.setattr(
+        "dlzoom.handlers._iterate_account_recordings", lambda *args, **kwargs: iter(fake_items)
+    )
+
+    recorded_output_names: list[str] = []
+
+    def fake_download_mode(**kwargs):
+        recorded_output_names.append(kwargs["output_name"])
+
+    monkeypatch.setattr("dlzoom.handlers._handle_download_mode", fake_download_mode)
+
+    client = ZoomClient("acct", "cid", "sec")
+    selector = RecordingSelector()
+
+    _handle_batch_download(
+        client=client,
+        selector=selector,
+        from_date="2024-05-01",
+        to_date="2024-05-02",
+        scope="account",
+        user_id=None,
+        page_size=300,
+        account_id="acct",
+        output_dir=Path(tmp_path),
+        skip_transcript=False,
+        skip_chat=False,
+        skip_timeline=False,
+        formatter=None,
+        verbose=False,
+        debug=False,
+        json_mode=True,
+        filename_template=None,
+        folder_template=None,
+        skip_speakers=None,
+        speakers_mode="first",
+        stj_min_segment_sec=1.0,
+        stj_merge_gap_sec=1.5,
+        include_unknown=False,
+        base_output_name="321",
+        user_supplied_output_name=False,
+    )
+
+    assert recorded_output_names == ["321_abc_def"]
