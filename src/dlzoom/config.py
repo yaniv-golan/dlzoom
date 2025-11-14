@@ -5,8 +5,8 @@ Configuration management for dlzoom
 import json
 import os
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 from dotenv import load_dotenv
 from platformdirs import user_config_dir
@@ -73,7 +73,10 @@ class Config:
             "ZOOM_API_BASE_URL", self.OPTIONAL_FIELDS["zoom_api_base_url"]
         )
         self.zoom_api_base_url = str(api_base).rstrip("/")
-        token_override = config_data.get("zoom_oauth_token_url") or os.getenv("ZOOM_OAUTH_TOKEN_URL")
+        token_override = (
+            config_data.get("zoom_oauth_token_url")
+            or os.getenv("ZOOM_OAUTH_TOKEN_URL")
+        )
         self.zoom_oauth_token_url = (
             str(token_override).strip()
             if token_override
