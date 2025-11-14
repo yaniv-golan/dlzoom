@@ -35,7 +35,7 @@ class ZoomClient:
         self.client_id = client_id
         self.client_secret = client_secret
         self.base_url = base_url.rstrip("/")
-        self.token_url = (token_url.rstrip("/") if token_url else self._derive_token_url(base_url))
+        self.token_url = token_url.rstrip("/") if token_url else self._derive_token_url(base_url)
 
         # Token caching (in memory during execution)
         self._access_token: str | None = None
@@ -420,6 +420,26 @@ class ZoomClient:
     ) -> dict[str, Any]:
         """Get user recordings with date filtering"""
         endpoint = f"users/{user_id}/recordings"
+
+        params: dict[str, Any] = {"page_size": page_size}
+        if from_date:
+            params["from"] = from_date
+        if to_date:
+            params["to"] = to_date
+        if next_page_token:
+            params["next_page_token"] = next_page_token
+
+        return self._make_request("GET", endpoint, params=params)
+
+    def get_account_recordings(
+        self,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        page_size: int = 300,
+        next_page_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Get account-wide recordings via /accounts/me/recordings."""
+        endpoint = "accounts/me/recordings"
 
         params: dict[str, Any] = {"page_size": page_size}
         if from_date:

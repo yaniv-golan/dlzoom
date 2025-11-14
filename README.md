@@ -48,8 +48,10 @@ Outputs include audio (M4A), transcript (VTT), chat (TXT), timeline (JSON), meta
 - I’m downloading my own recordings → User OAuth
   - Today: deploy the Cloudflare Worker in `zoom-broker/` and run `dlzoom login --auth-url <your-worker-url>`.
   - Soon: use the hosted sign‑in once published to the Zoom Marketplace.
-- I’m an admin or running automation/CI → Server‑to‑Server (S2S) OAuth
+- I’m an admin or running automation/CI → Server-to-Server (S2S) OAuth
   - Set `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` and run `dlzoom`.
+  - Scopes: add `account:read:admin` + `cloud_recording:read:list_account_recordings:{admin|master}` (or the `:master` variant) so account-wide recording fetches work.
+  - Verify scopes any time with `dlzoom whoami --json`.
 
 Links to both flows are in Authentication below.
 
@@ -141,6 +143,36 @@ JSON output for pipelines:
 ```bash
 dlzoom download 123456789 --json > recording.json
 ```
+
+## Recording Scope Modes
+
+dlzoom needs to know *which* Zoom API surface to call when enumerating or batch-downloading recordings. Use the `--scope`/`--user-id` flags on `recordings` and `download` to control this.
+
+### Account scope (default for S2S OAuth)
+
+- Endpoint: `GET /v2/accounts/me/recordings`
+- Required scopes: `account:read:admin` **and** `cloud_recording:read:list_account_recordings:{admin|master}` (granular scopes). Classic `recording:read:admin` alone is insufficient.
+- Usage:
+  ```bash
+  # S2S with full account visibility
+  dlzoom recordings --scope account --from-date 2025-02-01 --to-date 2025-02-15 --json
+  dlzoom download --from-date 2025-02-01 --to-date 2025-02-05 --scope account
+  ```
+- Troubleshooting 403/4711 errors:
+  1. Run `dlzoom whoami --json` to inspect the token's actual scopes.
+  2. Add BOTH scopes above to your S2S app and ensure your admin role exposes granular recording scopes.
+  3. Try the `:master` variant if your account uses a master/sub-account hierarchy.
+  4. If Zoom still hides the granular scopes, create a **General** (Unlisted) app as a fallback.
+
+### User scope (user OAuth, or S2S fallback per user)
+
+- Endpoint: `GET /v2/users/{userId}/recordings`
+- User OAuth: `user_id="me"` resolves automatically.
+- S2S fallback: pass an explicit email/UUID via `--user-id` or set `ZOOM_S2S_DEFAULT_USER`.
+  ```bash
+  dlzoom recordings --scope user --user-id host@example.com --from-date 2025-02-01 --to-date 2025-02-05
+  dlzoom download --from-date 2025-02-01 --to-date 2025-02-05 --scope user --user-id user@example.com
+  ```
 
 ## Installation
 

@@ -13,7 +13,7 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import rich_click as click
 from rich.console import Console
@@ -231,6 +231,28 @@ def _calc_range(range_opt: str) -> tuple[str, str]:
     show_default=True,
     help="[Advanced] Number of results per API request (Zoom max 300)",
 )
+@click.option(
+    "--scope",
+    "scope_opt",
+    type=click.Choice(["auto", "account", "user"], case_sensitive=False),
+    default="auto",
+    show_default=True,
+    help=(
+        "Recording scope. "
+        "account=/accounts/me (S2S only, requires account:read:admin + "
+        "cloud_recording:read:list_account_recordings:{admin|master}); "
+        "user=/users/{userId} (S2S requires --user-id or ZOOM_S2S_DEFAULT_USER); "
+        "auto=account for S2S, user otherwise."
+    ),
+)
+@click.option(
+    "--user-id",
+    "user_id_opt",
+    help=(
+        "Zoom user email or UUID for --scope=user. Required for S2S tokens (or set "
+        "ZOOM_S2S_DEFAULT_USER); user OAuth tokens default to 'me'."
+    ),
+)
 @click.option("--json", "-j", "json_mode", is_flag=True, help="JSON output mode")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.option("--debug", "-d", is_flag=True, help="Debug output")
@@ -243,6 +265,8 @@ def recordings(
     topic: str | None,
     limit: int,
     page_size: int,
+    scope_opt: str,
+    user_id_opt: str | None,
     json_mode: bool,
     verbose: bool,
     debug: bool,
@@ -329,6 +353,22 @@ def recordings(
         if hasattr(client, "base_url"):
             client.base_url = cfg.zoom_api_base_url.rstrip("/")
 
+    scope_ctx: _h.ScopeContext | None = None
+    if not meeting_id:
+        # See docs/internal/s2s-recordings-plan.md (§1-2) for scope rules.
+        scope_ctx = _h._resolve_scope(
+            use_s2s=use_s2s,
+            scope_flag=scope_opt,
+            user_id=user_id_opt,
+            default_s2s_user=cfg.s2s_default_user,
+        )
+        if debug or verbose:
+            scope_debug_user = scope_ctx.user_id or "-"
+            console.print(
+                f"[dim]Scope resolved to {scope_ctx.scope} "
+                f"(source={scope_ctx.reason}, user={scope_debug_user})[/dim]"
+            )
+
     # Meeting-scoped mode
     if meeting_id:
         try:
@@ -400,35 +440,44 @@ def recordings(
             console.print()
         return
 
-    # User-wide mode
+    # Account-/user-wide mode
+    if scope_ctx is None:
+        raise ConfigError("Missing scope resolution for recordings command")
+
+    resolved_scope = scope_ctx.scope
+    resolved_user_id = scope_ctx.user_id
+
     items: list[dict[str, Any]] = []
-    next_token = None
     fetched = 0
-    while True:
-        resp = client.get_user_recordings(
-            user_id="me",
+
+    account_client: ZoomClient | None = None
+    if resolved_scope == "account":
+        account_client = cast(ZoomClient, client)
+        meeting_iter = _h._iterate_account_recordings(
+            account_client,
             from_date=from_date,
             to_date=to_date,
             page_size=page_size,
-            next_page_token=next_token,
+            debug=debug,
         )
-        meetings = resp.get("meetings", [])
-        if debug and not meetings and not next_token:
-            console.print(
-                "[dim]No meetings returned by Zoom for this window. This can happen while "
-                "recordings are still processing or due to UTC boundary effects.[/dim]"
-            )
-        for m in meetings:
-            if topic and topic.lower() not in str(m.get("topic", "")).lower():
-                continue
-            items.append(m)
-            fetched += 1
-            if limit and limit > 0 and fetched >= limit:
-                break
+    else:
+        if not resolved_user_id:
+            raise ConfigError("--scope=user requires a user identifier")
+        meeting_iter = _h._iterate_user_recordings(
+            client,
+            user_id=resolved_user_id,
+            from_date=from_date,
+            to_date=to_date,
+            page_size=page_size,
+            debug=debug,
+        )
+
+    for m in meeting_iter:
+        if topic and topic.lower() not in str(m.get("topic", "")).lower():
+            continue
+        items.append(m)
+        fetched += 1
         if limit and limit > 0 and fetched >= limit:
-            break
-        next_token = resp.get("next_page_token")
-        if not next_token:
             break
 
     # Recurring indicator (heuristic)
@@ -485,9 +534,12 @@ def recordings(
             "command": "recordings",
             "from_date": from_date,
             "to_date": to_date,
-            "total_count": len(enriched),
+            "total_meetings": len(enriched),
             "page_size": page_size,
-            "recordings": enriched,
+            "scope": resolved_scope,
+            "user_id": resolved_user_id if resolved_scope == "user" else None,
+            "account_id": account_client.account_id if account_client else None,
+            "meetings": enriched,
         }
         print(_h.json_dumps(payload))
         return
@@ -611,6 +663,26 @@ def recordings(
     callback=_validate_date,
     help="End date for batch downloads (YYYY-MM-DD)",
 )
+@click.option(
+    "--scope",
+    "download_scope_opt",
+    type=click.Choice(["auto", "account", "user"], case_sensitive=False),
+    default="auto",
+    show_default=True,
+    help=(
+        "Recording scope (account requires S2S + account:read:admin + "
+        "cloud_recording:read:list_account_recordings:{admin|master}). "
+        "Used for batch fetches and stored in metadata/JSON."
+    ),
+)
+@click.option(
+    "--user-id",
+    "download_user_id_opt",
+    help=(
+        "Zoom user email or UUID when --scope=user (required for S2S tokens unless "
+        "ZOOM_S2S_DEFAULT_USER is set)."
+    ),
+)
 def download(
     meeting_id: str,
     output_dir: str | None,
@@ -636,6 +708,8 @@ def download(
     folder_template: str | None,
     from_date: str | None,
     to_date: str | None,
+    download_scope_opt: str,
+    download_user_id_opt: str | None,
 ) -> None:
     """
     Download audio recordings and metadata from Zoom meetings."""
@@ -699,6 +773,28 @@ def download(
             client = ZoomUserClient(user_tokens, str(cfg.tokens_path))  # type: ignore[arg-type]
             if hasattr(client, "base_url"):
                 client.base_url = cfg.zoom_api_base_url.rstrip("/")
+
+        # See docs/internal/s2s-recordings-plan.md for scope selection rationale.
+        scope_ctx = _h._resolve_scope(
+            use_s2s=use_s2s,
+            scope_flag=download_scope_opt,
+            user_id=download_user_id_opt,
+            default_s2s_user=cfg.s2s_default_user,
+        )
+        if debug or verbose:
+            scope_debug_user = scope_ctx.user_id or "-"
+            console.print(
+                f"[dim]Download scope resolved to {scope_ctx.scope} "
+                f"(source={scope_ctx.reason}, user={scope_debug_user})[/dim]"
+            )
+
+        account_identifier: str | None = None
+        if use_s2s:
+            if cfg.zoom_account_id:
+                account_identifier = str(cfg.zoom_account_id)
+            elif isinstance(client, ZoomClient):
+                account_identifier = getattr(client, "account_id", None)
+
         selector = RecordingSelector()
 
         # Handle batch download mode (from_date/to_date)
@@ -708,6 +804,10 @@ def download(
                 selector=selector,
                 from_date=from_date,
                 to_date=to_date,
+                scope=scope_ctx.scope,
+                user_id=scope_ctx.user_id,
+                page_size=300,
+                account_id=account_identifier,
                 output_dir=cfg.output_dir,
                 skip_transcript=skip_transcript,
                 skip_chat=skip_chat,
@@ -760,6 +860,9 @@ def download(
             stj_min_segment_sec=stj_min_seg_sec,
             stj_merge_gap_sec=stj_merge_gap_sec,
             include_unknown=include_unknown,
+            scope=scope_ctx.scope,
+            scope_user_id=scope_ctx.user_id,
+            account_id=account_identifier,
         )
 
     except DlzoomError as e:

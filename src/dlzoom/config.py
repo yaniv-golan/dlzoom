@@ -32,6 +32,7 @@ class Config:
         "log_level": "INFO",
         "zoom_api_base_url": "https://api.zoom.us/v2",
         "zoom_oauth_token_url": None,
+        "zoom_s2s_default_user": None,
         # End-user auth via hosted service (default disabled until configured)
         "auth_url": "",
         # Token storage path (resolved at runtime using platformdirs)
@@ -73,9 +74,8 @@ class Config:
             "ZOOM_API_BASE_URL", self.OPTIONAL_FIELDS["zoom_api_base_url"]
         )
         self.zoom_api_base_url = str(api_base).rstrip("/")
-        token_override = (
-            config_data.get("zoom_oauth_token_url")
-            or os.getenv("ZOOM_OAUTH_TOKEN_URL")
+        token_override = config_data.get("zoom_oauth_token_url") or os.getenv(
+            "ZOOM_OAUTH_TOKEN_URL"
         )
         self.zoom_oauth_token_url = (
             str(token_override).strip()
@@ -84,11 +84,12 @@ class Config:
         )
 
         # Hosted auth service URL (flag/env/config/default precedence handled in CLI commands)
-        self.auth_url = (
+        raw_auth_url = (
             config_data.get("auth_url")
             or os.getenv("DLZOOM_AUTH_URL")
             or self.OPTIONAL_FIELDS["auth_url"]
-        ).strip()
+        )
+        self.auth_url = str(raw_auth_url).strip()
 
         # Token file path: default under platform-specific user config directory
         configured_tokens_path = config_data.get("tokens_path") or os.getenv("DLZOOM_TOKENS_PATH")
@@ -97,6 +98,17 @@ class Config:
         else:
             base_dir = Path(user_config_dir("dlzoom"))
             self.tokens_path = base_dir / "tokens.json"
+
+        # Optional default user for S2S --scope=user fallback
+        raw_config_default = config_data.get("zoom_s2s_default_user")
+        s2s_default_source: str
+        if raw_config_default is not None:
+            s2s_default_source = str(raw_config_default)
+        else:
+            env_default = os.getenv("ZOOM_S2S_DEFAULT_USER")
+            s2s_default_source = env_default if env_default is not None else ""
+        cleaned_default = s2s_default_source.strip()
+        self.s2s_default_user = cleaned_default or None
 
     @property
     def zoom_account_id(self) -> str | None:

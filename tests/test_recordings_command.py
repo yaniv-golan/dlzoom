@@ -57,7 +57,7 @@ class FakeUserClient:
 
 class FakeS2SClient:
     def __init__(self, account_id: str, client_id: str, client_secret: str):
-        pass
+        self.account_id = account_id
 
     def get_meeting_recordings(self, meeting_id: str):
         # Simulate a meeting with two instances
@@ -77,6 +77,27 @@ class FakeS2SClient:
                     "duration": 45,
                     "recording_files": [{"recording_type": "MP4"}, {"recording_type": "M4A"}],
                 },
+            ]
+        }
+
+    def get_account_recordings(
+        self,
+        *,
+        from_date=None,
+        to_date=None,
+        page_size=300,
+        next_page_token=None,
+    ):
+        return {
+            "meetings": [
+                {
+                    "id": "999000111",
+                    "uuid": "ACCT123",
+                    "topic": "Account Sync",
+                    "start_time": "2025-02-01T12:00:00Z",
+                    "duration": 60,
+                    "recording_files": [{"recording_type": "MP4"}],
+                }
             ]
         }
 
@@ -100,9 +121,29 @@ def test_recordings_user_wide_json(monkeypatch):
     data = json.loads(result.output)
     assert data["status"] == "success"
     assert data["command"] == "recordings"
-    # Two meetings across two pages; recurring should be true by heuristic
-    assert data["total_count"] == 2
-    assert all(r.get("recurring") is True for r in data["recordings"])
+    assert data["scope"] == "user"
+    assert data["user_id"] == "me"
+    assert data["total_meetings"] == 2
+    assert all(r.get("recurring") is True for r in data["meetings"])
+
+
+def test_recordings_account_scope_json(monkeypatch):
+    monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
+    monkeypatch.setenv("ZOOM_ACCOUNT_ID", "acct")
+    monkeypatch.setenv("ZOOM_CLIENT_ID", "cid")
+    monkeypatch.setenv("ZOOM_CLIENT_SECRET", "sec")
+    monkeypatch.setattr("dlzoom.cli.ZoomClient", FakeS2SClient)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        dlzoom_cli, ["recordings", "--from-date", "2025-02-01", "--to-date", "2025-02-02", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["scope"] == "account"
+    assert data["account_id"] == "acct"
+    assert data["total_meetings"] == 1
+    assert data["meetings"][0]["topic"] == "Account Sync"
 
 
 def test_recordings_meeting_scoped_json(monkeypatch):
@@ -191,7 +232,7 @@ def test_recordings_limit_zero_fetches_all(monkeypatch):
     result = runner.invoke(dlzoom_cli, ["recordings", "--range", "today", "--limit", "0", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.output)
-    assert data["total_count"] == 2
+    assert data["total_meetings"] == 2
 
 
 def test_recordings_empty_results(monkeypatch):
@@ -211,4 +252,4 @@ def test_recordings_empty_results(monkeypatch):
     result = runner.invoke(dlzoom_cli, ["recordings", "--range", "today", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.output)
-    assert data["total_count"] == 0
+    assert data["total_meetings"] == 0

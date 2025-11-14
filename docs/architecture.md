@@ -131,6 +131,22 @@ Direct authentication using account credentials (no broker needed).
 4. CLI filters by date/topic (if specified)
 5. CLI displays results (table or JSON)
 
+### Recording Fetching Modes
+
+`dlzoom recordings` and `dlzoom download --from/--to` operate in two scopes depending on the token type:
+
+- **Account scope (default for S2S OAuth)**
+  - Endpoint: `GET /v2/accounts/me/recordings`
+  - Requires both `account:read:admin` and `cloud_recording:read:list_account_recordings:{admin|master}` scopes.
+  - Date ranges are chunked into calendar months to satisfy Zoom's 30-day limit. Pagination is handled per month window.
+  - JSON output includes `scope="account"` and the `account_id` so downstream automation knows how the data was fetched.
+
+- **User scope (user OAuth or S2S fallback per user)**
+  - Endpoint: `GET /v2/users/{userId}/recordings`
+  - User OAuth can use `user_id="me"`. S2S callers must pass an explicit email/UUID via `--user-id` or configure `ZOOM_S2S_DEFAULT_USER`.
+
+During the initial rollout we briefly exposed a `DLZOOM_LEGACY_S2S_MODE` escape hatch for S2S tenants that had not added the granular scopes yet. That compatibility switch has been removed—S2S deployments must either grant the account-level scopes or operate in `--scope user` with an explicit email/UUID.
+
 ## Technology Stack
 
 | Component | Languages/Frameworks | Key Dependencies |

@@ -1,8 +1,25 @@
 """
-Handlers for dlzoom CLI commands.
+Recording helpers for dlzoom CLI commands.
 
-This module contains heavier helper functions extracted from cli.py to reduce
-complexity in the Click command definitions. Behavior is unchanged.
+Key Zoom API behaviors to remember (see docs/internal/s2s-recordings-plan.md):
+
+1. Token context matters. S2S OAuth credentials operate at account scope and
+   therefore require Zoom's `/accounts/me/recordings` endpoint plus BOTH
+   `account:read:admin` and `cloud_recording:read:list_account_recordings:{admin|master}`
+   scopes. User OAuth tokens retain user context and should stay on
+   `/users/{userId}/recordings`.
+2. `user_id="me"` is only reliable for user tokens. S2S tokens have no "me"
+   concept and Zoom silently falls back to the account owner, so we error early
+   unless an explicit email/UUID (or configured default) is provided.
+3. Zoom enforces ~30 day windows per request. `_chunk_by_month` splits long
+   ranges into calendar months and prevents reusing pagination tokens across
+   months. This also mitigates the documented ~10k-record response ceiling.
+4. Granular scope availability varies per tenant/role. Error handlers surface
+   concrete scopes, troubleshooting steps, and links back to the plan + bug
+   validation report for future maintainers.
+
+For background on the production outage this code fixes, see
+BUG_VALIDATION_REPORT.md and docs/architecture.md (Recording Fetching Modes).
 """
 
 from __future__ import annotations
@@ -10,15 +27,18 @@ from __future__ import annotations
 import json as _json
 import time
 import urllib.parse
-from datetime import datetime, timedelta
+from collections.abc import Iterator
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from rich.console import Console
 
 from dlzoom.audio_extractor import AudioExtractor
 from dlzoom.downloader import Downloader, DownloadError
 from dlzoom.exceptions import (
+    ConfigError,
     DlzoomError,
     FFmpegNotFoundError,
     InvalidRecordingIDError,
@@ -32,6 +52,223 @@ from dlzoom.zoom_client import ZoomAPIError, ZoomClient
 from dlzoom.zoom_user_client import ZoomUserClient
 
 console = Console()
+
+ScopeLiteral = Literal["account", "user"]
+
+
+@dataclass(frozen=True)
+class ScopeContext:
+    """Resolved scope information for recording enumeration."""
+
+    scope: ScopeLiteral
+    user_id: str | None
+    reason: str
+
+
+def _resolve_scope(
+    *,
+    use_s2s: bool,
+    scope_flag: str | None,
+    user_id: str | None,
+    default_s2s_user: str | None = None,
+) -> ScopeContext:
+    """Resolve whether to use account-level or user-level recording scope.
+
+    Design notes (see docs/internal/s2s-recordings-plan.md §1):
+    - S2S tokens have no "me" context; default to account scope for full coverage.
+    - `--scope user` with S2S requires an explicit email/UUID (or
+      `ZOOM_S2S_DEFAULT_USER`). We reject `user_id="me"` outright for S2S.
+    - User OAuth tokens keep the legacy `user_id="me"` behavior because Zoom
+      resolves it correctly for user-context tokens.
+    """
+
+    requested_scope = (scope_flag or "auto").strip().lower()
+    if requested_scope not in {"auto", "account", "user"}:
+        raise ConfigError(
+            "--scope must be one of 'auto', 'account', or 'user'",
+            details=f"Got: {scope_flag}",
+        )
+
+    if requested_scope == "auto":
+        resolved_scope = "account" if use_s2s else "user"
+        reason = "auto-s2s" if use_s2s else "auto-user-token"
+    else:
+        resolved_scope = requested_scope  # type: ignore[assignment]
+        reason = "explicit"
+
+    # Account scope only works with S2S credentials
+    if resolved_scope == "account":
+        if not use_s2s:
+            raise ConfigError(
+                "--scope=account requires S2S credentials (ZOOM_ACCOUNT_ID/CLIENT/SECRET)",
+                details="User OAuth tokens operate per user; account endpoint is unavailable.",
+            )
+        return ScopeContext(scope="account", user_id=None, reason=reason)
+
+    # User scope requires determining which user to target
+    cleaned_user_id = (user_id or "").strip() or None
+    cleaned_default = (default_s2s_user or "").strip() or None
+
+    if use_s2s:
+        resolved_user = cleaned_user_id or cleaned_default
+        if not resolved_user:
+            raise ConfigError(
+                "S2S tokens need --user-id or ZOOM_S2S_DEFAULT_USER when --scope=user",
+                details=("Provide an explicit Zoom user email/UUID or switch to --scope=account"),
+            )
+        if resolved_user.lower() == "me":
+            raise ConfigError(
+                'user_id="me" is invalid for S2S tokens. Zoom resolves it to the account owner.',
+                details="Use an explicit email/UUID or --scope=account",
+            )
+        return ScopeContext(scope="user", user_id=resolved_user, reason=reason)
+
+    # User tokens default to "me" if none provided
+    return ScopeContext(scope="user", user_id=cleaned_user_id or "me", reason=reason)
+
+
+def _chunk_by_month(
+    from_date: str | None,
+    to_date: str | None,
+) -> list[tuple[str | None, str | None]]:
+    """Split a date window into calendar-month chunks to satisfy Zoom limits."""
+
+    if not from_date or not to_date:
+        return [(from_date, to_date)]
+
+    start = datetime.strptime(from_date, "%Y-%m-%d").date()
+    end = datetime.strptime(to_date, "%Y-%m-%d").date()
+    if start > end:
+        raise ConfigError("from_date must be before or equal to to_date for recording fetches")
+
+    # Use calendar-month slices because Zoom rejects requests spanning >30 days.
+    chunks: list[tuple[str | None, str | None]] = []
+    current = start
+    while current <= end:
+        if current.month == 12:
+            next_month = date(current.year + 1, 1, 1)
+        else:
+            next_month = date(current.year, current.month + 1, 1)
+        month_end = next_month - timedelta(days=1)
+        chunk_start = current
+        chunk_end = month_end if month_end <= end else end
+        chunks.append((chunk_start.strftime("%Y-%m-%d"), chunk_end.strftime("%Y-%m-%d")))
+        current = chunk_end + timedelta(days=1)
+
+    return chunks
+
+
+def _iterate_account_recordings(
+    client: ZoomClient,
+    *,
+    from_date: str | None,
+    to_date: str | None,
+    page_size: int = 300,
+    debug: bool = False,
+) -> Iterator[dict[str, Any]]:
+    """Iterate account-wide recordings across month windows.
+
+    Zoom enforces a ~30 day window and uses `/accounts/me/recordings` for S2S
+    tokens. This helper chunks into calendar months, caps `page_size` at
+    Zoom's maximum (300), and loops through `next_page_token` until exhausted.
+    Always prefer `/accounts/me` over `/accounts/{accountId}` to avoid
+    master/sub-account permission issues (see BUG_VALIDATION_REPORT.md).
+    """
+
+    cap = min(page_size, 300)
+    chunks = _chunk_by_month(from_date, to_date)
+    for chunk_from, chunk_to in chunks:
+        next_token = None
+        if debug:
+            console.print(
+                f"[dim]Requesting account recordings chunk from={chunk_from or '-'} "
+                f"to={chunk_to or '-'}[/dim]"
+            )
+        while True:
+            try:
+                resp = client.get_account_recordings(
+                    from_date=chunk_from,
+                    to_date=chunk_to,
+                    page_size=cap,
+                    next_page_token=next_token,
+                )
+            except ZoomAPIError as exc:
+                _raise_account_scope_error(exc)
+            meetings = resp.get("meetings", [])
+            yield from meetings
+            next_token = resp.get("next_page_token")
+            if not next_token:
+                break
+
+
+def _iterate_user_recordings(
+    client: ZoomClient | ZoomUserClient,
+    *,
+    user_id: str,
+    from_date: str | None,
+    to_date: str | None,
+    page_size: int = 300,
+    debug: bool = False,
+) -> Iterator[dict[str, Any]]:
+    """Iterate user-specific recordings with consistent chunking/pagination.
+
+    The caller must already enforce the "no user_id='me' for S2S" rule. User
+    tokens pass `user_id="me"` safely while S2S callers send explicit emails
+    or UUIDs.
+    """
+
+    cap = min(page_size, 300)
+    chunks = _chunk_by_month(from_date, to_date)
+    for chunk_from, chunk_to in chunks:
+        next_token = None
+        if debug:
+            console.print(
+                f"[dim]Requesting user recordings for {user_id} chunk from={chunk_from or '-'} "
+                f"to={chunk_to or '-'}[/dim]"
+            )
+        while True:
+            resp = client.get_user_recordings(
+                user_id=user_id,
+                from_date=chunk_from,
+                to_date=chunk_to,
+                page_size=cap,
+                next_page_token=next_token,
+            )
+            meetings = resp.get("meetings", [])
+            yield from meetings
+            next_token = resp.get("next_page_token")
+            if not next_token:
+                break
+
+
+def _raise_account_scope_error(exc: ZoomAPIError) -> None:
+    """Translate account-scope permission failures into actionable errors.
+
+    References:
+    - docs/internal/s2s-recordings-plan.md §3 (detailed troubleshooting steps)
+    - https://devforum.zoom.us/t/granular-scopes-not-appearing/110556
+    - https://devforum.zoom.us/t/issues-with-the-cloud-recordinglist-account-recordings-master-scope/130786
+    """
+
+    scope_hint = (
+        "Zoom denied access to /accounts/me/recordings. Ensure your S2S app includes both "
+        "account:read:admin and cloud_recording:read:list_account_recordings:{admin|master}."
+    )
+    remediation = "You can also re-run with --scope=user --user-id <email> as a temporary fallback."
+    api_details = f"HTTP {exc.status_code or 'unknown'} / Zoom code {exc.zoom_code or 'n/a'}"
+    details = (
+        f"{api_details}. {remediation} "
+        "Step 1: Verify actual token scopes via `dlzoom whoami --json`. "
+        "Step 2: Add account:read:admin + "
+        "cloud_recording:read:list_account_recordings:{{admin|master}}. "
+        "Step 3: Ensure your admin role exposes granular scopes (see Zoom devforum link). "
+        "Step 4: If scopes stay hidden, create a General app (unlisted) as documented "
+        "in BUG_VALIDATION_REPORT.md."
+    )
+    details += (
+        "\nSee https://devforum.zoom.us/t/granular-scopes-not-appearing/110556 for more context."
+    )
+    raise ConfigError(scope_hint, details=details) from exc
 
 
 def json_dumps(data: Any) -> str:
@@ -229,6 +466,10 @@ def _handle_batch_download(
     filename_template: str | None,
     folder_template: str | None,
     *,
+    scope: ScopeLiteral,
+    user_id: str | None,
+    page_size: int = 300,
+    account_id: str | None = None,
     skip_speakers: bool | None = None,
     speakers_mode: str = "first",
     stj_min_segment_sec: float = 1.0,
@@ -237,23 +478,30 @@ def _handle_batch_download(
 ) -> None:
     """Batch download helper used by the `download` command when a date range is supplied."""
 
-    # Query user recordings across the date window
-    items: list[dict[str, Any]] = []
-    next_token = None
-    while True:
-        resp = client.get_user_recordings(
-            user_id="me",
+    # Scope-aware enumeration
+    if scope == "account":
+        if not isinstance(client, ZoomClient):
+            raise ConfigError("Account scope batch downloads require S2S ZoomClient")
+        meeting_iter = _iterate_account_recordings(
+            client,
             from_date=from_date,
             to_date=to_date,
-            page_size=300,
-            next_page_token=next_token,
+            page_size=page_size,
+            debug=debug,
         )
-        meetings = resp.get("meetings", [])
-        for m in meetings:
-            items.append(m)
-        next_token = resp.get("next_page_token")
-        if not next_token:
-            break
+    else:
+        if not user_id:
+            raise ConfigError("--scope=user batch downloads require --user-id or config default")
+        meeting_iter = _iterate_user_recordings(
+            client,
+            user_id=user_id,
+            from_date=from_date,
+            to_date=to_date,
+            page_size=page_size,
+            debug=debug,
+        )
+
+    items = list(meeting_iter)
 
     if not items:
         if json_mode:
@@ -265,6 +513,10 @@ def _handle_batch_download(
                         "from_date": from_date,
                         "to_date": to_date,
                         "total_meetings": 0,
+                        "scope": scope,
+                        "user_id": user_id if scope == "user" else None,
+                        "page_size": min(page_size, 300),
+                        "account_id": account_id if scope == "account" else None,
                         "results": [],
                     }
                 )
@@ -317,6 +569,9 @@ def _handle_batch_download(
                 stj_min_segment_sec=stj_min_segment_sec,
                 stj_merge_gap_sec=stj_merge_gap_sec,
                 include_unknown=include_unknown,
+                scope=scope,
+                scope_user_id=user_id,
+                account_id=account_id,
             )
             success_count += 1
             if json_mode:
@@ -326,6 +581,9 @@ def _handle_batch_download(
                         "meeting_topic": meeting_topic,
                         "start_time": start_time,
                         "status": "success",
+                        "scope": scope,
+                        "user_id": user_id if scope == "user" else None,
+                        "account_id": account_id if scope == "account" else None,
                     }
                 )
         except Exception as e:  # keep behavior identical
@@ -342,6 +600,9 @@ def _handle_batch_download(
                         "meeting_topic": meeting_topic,
                         "start_time": start_time,
                         "status": "error",
+                        "scope": scope,
+                        "user_id": user_id if scope == "user" else None,
+                        "account_id": account_id if scope == "account" else None,
                         "error": error_info,
                     }
                 )
@@ -364,6 +625,10 @@ def _handle_batch_download(
             "total_meetings": total_meetings,
             "successful": success_count,
             "failed": failed_count,
+            "scope": scope,
+            "user_id": user_id if scope == "user" else None,
+            "account_id": account_id if scope == "account" else None,
+            "page_size": min(page_size, 300),
             "results": results,
         }
         print(_json.dumps(batch_result, indent=2))
@@ -399,11 +664,25 @@ def _handle_download_mode(
     stj_min_segment_sec: float = 1.0,
     stj_merge_gap_sec: float = 1.5,
     include_unknown: bool = False,
+    scope: ScopeLiteral | None = None,
+    scope_user_id: str | None = None,
+    account_id: str | None = None,
 ) -> None:
     """Handle download mode: Download recordings."""
 
     # Initialize result dictionary for JSON output
     result: dict[str, Any] = {"status": "success", "meeting_id": meeting_id}
+
+    def _append_scope_fields(payload: dict[str, Any]) -> None:
+        if not scope:
+            return
+        payload["scope"] = scope
+        if scope == "user" and scope_user_id:
+            payload["user_id"] = scope_user_id
+        if scope == "account" and account_id:
+            payload["account_id"] = account_id
+
+    _append_scope_fields(result)
     warnings: list[str] = []
 
     # Enable silent mode for JSON output to suppress intermediate messages
@@ -504,6 +783,7 @@ def _handle_download_mode(
                 "has_audio": has_audio,
                 "total_bytes": total_size,
             }
+            _append_scope_fields(dry_run_result)
             print(_json.dumps(dry_run_result, indent=2))
         else:
             formatter.output_info(
@@ -661,6 +941,13 @@ def _handle_download_mode(
         ],
     }
 
+    if scope:
+        metadata["fetch_scope"] = scope
+    if scope == "user" and scope_user_id:
+        metadata["fetch_user_id"] = scope_user_id
+    if scope == "account" and account_id:
+        metadata["account_id"] = account_id
+
     if len(meetings) > 1:
         metadata["multiple_instances"] = True
         metadata["total_instances"] = len(meetings)
@@ -739,6 +1026,7 @@ def _handle_download_mode(
         result["output_name"] = str(output_name)
         result["files"] = files_dict
         result["metadata_summary"] = metadata_summary
+        _append_scope_fields(result)
 
         if len(meetings) > 1:
             multi_inst: dict[str, Any] = {
