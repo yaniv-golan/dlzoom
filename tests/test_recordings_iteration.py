@@ -8,7 +8,14 @@ class StubAccountClient:
         self.responses = deque(responses)
         self.calls = []
 
-    def get_account_recordings(self, *, from_date=None, to_date=None, page_size=300, next_page_token=None):
+    def get_account_recordings(
+        self,
+        *,
+        from_date=None,
+        to_date=None,
+        page_size=300,
+        next_page_token=None,
+    ):
         self.calls.append(
             {
                 "from": from_date,
@@ -25,7 +32,15 @@ class StubUserClient:
         self.responses = deque(responses)
         self.calls = []
 
-    def get_user_recordings(self, *, user_id, from_date=None, to_date=None, page_size=300, next_page_token=None):
+    def get_user_recordings(
+        self,
+        *,
+        user_id,
+        from_date=None,
+        to_date=None,
+        page_size=300,
+        next_page_token=None,
+    ):
         self.calls.append(
             {
                 "user_id": user_id,

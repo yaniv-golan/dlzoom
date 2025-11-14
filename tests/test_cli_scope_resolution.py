@@ -16,13 +16,23 @@ def test_s2s_user_scope_requires_explicit_id():
 
 
 def test_s2s_user_scope_with_id():
-    ctx = _resolve_scope(use_s2s=True, scope_flag="user", user_id="user@example.com", default_s2s_user=None)
+    ctx = _resolve_scope(
+        use_s2s=True,
+        scope_flag="user",
+        user_id="user@example.com",
+        default_s2s_user=None,
+    )
     assert ctx.scope == "user"
     assert ctx.user_id == "user@example.com"
 
 
 def test_s2s_user_scope_uses_default_user():
-    ctx = _resolve_scope(use_s2s=True, scope_flag="user", user_id=None, default_s2s_user="fallback@example.com")
+    ctx = _resolve_scope(
+        use_s2s=True,
+        scope_flag="user",
+        user_id=None,
+        default_s2s_user="fallback@example.com",
+    )
     assert ctx.scope == "user"
     assert ctx.user_id == "fallback@example.com"
 
