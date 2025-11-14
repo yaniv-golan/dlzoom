@@ -1,7 +1,14 @@
 import json
 from pathlib import Path
 
-from dlzoom.handlers import _handle_batch_check_availability, _handle_batch_download
+import pytest
+
+from dlzoom.exceptions import RecordingNotFoundError
+from dlzoom.handlers import (
+    _handle_batch_check_availability,
+    _handle_batch_download,
+    _handle_download_mode,
+)
 from dlzoom.output import OutputFormatter
 from dlzoom.recorder_selector import RecordingSelector
 from dlzoom.zoom_client import ZoomClient
@@ -544,3 +551,60 @@ def test_batch_check_availability_human(monkeypatch, capsys):
     assert "[2001] status: ready" in stdout
     assert "[2002] boom" in stdout
     assert "Availability check complete" in stdout
+
+
+def test_download_mode_aborts_when_wait_times_out(monkeypatch, tmp_path):
+    called = {}
+
+    def fake_check_availability(
+        client,
+        selector,
+        meeting_id,
+        recording_id,
+        formatter,
+        wait,
+        json_mode,
+        capture_result=False,
+    ):
+        called["capture_result"] = capture_result
+        return {
+            "status": "success",
+            "command": "check_availability",
+            "meeting_id": meeting_id,
+            "available": False,
+            "recording_status": "processing",
+        }
+
+    monkeypatch.setattr("dlzoom.handlers._handle_check_availability", fake_check_availability)
+
+    class DummyClient:
+        def get_meeting_recordings(self, meeting_id):
+            raise AssertionError("should not fetch recordings when availability fails")
+
+        def _get_access_token(self):
+            return "token"
+
+    formatter = OutputFormatter("human")
+    selector = RecordingSelector()
+
+    with pytest.raises(RecordingNotFoundError):
+        _handle_download_mode(
+            client=DummyClient(),
+            selector=selector,
+            meeting_id="123456789",
+            recording_id=None,
+            output_dir=tmp_path,
+            output_name="custom",
+            skip_transcript=False,
+            skip_chat=False,
+            skip_timeline=False,
+            dry_run=False,
+            log_file=None,
+            formatter=formatter,
+            verbose=False,
+            debug=False,
+            json_mode=False,
+            wait=5,
+        )
+
+    assert called.get("capture_result") is True

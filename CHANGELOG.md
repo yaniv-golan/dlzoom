@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Batch downloads now pass through `--wait`, so operators can pause until recordings finish processing before the download loop starts
 - Batch downloads now honor `--log-file`, writing structured JSONL entries for every meeting in the range
 - `--check-availability` works with `--from-date/--to-date`, returning a summary across the date window instead of silently exiting
+- `--wait` failures now abort before download attempts, surfacing a clear error instead of re-fetching recordings that are still processing
 
 ### Documentation
 - Added design plan: `docs/internal/stj-minimal-json-plan.md`

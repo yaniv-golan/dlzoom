@@ -1053,10 +1053,29 @@ def _handle_download_mode(
         formatter.set_silent(True)
 
     # Wait for recording if --wait specified
+    availability = None
     if wait:
-        _handle_check_availability(
-            client, selector, meeting_id, recording_id, formatter, wait, json_mode
+        availability = _handle_check_availability(
+            client,
+            selector,
+            meeting_id,
+            recording_id,
+            formatter,
+            wait,
+            json_mode,
+            capture_result=True,
         )
+        if availability:
+            if availability.get("status") == "success" and availability.get("available"):
+                formatter.output_info("Availability check completed (recording ready).")
+            else:
+                message = availability.get("error", {}).get("message") or availability.get(
+                    "recording_status", "processing"
+                )
+                raise RecordingNotFoundError(
+                    "Recording not ready after wait",
+                    details=f"Availability result: {message}",
+                )
 
     formatter.output_info(f"Fetching recording info for meeting {meeting_id}...")
     recordings = client.get_meeting_recordings(meeting_id)
