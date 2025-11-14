@@ -120,6 +120,8 @@ dlzoom download 123456789
 # Check availability without downloading
 dlzoom download 123456789 --check-availability
 
+# This exits non-zero if Zoom cannot find the recording or Zoom returns an error.
+
 # Wait up to 60 minutes for processing
 dlzoom download 123456789 --wait 60
 

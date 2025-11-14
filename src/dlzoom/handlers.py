@@ -41,6 +41,7 @@ from dlzoom.downloader import Downloader, DownloadError
 from dlzoom.exceptions import (
     ConfigError,
     DlzoomError,
+    DownloadFailedError,
     FFmpegNotFoundError,
     InvalidRecordingIDError,
     NoAudioAvailableError,
@@ -481,25 +482,38 @@ def _handle_check_availability(
     start_time = time.time()
     poll_interval = 30  # seconds
 
+    def _raise_availability_exception(payload: dict[str, Any]) -> None:
+        error = payload.get("error") or {}
+        code = str(error.get("code", "")).upper()
+        message = error.get("message", "Availability check failed")
+        details = payload.get("meeting_id") or ""
+        if code in {"RECORDING_NOT_FOUND", "INVALID_MEETING"}:
+            raise RecordingNotFoundError(message, details=details)
+        elif code in {"ZOOM_API_ERROR", "NETWORK_ERROR"}:
+            raise DownloadFailedError(message, details=details)
+        else:
+            raise DownloadFailedError(message, details=message)
+
     def _emit_result(
         result: dict[str, Any],
         *,
         human_success: str | None = None,
         human_info: str | None = None,
         human_error: str | None = None,
-    ) -> dict[str, Any] | None:
-        if capture_result:
-            return result
-        if json_mode:
-            print(_json.dumps(result, indent=2))
-            return None
-        if human_error:
-            formatter.output_error(human_error)
-        elif human_success:
-            formatter.output_success(human_success)
-        elif human_info:
-            formatter.output_info(human_info)
-        return None
+    ) -> dict[str, Any]:
+        if not capture_result:
+            if json_mode:
+                print(_json.dumps(result, indent=2))
+            else:
+                if human_error:
+                    formatter.output_error(human_error)
+                elif human_success:
+                    formatter.output_success(human_success)
+                elif human_info:
+                    formatter.output_info(human_info)
+            if result.get("status") == "error":
+                _raise_availability_exception(result)
+        return result
 
     while True:
         try:
