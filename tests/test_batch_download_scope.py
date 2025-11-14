@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from dlzoom.exceptions import RecordingNotFoundError
+from dlzoom.exceptions import DownloadFailedError, RecordingNotFoundError
 from dlzoom.handlers import (
     _handle_batch_check_availability,
     _handle_batch_download,
@@ -608,3 +608,60 @@ def test_download_mode_aborts_when_wait_times_out(monkeypatch, tmp_path):
         )
 
     assert called.get("capture_result") is True
+
+
+def test_batch_download_raises_when_failure(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "dlzoom.handlers._iterate_account_recordings",
+        lambda *args, **kwargs: iter(
+            [
+                {"id": "111", "topic": "One", "start_time": "2024-01-01T10:00:00Z"},
+                {"id": "222", "topic": "Two", "start_time": "2024-01-02T10:00:00Z"},
+            ]
+        ),
+    )
+
+    call_count = {"count": 0}
+
+    def fake_download_mode(**kwargs):
+        call_count["count"] += 1
+        if call_count["count"] == 1:
+            raise RecordingNotFoundError("missing")
+
+    monkeypatch.setattr("dlzoom.handlers._handle_download_mode", fake_download_mode)
+
+    client = ZoomClient("acct", "id", "secret")
+    selector = RecordingSelector()
+    formatter = OutputFormatter("human")
+
+    with pytest.raises(DownloadFailedError):
+        _handle_batch_download(
+            client=client,
+            selector=selector,
+            from_date="2024-01-01",
+            to_date="2024-01-03",
+            scope="account",
+            user_id=None,
+            page_size=300,
+            account_id="acct",
+            output_dir=tmp_path,
+            skip_transcript=False,
+            skip_chat=False,
+            skip_timeline=False,
+            formatter=formatter,
+            verbose=False,
+            debug=False,
+            json_mode=False,
+            filename_template=None,
+            folder_template=None,
+            skip_speakers=None,
+            speakers_mode="first",
+            stj_min_segment_sec=1.0,
+            stj_merge_gap_sec=1.5,
+            include_unknown=False,
+            base_output_name="base",
+            user_supplied_output_name=False,
+            dry_run=False,
+            wait=None,
+            log_file=None,
+        )

@@ -138,11 +138,14 @@ dlzoom download --from-date 2024-04-01 --to-date 2024-04-07
 # Dry run
 dlzoom download 123456789 --dry-run
 
+# Non-zero exit when meeting not found or batch fails
+dlzoom download 123456789 --check-availability || echo "missing"
+
 # Tip: meeting IDs with spaces pasted from Zoom are normalized automatically
 dlzoom download "882 9060 9309"
 ```
 
-Date-range downloads (`--from-date/--to-date`) reuse any explicit `--output-name` you provide; otherwise they append a UTC timestamp (or the recording UUID when no timestamp is available) to prevent recurring IDs from overwriting each other. Pair `--from-date/--to-date` with `--dry-run` to preview every meeting in the range without downloading files, `--wait 30` to keep polling for in-progress recordings before the downloads begin (the CLI exits instead of attempting a doomed download if the wait times out), `--log-file ~/dlzoom.jsonl` to capture structured results for every meeting, or `--check-availability` to scan the whole window without downloading anything.
+Date-range downloads (`--from-date/--to-date`) reuse any explicit `--output-name` you provide; otherwise they append a UTC timestamp (or the recording UUID when no timestamp is available) to prevent recurring IDs from overwriting each other. Pair `--from-date/--to-date` with `--dry-run` to preview every meeting in the range without downloading files, `--wait 30` to keep polling for in-progress recordings before the downloads begin (the CLI exits instead of attempting a doomed download if the wait times out), `--log-file ~/dlzoom.jsonl` to capture structured results for every meeting, or `--check-availability` to scan the whole window without downloading anything. If any meeting in the batch fails, `dlzoom download --from ...` exits non-zero so CI/CD jobs can detect partial failures.
 
 Batch by date window and automate:
 

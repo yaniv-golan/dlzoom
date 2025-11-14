@@ -1,9 +1,9 @@
 import pytest
 
+from dlzoom.exceptions import RecordingNotFoundError
 from dlzoom.handlers import _handle_check_availability
 from dlzoom.output import OutputFormatter
 from dlzoom.recorder_selector import RecordingSelector
-from dlzoom.exceptions import RecordingNotFoundError
 
 
 class DummyClient:

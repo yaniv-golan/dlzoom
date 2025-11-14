@@ -834,6 +834,9 @@ def _handle_batch_download(
         console.print(f"  Success: {success_count}/{total_meetings}")
         if failed_count > 0:
             console.print(f"  Failed: {failed_count}/{total_meetings}")
+    if failed_count > 0:
+        details = f"{failed_count} of {total_meetings} meetings failed"
+        raise DownloadFailedError("Batch download incomplete", details=details)
 
 
 def _handle_batch_check_availability(
