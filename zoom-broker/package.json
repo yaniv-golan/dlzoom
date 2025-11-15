@@ -3,7 +3,6 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
-		"postinstall": "node ./scripts/apply-kv-placeholders.mjs",
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
