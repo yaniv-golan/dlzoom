@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -29,3 +30,11 @@ def setup_user_cli(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("dlzoom.cli.load_tokens", lambda path: object())
     monkeypatch.setattr("dlzoom.cli.ZoomUserClient", DummyUserClient)
     monkeypatch.setattr("dlzoom.cli.Config", lambda *args, **kwargs: DummyConfig(tmp_path))
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def strip_ansi(text: str) -> str:
+    """Utility for tests to assert on CLI output irrespective of color codes."""
+    return _ANSI_RE.sub("", text)

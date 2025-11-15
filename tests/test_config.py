@@ -2,6 +2,7 @@
 Unit tests for config module
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -38,7 +39,7 @@ def test_config_validation_fails_missing_vars(monkeypatch):
         monkeypatch.delenv(key, raising=False)
 
     # Pass empty env_file to prevent loading from .env
-    config = Config(env_file="/dev/null")
+    config = Config(env_file=os.devnull)
     with pytest.raises(ConfigError) as exc_info:
         config.validate()
 
@@ -74,7 +75,7 @@ def test_config_is_valid(monkeypatch):
     for key in ["ZOOM_ACCOUNT_ID", "ZOOM_CLIENT_ID", "ZOOM_CLIENT_SECRET"]:
         monkeypatch.delenv(key, raising=False)
 
-    config = Config(env_file="/dev/null")
+    config = Config(env_file=os.devnull)
     assert not config.is_valid()
 
     # Valid config
@@ -82,7 +83,7 @@ def test_config_is_valid(monkeypatch):
     monkeypatch.setenv("ZOOM_CLIENT_ID", "test_client")
     monkeypatch.setenv("ZOOM_CLIENT_SECRET", "test_secret")
 
-    config = Config(env_file="/dev/null")
+    config = Config(env_file=os.devnull)
     assert config.is_valid()
 
 

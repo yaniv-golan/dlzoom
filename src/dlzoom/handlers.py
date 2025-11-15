@@ -356,7 +356,7 @@ def _scrub_download_url(raw_url: str | None) -> str | None:
 
 def _build_stj_context(
     *,
-    meeting_id: str,
+    meeting_id: str | None,
     meeting_uuid: str | None,
     recording_uuid: str | None,
     meeting_topic: str,
@@ -1037,7 +1037,7 @@ def _handle_download_mode(
     meeting_id: str,
     recording_id: str | None,
     output_dir: Path,
-    output_name: str,
+    output_name: str | None,
     skip_transcript: bool,
     skip_chat: bool,
     skip_timeline: bool,

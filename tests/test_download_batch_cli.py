@@ -3,7 +3,7 @@ from click.testing import CliRunner
 from dlzoom.cli import cli as dlzoom_cli
 from dlzoom.exceptions import DownloadFailedError
 
-from .cli_test_utils import setup_user_cli
+from .cli_test_utils import setup_user_cli, strip_ansi
 
 
 def test_cli_batch_download_success(monkeypatch, tmp_path):
@@ -130,7 +130,7 @@ def test_cli_download_requires_meeting_id_without_dates(monkeypatch, tmp_path):
     runner = CliRunner()
     result = runner.invoke(dlzoom_cli, ["download"])
     assert result.exit_code != 0
-    assert "MEETING_ID argument is required" in result.output
+    assert "MEETING_ID argument is required" in strip_ansi(result.output)
 
 
 def test_cli_download_requires_both_dates(monkeypatch, tmp_path):
@@ -145,7 +145,10 @@ def test_cli_download_requires_both_dates(monkeypatch, tmp_path):
         ],
     )
     assert result.exit_code != 0
-    assert "Both --from-date and --to-date must be provided together" in result.output
+    assert (
+        "Both --from-date and --to-date must be provided together"
+        in strip_ansi(result.output)
+    )
 
 
 def test_cli_download_rejects_meeting_id_with_dates(monkeypatch, tmp_path):
@@ -163,4 +166,7 @@ def test_cli_download_rejects_meeting_id_with_dates(monkeypatch, tmp_path):
         ],
     )
     assert result.exit_code != 0
-    assert "cannot be used together with --from-date/--to-date" in result.output
+    assert (
+        "cannot be used together with --from-date/--to-date"
+        in strip_ansi(result.output)
+    )
