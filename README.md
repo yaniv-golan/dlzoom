@@ -37,7 +37,12 @@ Requires Python 3.11+ and ffmpeg (Docker users: both included in the image).
 # Install uv (if missing)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Try dlzoom instantly (no install)
+# Authenticate once
+uvx dlzoom login
+# Or for S2S automation:
+# ZOOM_ACCOUNT_ID=... ZOOM_CLIENT_ID=... ZOOM_CLIENT_SECRET=... uvx dlzoom whoami
+
+# Try dlzoom instantly (no install) after auth is configured
 uvx dlzoom download 123456789 --check-availability
 ```
 
