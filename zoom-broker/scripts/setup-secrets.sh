@@ -67,4 +67,3 @@ echo "  2. Deploy: npx wrangler deploy"
 echo "  3. Or connect to Cloudflare Builds in the dashboard for automatic deployments"
 echo ""
 echo "See DEPLOYMENT.md for more details."
-

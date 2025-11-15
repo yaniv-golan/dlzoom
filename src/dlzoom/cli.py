@@ -576,7 +576,7 @@ def recordings(
 @click.option(
     "--output-dir",
     "-o",
-    type=click.Path(exists=False),
+    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
     help="Output directory (default: current directory)",
 )
 @click.option("--output-name", "-n", help="Base filename for output files (default: meeting_id)")
@@ -644,7 +644,7 @@ def recordings(
 @click.option("--dry-run", is_flag=True, help="Show what would be downloaded without downloading")
 @click.option(
     "--log-file",
-    type=click.Path(exists=False),
+    type=click.Path(dir_okay=False, path_type=Path),
     help="Write structured download log to specified file (JSONL format)",
 )
 @click.option("--config", type=click.Path(exists=True), help="Path to config file")
@@ -686,7 +686,7 @@ def recordings(
 )
 def download(
     meeting_id: str,
-    output_dir: str | None,
+    output_dir: Path | None,
     output_name: str | None,
     verbose: bool,
     debug: bool,
@@ -703,7 +703,7 @@ def download(
     stj_merge_gap_sec: float,
     include_unknown: bool,
     dry_run: bool,
-    log_file: str | None,
+    log_file: Path | None,
     config: str | None,
     filename_template: str | None,
     folder_template: str | None,

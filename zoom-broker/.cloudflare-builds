@@ -10,4 +10,3 @@ BUILD_COMMAND=npm ci && npm test && npx wrangler deploy
 # Note: The actual configuration must be set via the Cloudflare Dashboard web UI
 # when connecting your GitHub repository. This file serves as documentation
 # for team members to understand the expected build settings.
-

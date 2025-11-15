@@ -176,7 +176,7 @@ If a deployment causes issues:
 
 **Problem**: Dashboard name doesn't match `wrangler.jsonc`
 
-**Solution**: 
+**Solution**:
 - Either rename Worker in dashboard to match `wrangler.jsonc`
 - Or update `"name"` in `wrangler.jsonc` to match dashboard (requires commit)
 
