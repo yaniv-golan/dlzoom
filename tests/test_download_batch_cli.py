@@ -21,7 +21,6 @@ def test_cli_batch_download_success(monkeypatch, tmp_path):
         dlzoom_cli,
         [
             "download",
-            "placeholder",
             "--from-date",
             "2024-01-01",
             "--to-date",
@@ -49,7 +48,6 @@ def test_cli_batch_download_failure(monkeypatch, tmp_path):
         dlzoom_cli,
         [
             "download",
-            "placeholder",
             "--from-date",
             "2024-01-01",
             "--to-date",
@@ -62,3 +60,44 @@ def test_cli_batch_download_failure(monkeypatch, tmp_path):
     )
     assert result.exit_code != 0
     assert "DOWNLOAD_FAILED" in result.output
+
+
+def test_cli_download_requires_meeting_id_without_dates(monkeypatch, tmp_path):
+    setup_user_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(dlzoom_cli, ["download"])
+    assert result.exit_code != 0
+    assert "MEETING_ID argument is required" in result.output
+
+
+def test_cli_download_requires_both_dates(monkeypatch, tmp_path):
+    setup_user_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(
+        dlzoom_cli,
+        [
+            "download",
+            "--from-date",
+            "2024-01-01",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Both --from-date and --to-date must be provided together" in result.output
+
+
+def test_cli_download_rejects_meeting_id_with_dates(monkeypatch, tmp_path):
+    setup_user_cli(monkeypatch, tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(
+        dlzoom_cli,
+        [
+            "download",
+            "123456789",
+            "--from-date",
+            "2024-01-01",
+            "--to-date",
+            "2024-01-02",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "cannot be used together with --from-date/--to-date" in result.output

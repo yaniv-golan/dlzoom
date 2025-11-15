@@ -572,7 +572,7 @@ def recordings(
 
 
 @cli.command(name="download", help="Download Zoom cloud recordings")
-@click.argument("meeting_id", callback=validate_meeting_id)
+@click.argument("meeting_id", callback=validate_meeting_id, required=False)
 @click.option(
     "--output-dir",
     "-o",
@@ -685,7 +685,7 @@ def recordings(
     ),
 )
 def download(
-    meeting_id: str,
+    meeting_id: str | None,
     output_dir: Path | None,
     output_name: str | None,
     verbose: bool,
@@ -722,6 +722,19 @@ def download(
     output_mode = "json" if json_mode else "human"
     formatter = OutputFormatter(output_mode)
 
+    date_mode = bool(from_date or to_date)
+    if date_mode:
+        if not from_date or not to_date:
+            raise click.UsageError("Both --from-date and --to-date must be provided together.")
+        if meeting_id:
+            raise click.UsageError(
+                "Meeting ID argument cannot be used together with --from-date/--to-date."
+            )
+    elif not meeting_id:
+        raise click.UsageError(
+            "MEETING_ID argument is required unless --from-date/--to-date are provided."
+        )
+
     try:
         # Load config
         cfg = Config(env_file=config) if config else Config()
@@ -748,18 +761,21 @@ def download(
             from dlzoom.templates import TemplateParser
 
             parser = TemplateParser()
-            if not output_name:
+            if output_name is None and meeting_id:
                 output_name = meeting_id
-            output_name = parser.sanitize_filename(str(output_name))
+            if output_name is not None:
+                output_name = parser.sanitize_filename(str(output_name))
         except Exception:
             # Fallback minimal sanitization if TemplateParser isn't available
             import re as _re
 
-            name_to_sanitize = str(output_name or meeting_id)
-            unsafe_chars = r'[<>:"/\\|?*]'
-            safe_name = _re.sub(unsafe_chars, "_", name_to_sanitize)
-            safe_name = _re.sub(r"[_\s]+", "_", safe_name).strip("_. ")
-            output_name = safe_name
+            name_source = output_name if output_name is not None else meeting_id
+            if name_source is not None:
+                name_to_sanitize = str(name_source)
+                unsafe_chars = r'[<>:"/\\|?*]'
+                safe_name = _re.sub(unsafe_chars, "_", name_to_sanitize)
+                safe_name = _re.sub(r"[_\s]+", "_", safe_name).strip("_. ")
+                output_name = safe_name
 
         # Initialize client per auth mode
         client: ZoomClient | ZoomUserClient
