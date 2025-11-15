@@ -165,6 +165,21 @@ class Config:
         except Exception:
             pass  # Ignore errors during finalization
 
+    @staticmethod
+    def _is_null_device(path_str: str) -> bool:
+        """Return True when the provided path represents the OS null device."""
+        normalized = path_str.strip().lower()
+        normalized = normalized.replace("\\", "/")
+
+        null_candidates = {"/dev/null", "nul", "nul:"}
+        try:
+            null_candidates.add(os.devnull.lower())
+            null_candidates.add(Path(os.devnull).as_posix().lower())
+        except Exception:
+            pass
+
+        return normalized in null_candidates
+
     def _load_config_file(self, config_path: str) -> dict[str, Any]:
         """
         Load configuration from JSON or YAML file
@@ -178,6 +193,11 @@ class Config:
         Raises:
             ConfigError: If file cannot be loaded or parsed
         """
+        if self._is_null_device(config_path):
+            # Allow callers/tests to opt-out from config file loading
+            # via special null-device paths such as /dev/null or nul.
+            return {}
+
         path = Path(config_path)
 
         if not path.exists():
