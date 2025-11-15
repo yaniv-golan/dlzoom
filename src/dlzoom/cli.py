@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import rich_click as click
+from click.core import ParameterSource
 from rich.console import Console
 
 import dlzoom.handlers as _h
@@ -798,6 +799,13 @@ def download(
                 account_identifier = getattr(client, "account_id", None)
 
         selector = RecordingSelector()
+        ctx = click.get_current_context()
+        skip_speakers_source = ctx.get_parameter_source("skip_speakers")
+        resolved_skip_speakers: bool | None
+        if skip_speakers_source in (ParameterSource.DEFAULT, None):
+            resolved_skip_speakers = None
+        else:
+            resolved_skip_speakers = skip_speakers
 
         # Handle batch download mode (from_date/to_date)
         if from_date or to_date:
@@ -837,7 +845,7 @@ def download(
                     json_mode=json_mode,
                     filename_template=filename_template,
                     folder_template=folder_template,
-                    skip_speakers=skip_speakers,
+                    skip_speakers=resolved_skip_speakers,
                     speakers_mode=speakers_mode,
                     stj_min_segment_sec=stj_min_seg_sec,
                     stj_merge_gap_sec=stj_merge_gap_sec,
@@ -879,7 +887,7 @@ def download(
             wait=wait,
             filename_template=filename_template,
             folder_template=folder_template,
-            skip_speakers=skip_speakers,
+            skip_speakers=resolved_skip_speakers,
             speakers_mode=speakers_mode,
             stj_min_segment_sec=stj_min_seg_sec,
             stj_merge_gap_sec=stj_merge_gap_sec,
