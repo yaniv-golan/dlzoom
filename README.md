@@ -45,10 +45,10 @@ Outputs include audio (M4A), transcript (VTT), chat (TXT), timeline (JSON), meta
 
 ## Pick Your Auth
 
-- I’m downloading my own recordings → User OAuth
-  - Today: deploy the Cloudflare Worker in `zoom-broker/` and run `dlzoom login --auth-url <your-worker-url>`.
-  - Soon: use the hosted sign‑in once published to the Zoom Marketplace.
-- I’m an admin or running automation/CI → Server-to-Server (S2S) OAuth
+- I'm downloading my own recordings → User OAuth
+  - Run `dlzoom login` - uses our hosted OAuth broker by default (open source, auditable code in `zoom-broker/`)
+  - Or self-host: deploy the Cloudflare Worker in `zoom-broker/` and run `dlzoom login --auth-url <your-worker-url>`
+- I'm an admin or running automation/CI → Server-to-Server (S2S) OAuth
   - Set `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` and run `dlzoom`.
   - Scopes: add `account:read:admin` + `cloud_recording:read:list_account_recordings:{admin|master}` (or the `:master` variant) so account-wide recording fetches work.
   - Verify scopes any time with `dlzoom whoami --json`.
@@ -272,20 +272,36 @@ winget install ffmpeg
 
 ### User OAuth (recommended for individuals)
 
-Hosted sign‑in will be available after Zoom Marketplace approval. Until then, self‑host the OAuth broker in `zoom-broker/`:
+By default, `dlzoom login` uses our hosted OAuth broker at `https://zoom-broker.dlzoom.workers.dev`:
+
+```bash
+dlzoom login
+```
+
+**About the hosted broker:**
+- **Open source**: All code is in `zoom-broker/` and auditable
+- **Privacy**: Only stores session data temporarily (max 10 minutes), does not log or persist tokens
+- **Generic**: Works with any Zoom OAuth app (you create your own app in Zoom Marketplace)
+- **Secure**: Runs on Cloudflare Workers with automatic HTTPS
+
+**Self-hosting (optional):**
+
+If you prefer to run your own broker:
 
 ```bash
 cd zoom-broker
 npx wrangler secret put ZOOM_CLIENT_ID
 npx wrangler secret put ZOOM_CLIENT_SECRET
+npx wrangler secret put ALLOWED_ORIGIN
 npx wrangler kv namespace create AUTH
 npx wrangler deploy
 
-# Back in your project root
+# Use your broker
 dlzoom login --auth-url https://<your-worker>.workers.dev
+# Or set permanently: export DLZOOM_AUTH_URL=https://<your-worker>.workers.dev
 ```
 
-Security hardening: set `ALLOWED_ORIGIN` in the Worker to restrict token endpoints. See `zoom-broker/README.md`.
+The Worker supports automatic CI/CD via Cloudflare's Git integration (pushes to `main` auto-deploy, PRs get preview URLs). See `zoom-broker/DEPLOYMENT.md` for setup details.
 
 ### Server‑to‑Server (S2S) OAuth (admins/automation)
 

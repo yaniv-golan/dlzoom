@@ -39,6 +39,23 @@ def main(auth_url: str | None) -> None:
     # Only normalize/validate the CLI override; assume config default is already valid
     base_auth = _normalize_auth_url(auth_url) if auth_url else str(cfg.auth_url)
 
+    # Validate auth URL is configured
+    if not base_auth or base_auth.strip() == "":
+        console.print("[red]Error: No authentication URL configured[/red]\n")
+        console.print("By default, dlzoom uses the hosted OAuth broker at:")
+        console.print("[blue]https://zoom-broker.dlzoom.workers.dev[/blue]\n")
+        console.print("If you're seeing this error, either:")
+        console.print("1. Set DLZOOM_AUTH_URL environment variable:")
+        console.print(
+            "   [cyan]export DLZOOM_AUTH_URL=https://zoom-broker.dlzoom.workers.dev[/cyan]\n"
+        )
+        console.print("2. Use the --auth-url flag:")
+        console.print(
+            "   [cyan]dlzoom login --auth-url https://zoom-broker.dlzoom.workers.dev[/cyan]\n"
+        )
+        console.print("3. Deploy your own broker (see zoom-broker/README.md)\n")
+        raise SystemExit(1)
+
     # Start auth
     start_url = f"{base_auth}/zoom/auth/start"
     try:

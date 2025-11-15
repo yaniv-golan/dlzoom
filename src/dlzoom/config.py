@@ -33,8 +33,9 @@ class Config:
         "zoom_api_base_url": "https://api.zoom.us/v2",
         "zoom_oauth_token_url": None,
         "zoom_s2s_default_user": None,
-        # End-user auth via hosted service (default disabled until configured)
-        "auth_url": "",
+        # End-user auth via hosted OAuth broker (open source, auditable code in zoom-broker/)
+        # Users can override with DLZOOM_AUTH_URL env var or --auth-url flag, or self-host
+        "auth_url": "https://zoom-broker.dlzoom.workers.dev",
         # Token storage path (resolved at runtime using platformdirs)
         "tokens_path": None,
     }

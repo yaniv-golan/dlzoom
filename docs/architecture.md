@@ -98,6 +98,11 @@ Direct authentication using account credentials (no broker needed).
   ```
   Then configure CLI: `export DLZOOM_AUTH_URL=https://your-worker.workers.dev`
 
+  **CI/CD:** The broker supports automatic deployments via Cloudflare's Git integration:
+  - Push to `main` → automatic production deployment
+  - Pull requests → automatic preview URL generation
+  - See `zoom-broker/DEPLOYMENT.md` for complete setup guide
+
 ## Security Architecture
 
 ### Credential Storage
