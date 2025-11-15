@@ -109,4 +109,4 @@ jobs:
           JSON
 
       - name: Deploy to Cloudflare
-        run: npx wrangler deploy --config .wrangler.local.jsonc
+        run: npx wrangler deploy --config "$WRANGLER_CONFIG"
