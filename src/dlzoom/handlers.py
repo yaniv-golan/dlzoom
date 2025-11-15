@@ -1223,6 +1223,26 @@ def _handle_download_mode(
     downloader = Downloader(output_dir, access_token, output_name, stj_context=stj_context)
     extractor = AudioExtractor()
     downloaded_files: list[Path] = []
+    delivered_audio_files: list[Path] = []
+    retained_video_files: list[Path] = []
+    _delivered_audio_index: set[str] = set()
+    _retained_video_index: set[str] = set()
+
+    def _track_audio_file(path: Path | None) -> None:
+        if not path:
+            return
+        normalized = str(path)
+        if normalized not in _delivered_audio_index:
+            delivered_audio_files.append(path)
+            _delivered_audio_index.add(normalized)
+
+    def _track_video_file(path: Path | None) -> None:
+        if not path:
+            return
+        normalized = str(path)
+        if normalized not in _retained_video_index:
+            retained_video_files.append(path)
+            _retained_video_index.add(normalized)
 
     audio_file = selector.select_best_audio(recording_files)
     if not audio_file:
@@ -1253,7 +1273,7 @@ def _handle_download_mode(
         if not audio_download_url:
             raise DownloadError("Audio file has no download URL")
 
-        audio_path = downloader.download_file(
+        audio_path: Path = downloader.download_file(
             str(audio_download_url),
             audio_file,
             meeting_topic,
@@ -1264,6 +1284,7 @@ def _handle_download_mode(
         delivered_audio_path = audio_path
 
         if audio_path.suffix.lower() == ".mp4":
+            _track_video_file(audio_path)
             if not extractor.check_ffmpeg_available():
                 raise FFmpegNotFoundError(
                     "ffmpeg not found",
@@ -1279,6 +1300,14 @@ def _handle_download_mode(
             audio_extracted_from_video = True
             downloaded_files.append(audio_m4a_path)
             delivered_audio_path = audio_m4a_path
+            _track_audio_file(audio_m4a_path)
+        else:
+            _track_audio_file(audio_path)
+
+    if delivered_audio_path:
+        _track_audio_file(delivered_audio_path)
+        if delivered_audio_path not in downloaded_files:
+            downloaded_files.append(delivered_audio_path)
 
     if not skip_transcript or not skip_chat or not skip_timeline:
         transcript_files = downloader.download_transcripts_and_chat(
@@ -1428,7 +1457,9 @@ def _handle_download_mode(
 
     if json_mode:
         files_dict: dict[str, Any] = {"metadata": str(metadata_path.absolute())}
-        audio_files = [f for f in downloaded_files if f.suffix.lower() == ".m4a"]
+        audio_files = delivered_audio_files or [
+            f for f in downloaded_files if f.suffix.lower() == ".m4a"
+        ]
         if audio_files:
             files_dict["audio"] = str(audio_files[0].absolute())
             files_dict["audio_files"] = [str(f.absolute()) for f in audio_files]
@@ -1451,7 +1482,9 @@ def _handle_download_mode(
         speaker_files = [f for f in downloaded_files if f.suffix.lower().endswith("stjson")]
         if speaker_files:
             files_dict["speakers"] = [str(f.absolute()) for f in speaker_files]
-        video_files = [f for f in downloaded_files if f.suffix.lower() == ".mp4"]
+        video_files = retained_video_files or [
+            f for f in downloaded_files if f.suffix.lower() == ".mp4"
+        ]
         if video_files:
             files_dict["video"] = str(video_files[0].absolute())
             files_dict["videos"] = [str(f.absolute()) for f in video_files]

@@ -309,6 +309,79 @@ class TestHandlersTokenRetrieval:
             args, _ = mock_downloader_cls.call_args
             assert args[1] == "mock_token_12345"
 
+    def test_extracted_audio_listed_when_suffix_misreported(
+        self, mock_client_with_token: Mock, tmp_path: Path, capfd
+    ) -> None:
+        """
+        Ensure extracted audio paths are surfaced even if Path.suffix misreports.
+        """
+        selector = RecordingSelector()
+        formatter = OutputFormatter("json")
+        formatter.set_silent(True)
+
+        path_cls = type(tmp_path)
+
+        class MisreportingPath(path_cls):  # type: ignore[misc, valid-type]
+            _flavour = path_cls._flavour
+
+            def __new__(cls, path: Path):
+                return super().__new__(cls, path)
+
+            @property
+            def suffix(self) -> str:  # pragma: no cover - behavior under test
+                return ".mp4"
+
+        with (
+            patch("dlzoom.handlers.Downloader") as mock_downloader_cls,
+            patch("dlzoom.handlers.AudioExtractor") as mock_extractor_cls,
+        ):
+            mp4_path = tmp_path / "video.mp4"
+            mp4_path.write_bytes(b"1234")
+            extracted_path = MisreportingPath(tmp_path / "video.m4a")
+            extracted_path.write_bytes(b"5678")
+
+            mock_downloader = Mock()
+            mock_downloader.download_file = Mock(return_value=mp4_path)
+            mock_downloader.download_transcripts_and_chat = Mock(
+                return_value={"vtt": [], "txt": [], "timeline": [], "speakers": []}
+            )
+            mock_downloader_cls.return_value = mock_downloader
+
+            mock_extractor = Mock()
+            mock_extractor.extract_audio = Mock(return_value=extracted_path)
+            mock_extractor.check_ffmpeg_available = Mock(return_value=True)
+            mock_extractor_cls.return_value = mock_extractor
+
+            log_file = tmp_path / "run.log"
+
+            _handle_download_mode(
+                client=mock_client_with_token,
+                selector=selector,
+                meeting_id="audio-misreport",
+                recording_id=None,
+                output_dir=tmp_path,
+                output_name="test",
+                skip_transcript=True,
+                skip_chat=True,
+                skip_timeline=True,
+                dry_run=False,
+                log_file=log_file,
+                formatter=formatter,
+                verbose=False,
+                debug=False,
+                json_mode=True,
+                wait=None,
+            )
+
+        output = json.loads(capfd.readouterr().out)
+        files = output["files"]
+        assert files["audio"] == str(extracted_path)
+        assert str(extracted_path) in files["audio_files"]
+        assert str(mp4_path) in files["videos"]
+
+        log_lines = log_file.read_text().strip().splitlines()
+        assert any("video.m4a" in line for line in log_lines)
+
 
 class TestTokenRetrievalEdgeCases:
     """Test edge cases in token retrieval."""
