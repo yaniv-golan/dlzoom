@@ -6,6 +6,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "zoom-broker",
 	"main": "src/index.js",
+	"account_id": "b911c730c17862342dfb60c639ab4b54",
 	"compatibility_date": "2025-11-09",
 	"observability": {
 		"enabled": true
