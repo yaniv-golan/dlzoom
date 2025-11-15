@@ -67,13 +67,13 @@ Build command: npm ci && npm test && npx wrangler deploy
   - Variable name: `AUTH`
   - KV namespace: Should show your KV namespace ID
 
-If missing, create it:
-```bash
-cd zoom-broker
-npx wrangler kv namespace create AUTH
-```
-
-Then add the binding in the dashboard or update `wrangler.jsonc` and push to trigger a new build.
+If missing:
+1. Run the helper script to create namespaces and generate a local config:
+   ```bash
+   cd zoom-broker
+   ./scripts/setup-kv.sh
+   ```
+2. Use `./scripts/wrangler-local.sh <command>` (or manually set `WRANGLER_CONFIG=.wrangler.local.jsonc`) when running Wrangler locally. The tracked `wrangler.jsonc` keeps placeholders for the benefit of other contributors, so never commit your local file.
 
 ### 6. Test the Setup
 

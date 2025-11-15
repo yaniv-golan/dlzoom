@@ -117,7 +117,12 @@ All secrets are set in the Cloudflare Dashboard (Settings → Variables and Secr
 ### Initial Setup (One-time)
 
 - [ ] Verify `wrangler.jsonc` has `"name": "zoom-broker"` (must match dashboard name)
-- [ ] Create KV namespace: `npx wrangler kv namespace create AUTH`
+- [ ] Provision KV namespaces and create your local Wrangler config:
+  ```bash
+  cd zoom-broker
+  ./scripts/setup-kv.sh
+  ```
+  This script creates both production and preview KV namespaces (or lets you plug in existing IDs) and writes `.wrangler.local.jsonc` with the real IDs while leaving `wrangler.jsonc` untouched. Use `./scripts/wrangler-local.sh <command>` (which automatically sets `WRANGLER_CONFIG`) for any local Wrangler commands. Never commit the local file.
 - [ ] Set secrets in Cloudflare Dashboard:
   ```bash
   npx wrangler secret put ZOOM_CLIENT_ID
