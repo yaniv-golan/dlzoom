@@ -145,10 +145,7 @@ def test_cli_download_requires_both_dates(monkeypatch, tmp_path):
         ],
     )
     assert result.exit_code != 0
-    assert (
-        "Both --from-date and --to-date must be provided together"
-        in strip_ansi(result.output)
-    )
+    assert "Both --from-date and --to-date must be provided together" in strip_ansi(result.output)
 
 
 def test_cli_download_rejects_meeting_id_with_dates(monkeypatch, tmp_path):
@@ -166,7 +163,4 @@ def test_cli_download_rejects_meeting_id_with_dates(monkeypatch, tmp_path):
         ],
     )
     assert result.exit_code != 0
-    assert (
-        "cannot be used together with --from-date/--to-date"
-        in strip_ansi(result.output)
-    )
+    assert "cannot be used together with --from-date/--to-date" in strip_ansi(result.output)
