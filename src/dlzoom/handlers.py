@@ -1263,8 +1263,8 @@ def _handle_download_mode(
             retained_video_files.append(path)
             _retained_video_index.add(normalized)
 
-    audio_file = selector.select_best_audio(recording_files)
-    if not audio_file:
+    audio_file: dict[str, Any] | None = selector.select_best_audio(recording_files)
+    if audio_file is None:
         # Fallback: pick an MP4 video to extract audio from
         video_file = next(
             (f for f in recording_files if str(f.get("file_extension", "")).upper() == "MP4"),
@@ -1277,6 +1277,9 @@ def _handle_download_mode(
             )
         audio_file = video_file
 
+    # At this point we always have an audio/MP4 file to work with.
+    assert audio_file is not None
+
     audio_file_size = int(audio_file.get("file_size", 0) or 0)
     audio_extracted_from_video = False
     delivered_audio_path: Path | None = None
@@ -1287,41 +1290,40 @@ def _handle_download_mode(
         for f in recording_files
     )
 
-    if audio_file:
-        audio_download_url = audio_file.get("download_url")
-        if not audio_download_url:
-            raise DownloadError("Audio file has no download URL")
+    audio_download_url = audio_file.get("download_url")
+    if not audio_download_url:
+        raise DownloadError("Audio file has no download URL")
 
-        audio_path: Path = downloader.download_file(
-            str(audio_download_url),
-            audio_file,
-            meeting_topic,
-            instance_start,
-            show_progress=not json_mode,
-        )
-        downloaded_files.append(audio_path)
-        delivered_audio_path = audio_path
+    audio_path: Path = downloader.download_file(
+        str(audio_download_url),
+        audio_file,
+        meeting_topic,
+        instance_start,
+        show_progress=not json_mode,
+    )
+    downloaded_files.append(audio_path)
+    delivered_audio_path = audio_path
 
-        if audio_path.suffix.lower() == ".mp4":
-            _track_video_file(audio_path)
-            if not extractor.check_ffmpeg_available():
-                raise FFmpegNotFoundError(
-                    "ffmpeg not found",
-                    details=(
-                        "Install ffmpeg to extract audio from MP4 files: "
-                        "https://ffmpeg.org/download.html"
-                    ),
-                )
-            formatter.output_info("Extracting audio from MP4...")
-            audio_m4a_path = extractor.extract_audio(audio_path, verbose=debug or verbose)
-            formatter.output_success(f"Audio extracted: {audio_m4a_path}")
-            formatter.output_info(f"MP4 file retained: {audio_path}")
-            audio_extracted_from_video = True
-            downloaded_files.append(audio_m4a_path)
-            delivered_audio_path = audio_m4a_path
-            _track_audio_file(audio_m4a_path)
-        else:
-            _track_audio_file(audio_path)
+    if audio_path.suffix.lower() == ".mp4":
+        _track_video_file(audio_path)
+        if not extractor.check_ffmpeg_available():
+            raise FFmpegNotFoundError(
+                "ffmpeg not found",
+                details=(
+                    "Install ffmpeg to extract audio from MP4 files: "
+                    "https://ffmpeg.org/download.html"
+                ),
+            )
+        formatter.output_info("Extracting audio from MP4...")
+        audio_m4a_path = extractor.extract_audio(audio_path, verbose=debug or verbose)
+        formatter.output_success(f"Audio extracted: {audio_m4a_path}")
+        formatter.output_info(f"MP4 file retained: {audio_path}")
+        audio_extracted_from_video = True
+        downloaded_files.append(audio_m4a_path)
+        delivered_audio_path = audio_m4a_path
+        _track_audio_file(audio_m4a_path)
+    else:
+        _track_audio_file(audio_path)
 
     if delivered_audio_path:
         _track_audio_file(delivered_audio_path)

@@ -744,10 +744,12 @@ def download(
             raise click.UsageError(
                 "Meeting ID argument cannot be used together with --from-date/--to-date."
             )
-    elif not meeting_id:
-        raise click.UsageError(
-            "MEETING_ID argument is required unless --from-date/--to-date are provided."
-        )
+    else:
+        # Non date-range workflows require a meeting ID argument.
+        if meeting_id is None:
+            raise click.UsageError(
+                "MEETING_ID argument is required unless --from-date/--to-date are provided."
+            )
 
     try:
         # Load config
@@ -894,10 +896,14 @@ def download(
 
         # --list mode removed in v0.2.0; use `dlzoom recordings --meeting-id` instead
 
+        # mypy helper: after returning above we know meeting_id is not None.
+        assert meeting_id is not None
+        single_meeting_id = cast(str, meeting_id)
+
         # Handle --check-availability mode
         if check_availability:
             _h._handle_check_availability(
-                client, selector, meeting_id, recording_id, formatter, wait, json_mode
+                client, selector, single_meeting_id, recording_id, formatter, wait, json_mode
             )
             return
 
@@ -905,7 +911,7 @@ def download(
         _h._handle_download_mode(
             client=client,
             selector=selector,
-            meeting_id=meeting_id,
+            meeting_id=single_meeting_id,
             recording_id=recording_id,
             output_dir=cfg.output_dir,
             output_name=output_name,
