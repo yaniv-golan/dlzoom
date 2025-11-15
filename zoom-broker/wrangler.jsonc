@@ -14,8 +14,7 @@
 		{
 			"binding": "AUTH",
 			"id": "__REPLACE_WITH_PRODUCTION_KV_ID__",
-			"preview_id": "__REPLACE_WITH_PREVIEW_KV_ID__",
-			"remote": true
+			"preview_id": "__REPLACE_WITH_PREVIEW_KV_ID__"
 		}
 	]
 	/**
