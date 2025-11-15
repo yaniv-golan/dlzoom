@@ -60,7 +60,18 @@ Build command: npm ci && npm test && npx wrangler deploy
 
 **Security Note:** Without `ALLOWED_ORIGIN` set to a specific origin, your broker will accept requests from any website, creating a security vulnerability.
 
-### 5. Verify KV Namespace
+### 5. Provide KV Namespace IDs to CI
+
+Cloudflare Builds (and any other automation that runs `npm ci && npx wrangler deploy`) need the actual KV namespace IDs so that the `.wrangler.local.jsonc` file can be generated automatically from the tracked template. Set the following environment variables anywhere the build runs (e.g., GitHub Actions secrets **and** Cloudflare Builds → Settings → Variables):
+
+| Variable | Description |
+|----------|-------------|
+| `WRANGLER_KV_PROD_ID` | Production AUTH namespace ID |
+| `WRANGLER_KV_PREVIEW_ID` | Preview AUTH namespace ID |
+
+The helper script `./scripts/setup-kv.sh` prints both IDs after provisioning. When these variables are present, the install hook creates `.wrangler.local.jsonc` automatically before Wrangler runs.
+
+### 6. Verify KV Namespace
 
 - [ ] Go to **Settings** → **Bindings**
 - [ ] Verify **KV Namespace** binding exists:
@@ -75,7 +86,7 @@ If missing:
    ```
 2. Use `./scripts/wrangler-local.sh <command>` (or manually set `WRANGLER_CONFIG=.wrangler.local.jsonc`) when running Wrangler locally. The tracked `wrangler.jsonc` keeps placeholders for the benefit of other contributors, so never commit your local file.
 
-### 6. Test the Setup
+### 7. Test the Setup
 
 - [ ] Push a small change to a feature branch
 - [ ] Create a Pull Request to `main`
@@ -84,14 +95,14 @@ If missing:
 - [ ] Verify preview URL is generated
 - [ ] Test health endpoint: `curl https://<preview-url>/health`
 
-### 7. Merge and Deploy
+### 8. Merge and Deploy
 
 - [ ] Merge PR to `main` branch
 - [ ] Verify production deployment starts automatically
 - [ ] Check **Deployments** tab for success
 - [ ] Test production URL: `curl https://zoom-broker.<user>.workers.dev/health`
 
-### 8. Configure Zoom OAuth Redirect URLs
+### 9. Configure Zoom OAuth Redirect URLs
 
 Now that you have both production and preview URLs, update your Zoom OAuth app:
 
@@ -102,7 +113,7 @@ Now that you have both production and preview URLs, update your Zoom OAuth app:
   - Optional: Add preview pattern if you want to test with PRs: `https://*.zoom-broker.<user>.workers.dev/callback`
 - [ ] Click **Save**
 
-### 9. Test OAuth Flow
+### 10. Test OAuth Flow
 
 - [ ] Run: `dlzoom login --auth-url https://zoom-broker.<user>.workers.dev`
 - [ ] Verify browser opens to Zoom authorization page
