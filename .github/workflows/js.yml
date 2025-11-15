@@ -59,7 +59,7 @@ jobs:
           output: ${{ runner.temp }}/trivy-node-results.sarif
           severity: 'CRITICAL,HIGH'
       - name: Upload Trivy Node results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ runner.temp }}/trivy-node-results.sarif
           category: 'node-dependencies'
@@ -109,4 +109,4 @@ jobs:
           JSON
 
       - name: Deploy to Cloudflare
-        run: npx wrangler deploy
+        run: npx wrangler deploy --config .wrangler.local.jsonc
