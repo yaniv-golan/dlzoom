@@ -73,6 +73,7 @@ jobs:
       run:
         working-directory: zoom-broker
     env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       WRANGLER_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       WRANGLER_CONFIG: .wrangler.local.jsonc
     steps:

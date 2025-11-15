@@ -68,6 +68,7 @@ Cloudflare Builds (and any other automation that runs `npm ci && npx wrangler de
 |----------|-------------|
 | `WRANGLER_KV_PROD_ID` | Production AUTH namespace ID |
 | `WRANGLER_KV_PREVIEW_ID` | Preview AUTH namespace ID |
+| `CLOUDFLARE_API_TOKEN` | API token with permission to deploy the Worker |
 
 The helper script `./scripts/setup-kv.sh` prints both IDs after provisioning. When these variables are present, the install hook creates `.wrangler.local.jsonc` automatically before Wrangler runs.
 
