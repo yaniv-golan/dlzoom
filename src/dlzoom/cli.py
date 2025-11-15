@@ -12,6 +12,7 @@ import json
 import logging
 import re
 import sys
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -186,10 +187,13 @@ def _validate_date(ctx: click.Context, param: click.Parameter, value: str | None
     return value
 
 
-def _calc_range(range_opt: str) -> tuple[str, str]:
-    from datetime import datetime, timedelta
+def _utc_today() -> date:
+    """Return today's date in UTC (date portion only)."""
+    return datetime.now(UTC).date()
 
-    today = datetime.now().date()
+
+def _calc_range(range_opt: str) -> tuple[str, str]:
+    today = _utc_today()
     if range_opt == "today":
         f = t = today
     elif range_opt == "yesterday":
@@ -320,7 +324,7 @@ def recordings(
     if debug:
         msg = (
             f"[dim]Effective date range: from={from_date or '-'} to={to_date or '-'} "
-            "(local dates, Zoom API filters on UTC)[/dim]"
+            "(UTC dates, Zoom API filters on UTC)[/dim]"
         )
         console.print(msg)
 
