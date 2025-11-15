@@ -53,6 +53,14 @@ def test_config_defaults():
     assert config.zoom_api_base_url == "https://api.zoom.us/v2"
 
 
+def test_missing_config_file_raises_error(tmp_path):
+    """Explicit config path must exist instead of silently loading .env"""
+    missing = tmp_path / "missing.json"
+    with pytest.raises(ConfigError) as exc_info:
+        Config(env_file=str(missing))
+    assert "does not exist" in str(exc_info.value)
+
+
 def test_config_custom_output_dir(monkeypatch):
     """Test that custom output dir is used"""
     monkeypatch.setenv("OUTPUT_DIR", "/tmp/custom")

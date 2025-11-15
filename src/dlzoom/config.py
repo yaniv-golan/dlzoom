@@ -181,9 +181,10 @@ class Config:
         path = Path(config_path)
 
         if not path.exists():
-            # If file doesn't exist, assume it's a .env file path
-            load_dotenv(config_path)
-            return {}
+            raise ConfigError(
+                f"Config file '{config_path}' does not exist. "
+                "Provide an existing JSON/YAML/.env file or remove the --config flag."
+            )
 
         # Check YAML availability early if trying to load YAML file
         if path.suffix.lower() in [".yaml", ".yml"] and not YAML_AVAILABLE:
