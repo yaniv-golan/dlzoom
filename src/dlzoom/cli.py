@@ -12,7 +12,8 @@ import json
 import logging
 import re
 import sys
-from datetime import UTC, date, datetime, timedelta, timezone as _timezone
+from datetime import UTC, date, datetime, timedelta
+from datetime import timezone as _timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -338,11 +339,11 @@ def recordings(
             "Not signed in. Run 'dlzoom login' or configure S2S credentials in your environment."
         )
 
-    # Cap page_size to Zoom API maximum
-    if page_size > 300:
-        import logging
+    if page_size <= 0:
+        raise click.BadParameter("--page-size must be greater than zero.")
 
-        logging.warning(f"page_size {page_size} exceeds Zoom API limit of 300, capping to 300")
+    if page_size > 300:
+        logging.warning("page_size %s exceeds Zoom API limit of 300, capping to 300", page_size)
         page_size = 300
 
     client: ZoomClient | ZoomUserClient
@@ -689,6 +690,13 @@ def recordings(
         "ZOOM_S2S_DEFAULT_USER is set)."
     ),
 )
+@click.option(
+    "--page-size",
+    type=int,
+    default=300,
+    show_default=True,
+    help="Meetings per API page when enumerating date ranges (max 300).",
+)
 def download(
     meeting_id: str | None,
     output_dir: Path | None,
@@ -716,6 +724,7 @@ def download(
     to_date: str | None,
     download_scope_opt: str,
     download_user_id_opt: str | None,
+    page_size: int,
 ) -> None:
     """
     Download audio recordings and metadata from Zoom meetings."""
@@ -842,7 +851,7 @@ def download(
                     to_date=to_date,
                     scope=scope_ctx.scope,
                     user_id=scope_ctx.user_id,
-                    page_size=300,
+                    page_size=page_size,
                     account_id=account_identifier,
                     formatter=formatter,
                     verbose=verbose,
@@ -858,7 +867,7 @@ def download(
                     to_date=to_date,
                     scope=scope_ctx.scope,
                     user_id=scope_ctx.user_id,
-                    page_size=300,
+                    page_size=page_size,
                     account_id=account_identifier,
                     output_dir=cfg.output_dir,
                     skip_transcript=skip_transcript,
