@@ -57,9 +57,9 @@ def test_downloader_generates_stj_by_default(monkeypatch, tmp_path):
     )
 
     assert files["timeline"][0] == timeline_path
-    assert files["speakers"][0].name.endswith("_speakers.stjson")
-    # Ensure STJ was written with expected name
-    assert calls["output_path"].name == "timeline_speakers.stjson"
+    assert "_speakers" in files["speakers"][0].name
+    # Ensure STJ was written with expected base name
+    assert calls["output_path"].name.startswith("meeting_speakers")
     assert calls["output_path"].exists()
 
 

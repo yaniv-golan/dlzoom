@@ -141,16 +141,16 @@ class Downloader:
                 "gallery_view",
             ]:
                 return f"{self.output_name}.{file_ext}"
-            # For transcripts: {output_name}_transcript.vtt
+            # For transcripts: {output_name}_transcript_<id>.vtt
             elif file_type in ["TRANSCRIPT", "CC"]:
                 suffix = self._unique_suffix(file_info)
                 return f"{self.output_name}_transcript{suffix}.{file_ext}"
-            # For chat: {output_name}_chat.txt
+            # For chat: {output_name}_chat_<id>.txt
             elif file_type == "CHAT":
                 suffix = self._unique_suffix(file_info)
                 return f"{self.output_name}_chat{suffix}.{file_ext}"
-            # For timeline: {output_name}_timeline.json
-            elif file_type == "TIMELINE":
+            # For timeline: {output_name}_timeline_<id>.json
+            elif "TIMELINE" in file_type:
                 suffix = self._unique_suffix(file_info)
                 return f"{self.output_name}_timeline{suffix}.{file_ext}"
             # Default
@@ -614,8 +614,10 @@ class Downloader:
         result: dict[str, list[Path]] = {"vtt": [], "txt": [], "timeline": [], "speakers": []}
 
         for file_info in recording_files:
-            file_ext = file_info.get("file_extension", "").upper()
-            file_type = file_info.get("file_type", "")
+            file_ext = (file_info.get("file_extension") or "").upper()
+            file_type_value = (file_info.get("file_type") or "").upper()
+            recording_type_value = (file_info.get("recording_type") or "").upper()
+            combined_type = f"{file_type_value} {recording_type_value}"
 
             # VTT (closed captions/transcripts)
             if file_ext == "VTT":
@@ -664,7 +666,7 @@ class Downloader:
                     self.logger.error(f"Failed to download chat: {e}")
 
             # JSON/TIMELINE
-            elif file_type == "TIMELINE" or (file_ext == "JSON" and file_type != "CHAT"):
+            elif "TIMELINE" in combined_type:
                 if skip_timeline:
                     self.logger.info("Skipping timeline download")
                     continue
@@ -700,8 +702,11 @@ class Downloader:
                             from dlzoom.stj_minimizer import write_minimal_stj_from_file
 
                             # Compute output base name
-                            stj_base = Path(path).stem
-                            stj_path = self.output_dir / f"{stj_base}_speakers.stjson"
+                            stj_base = self.output_name or Path(path).stem
+                            speaker_suffix = self._unique_suffix(file_info)
+                            stj_path = (
+                                self.output_dir / f"{stj_base}_speakers{speaker_suffix}.stjson"
+                            )
 
                             self.logger.info(
                                 f"Generating minimal STJ speakers file: {stj_path.name}"

@@ -341,3 +341,29 @@ class TestTranscriptDownloadLists:
         vtts = [p.name for p in files["vtt"]]
         assert len(vtts) == 2
         assert vtts[0] != vtts[1]
+
+    def test_download_transcripts_skips_non_timeline_json(self, monkeypatch, tmp_path):
+        downloader = Downloader(output_dir=tmp_path, access_token="token", output_name="session")
+
+        def fail_download(*args, **kwargs):
+            raise AssertionError("Should not download non-timeline JSON")
+
+        monkeypatch.setattr(Downloader, "download_file", fail_download)
+
+        files = downloader.download_transcripts_and_chat(
+            recording_files=[
+                {
+                    "file_extension": "JSON",
+                    "file_type": "SUMMARY",
+                    "download_url": "https://example.com/poll.json",
+                }
+            ],
+            meeting_topic="Topic",
+            instance_start=None,
+            show_progress=False,
+            skip_transcript=True,
+            skip_chat=True,
+            skip_timeline=False,
+        )
+
+        assert files["timeline"] == []
