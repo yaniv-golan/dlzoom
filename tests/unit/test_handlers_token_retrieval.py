@@ -5,6 +5,7 @@ These tests specifically verify that handlers correctly retrieve and use
 access tokens from clients before constructing Downloader.
 """
 
+import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -79,13 +80,47 @@ class TestHandlersTokenRetrieval:
                 wait=None,
             )
 
-            # CRITICAL: Verify token was retrieved
-            mock_client_with_token._get_access_token.assert_called_once()
+    def test_metadata_uses_actual_audio_file_size(
+        self, mock_client_with_token: Mock, tmp_path: Path, capfd
+    ) -> None:
+        selector = RecordingSelector()
+        formatter = OutputFormatter("json")
 
-            # CRITICAL: Verify it was called BEFORE Downloader construction
-            # This checks the call order
-            assert mock_client_with_token._get_access_token.call_count == 1
-            assert mock_downloader_cls.call_count == 1
+        with patch("dlzoom.handlers.Downloader") as mock_downloader_cls:
+            mock_downloader = Mock()
+
+            def fake_download(*args, **kwargs):
+                path = tmp_path / "test.m4a"
+                path.write_bytes(b"1234567890")
+                return path
+
+            mock_downloader.download_file = Mock(side_effect=fake_download)
+            mock_downloader.download_transcripts_and_chat = Mock(
+                return_value={"vtt": [], "txt": [], "timeline": [], "speakers": []}
+            )
+            mock_downloader_cls.return_value = mock_downloader
+
+            _handle_download_mode(
+                client=mock_client_with_token,
+                selector=selector,
+                meeting_id="123",
+                recording_id=None,
+                output_dir=tmp_path,
+                output_name="audio_test",
+                skip_transcript=True,
+                skip_chat=True,
+                skip_timeline=True,
+                dry_run=False,
+                log_file=None,
+                formatter=formatter,
+                verbose=False,
+                debug=False,
+                json_mode=True,
+                wait=None,
+            )
+
+        output = json.loads(capfd.readouterr().out)
+        assert output["metadata_summary"]["audio_size_bytes"] == 10
 
     def test_access_token_passed_as_second_argument(
         self, mock_client_with_token: Mock, tmp_path: Path

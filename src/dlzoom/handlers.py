@@ -1240,6 +1240,7 @@ def _handle_download_mode(
 
     audio_file_size = int(audio_file.get("file_size", 0) or 0)
     audio_extracted_from_video = False
+    delivered_audio_path: Path | None = None
     source_file_type = audio_file.get("file_extension", "").upper()
     # Check for audio-only files (M4A extension or audio_only file type)
     audio_only_available = any(
@@ -1260,6 +1261,7 @@ def _handle_download_mode(
             show_progress=not json_mode,
         )
         downloaded_files.append(audio_path)
+        delivered_audio_path = audio_path
 
         if audio_path.suffix.lower() == ".mp4":
             if not extractor.check_ffmpeg_available():
@@ -1275,6 +1277,8 @@ def _handle_download_mode(
             formatter.output_success(f"Audio extracted: {audio_m4a_path}")
             formatter.output_info(f"MP4 file retained: {audio_path}")
             audio_extracted_from_video = True
+            downloaded_files.append(audio_m4a_path)
+            delivered_audio_path = audio_m4a_path
 
     if not skip_transcript or not skip_chat or not skip_timeline:
         transcript_files = downloader.download_transcripts_and_chat(
@@ -1311,6 +1315,12 @@ def _handle_download_mode(
             dt_end = dt_start + timedelta(minutes=duration)
             end_time = dt_end.isoformat().replace("+00:00", "Z")
         except Exception:
+            pass
+
+    if delivered_audio_path and delivered_audio_path.exists():
+        try:
+            audio_file_size = delivered_audio_path.stat().st_size
+        except OSError:
             pass
 
     metadata = {
