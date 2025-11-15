@@ -1291,7 +1291,8 @@ def _handle_download_mode(
             stj_merge_gap_sec=stj_merge_gap_sec,
             include_unknown=include_unknown,
         )
-        downloaded_files.extend([f for f in transcript_files.values() if f])
+        for paths in transcript_files.values():
+            downloaded_files.extend(paths)
 
     participants: list[dict[str, Any]] = []
     if meeting_uuid and isinstance(client, ZoomClient):
@@ -1416,18 +1417,34 @@ def _handle_download_mode(
     formatter.output_success(f"Downloaded {len(downloaded_files)} file(s) to {output_dir}")
 
     if json_mode:
-        files_dict = {"metadata": str(metadata_path.absolute())}
+        files_dict: dict[str, Any] = {"metadata": str(metadata_path.absolute())}
         audio_files = [f for f in downloaded_files if f.suffix.lower() == ".m4a"]
         if audio_files:
             files_dict["audio"] = str(audio_files[0].absolute())
+            files_dict["audio_files"] = [str(f.absolute()) for f in audio_files]
         transcript_files_list = [f for f in downloaded_files if f.suffix.lower() == ".vtt"]
         if transcript_files_list:
             files_dict["transcript"] = str(transcript_files_list[0].absolute())
+            files_dict["transcripts"] = [str(f.absolute()) for f in transcript_files_list]
         chat_files = [
             f for f in downloaded_files if f.suffix.lower() == ".txt" and "chat" in f.name.lower()
         ]
         if chat_files:
             files_dict["chat"] = str(chat_files[0].absolute())
+            files_dict["chats"] = [str(f.absolute()) for f in chat_files]
+        timeline_files = [
+            f for f in downloaded_files if f.suffix.lower() == ".json" and "timeline" in f.name
+        ]
+        if timeline_files:
+            files_dict["timeline"] = str(timeline_files[0].absolute())
+            files_dict["timelines"] = [str(f.absolute()) for f in timeline_files]
+        speaker_files = [f for f in downloaded_files if f.suffix.lower().endswith("stjson")]
+        if speaker_files:
+            files_dict["speakers"] = [str(f.absolute()) for f in speaker_files]
+        video_files = [f for f in downloaded_files if f.suffix.lower() == ".mp4"]
+        if video_files:
+            files_dict["video"] = str(video_files[0].absolute())
+            files_dict["videos"] = [str(f.absolute()) for f in video_files]
 
         metadata_summary = {
             "meeting_title": metadata.get("meeting_title"),

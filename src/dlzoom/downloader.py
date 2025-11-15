@@ -92,6 +92,24 @@ class Downloader:
             self.logger.warning(f"Could not check disk space: {e}")
             return True
 
+    def _unique_suffix(self, file_info: dict[str, Any]) -> str:
+        """Return sanitized suffix derived from recording identifiers."""
+        candidates = [
+            str(file_info.get("id") or ""),
+            str(file_info.get("recording_id") or ""),
+            str(file_info.get("recording_file_id") or ""),
+        ]
+        for raw in candidates:
+            raw = raw.strip()
+            if raw:
+                safe = "".join(c if c.isalnum() else "_" for c in raw)
+                return f"_{safe}"
+        recording_type = file_info.get("recording_type") or file_info.get("file_type")
+        if recording_type:
+            safe = "".join(c if c.isalnum() else "_" for c in str(recording_type))
+            return f"_{safe.lower()}"
+        return ""
+
     def generate_filename(
         self, file_info: dict[str, Any], meeting_topic: str, instance_start: str | None = None
     ) -> str:
@@ -125,13 +143,16 @@ class Downloader:
                 return f"{self.output_name}.{file_ext}"
             # For transcripts: {output_name}_transcript.vtt
             elif file_type in ["TRANSCRIPT", "CC"]:
-                return f"{self.output_name}_transcript.{file_ext}"
+                suffix = self._unique_suffix(file_info)
+                return f"{self.output_name}_transcript{suffix}.{file_ext}"
             # For chat: {output_name}_chat.txt
             elif file_type == "CHAT":
-                return f"{self.output_name}_chat.{file_ext}"
+                suffix = self._unique_suffix(file_info)
+                return f"{self.output_name}_chat{suffix}.{file_ext}"
             # For timeline: {output_name}_timeline.json
             elif file_type == "TIMELINE":
-                return f"{self.output_name}_timeline.{file_ext}"
+                suffix = self._unique_suffix(file_info)
+                return f"{self.output_name}_timeline{suffix}.{file_ext}"
             # Default
             else:
                 return f"{self.output_name}_{file_type}.{file_ext}"
@@ -574,7 +595,7 @@ class Downloader:
         stj_min_segment_sec: float = 1.0,
         stj_merge_gap_sec: float = 1.5,
         include_unknown: bool = False,
-    ) -> dict[str, Path | None]:
+    ) -> dict[str, list[Path]]:
         """
         Download transcripts (VTT), chat (TXT), and timeline (JSON) files
 
@@ -588,9 +609,9 @@ class Downloader:
             skip_timeline: Skip timeline download
 
         Returns:
-            Dict with keys: vtt, txt, timeline (values are Path or None)
+            Dict with keys: vtt, txt, timeline, speakers (values are lists of Paths)
         """
-        result: dict[str, Path | None] = {"vtt": None, "txt": None, "timeline": None}
+        result: dict[str, list[Path]] = {"vtt": [], "txt": [], "timeline": [], "speakers": []}
 
         for file_info in recording_files:
             file_ext = file_info.get("file_extension", "").upper()
@@ -615,7 +636,7 @@ class Downloader:
                         instance_start,
                         show_progress,
                     )
-                    result["vtt"] = path
+                    result["vtt"].append(path)
                 except DownloadError as e:
                     self.logger.error(f"Failed to download VTT: {e}")
 
@@ -638,7 +659,7 @@ class Downloader:
                         instance_start,
                         show_progress,
                     )
-                    result["txt"] = path
+                    result["txt"].append(path)
                 except DownloadError as e:
                     self.logger.error(f"Failed to download chat: {e}")
 
@@ -661,7 +682,7 @@ class Downloader:
                         instance_start,
                         show_progress,
                     )
-                    result["timeline"] = path
+                    result["timeline"].append(path)
 
                     # Generate minimal STJ speakers file by default unless disabled
                     try:
@@ -679,25 +700,8 @@ class Downloader:
                             from dlzoom.stj_minimizer import write_minimal_stj_from_file
 
                             # Compute output base name
-                            if self.output_name:
-                                base = self.output_name
-                            else:
-                                # Fallback: sanitized meeting_topic + optional timestamp
-                                safe_topic = "".join(
-                                    c if c.isalnum() or c in (" ", "-", "_") else "_"
-                                    for c in meeting_topic
-                                ).strip()
-                                if instance_start:
-                                    ts = (
-                                        instance_start.replace(":", "-")
-                                        .replace("T", "_")
-                                        .split(".")[0]
-                                    )
-                                    base = f"{safe_topic}_{ts}"
-                                else:
-                                    base = safe_topic or "meeting"
-
-                            stj_path = self.output_dir / f"{base}_speakers.stjson"
+                            stj_base = Path(path).stem
+                            stj_path = self.output_dir / f"{stj_base}_speakers.stjson"
 
                             self.logger.info(
                                 f"Generating minimal STJ speakers file: {stj_path.name}"
@@ -715,6 +719,7 @@ class Downloader:
                                 include_unknown=include_unknown,
                                 context=context_payload,
                             )
+                            result["speakers"].append(stj_path)
                     except Exception as e:
                         self.logger.error(f"Failed to generate STJ speakers file: {e}")
                 except DownloadError as e:

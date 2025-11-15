@@ -56,9 +56,10 @@ def test_downloader_generates_stj_by_default(monkeypatch, tmp_path):
         skip_timeline=False,
     )
 
-    assert files["timeline"] == timeline_path
+    assert files["timeline"][0] == timeline_path
+    assert files["speakers"][0].name.endswith("_speakers.stjson")
     # Ensure STJ was written with expected name
-    assert calls["output_path"].name == "meeting_speakers.stjson"
+    assert calls["output_path"].name == "timeline_speakers.stjson"
     assert calls["output_path"].exists()
 
 
@@ -78,7 +79,7 @@ def test_downloader_skip_speakers(monkeypatch, tmp_path):
         __import__("types").SimpleNamespace(write_minimal_stj_from_file=fake_writer),
     )
 
-    d.download_transcripts_and_chat(
+    files = d.download_transcripts_and_chat(
         recording_files=[
             {
                 "file_extension": "JSON",
@@ -96,3 +97,4 @@ def test_downloader_skip_speakers(monkeypatch, tmp_path):
     )
 
     assert wrote["called"] is False
+    assert files["speakers"] == []

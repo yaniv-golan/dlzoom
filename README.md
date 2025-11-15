@@ -162,6 +162,8 @@ JSON output for pipelines:
 dlzoom download 123456789 --json > recording.json
 ```
 
+The JSON payload lists every downloaded artifact (audio/video/transcripts/chats/timelines/speaker STJ files) so automation can inspect all outputs.
+
 ## Recording Scope Modes
 
 dlzoom needs to know *which* Zoom API surface to call when enumerating or batch-downloading recordings. Use the `--scope`/`--user-id` flags on `recordings` and `download` to control this.

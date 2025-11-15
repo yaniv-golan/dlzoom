@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--wait` failures now abort before download attempts, surfacing a clear error instead of re-fetching recordings that are still processing
 - `dlzoom download --check-availability` now raises errors (non-zero exit) when Zoom cannot find the recording or the API call fails
 - Batch downloads exit non-zero when any meeting fails, allowing CI/CD jobs to detect partial failures
+- Transcript/chat/timeline downloads now avoid filename collisions and JSON output enumerates all audio/video/transcript/chat/timeline/speaker files for automation
 
 ### Documentation
 - Added design plan: `docs/internal/stj-minimal-json-plan.md`

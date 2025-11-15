@@ -57,7 +57,7 @@ class TestHandlersTokenRetrieval:
             mock_downloader_cls.return_value = mock_downloader
             mock_downloader.download_file = Mock(return_value=tmp_path / "test.m4a")
             mock_downloader.download_transcripts_and_chat = Mock(
-                return_value={"vtt": None, "txt": None, "timeline": None}
+                return_value={"vtt": [], "txt": [], "timeline": [], "speakers": []}
             )
 
             _handle_download_mode(
@@ -103,7 +103,7 @@ class TestHandlersTokenRetrieval:
             mock_downloader_cls.return_value = mock_downloader
             mock_downloader.download_file = Mock(return_value=tmp_path / "test.m4a")
             mock_downloader.download_transcripts_and_chat = Mock(
-                return_value={"vtt": None, "txt": None, "timeline": None}
+                return_value={"vtt": [], "txt": [], "timeline": [], "speakers": []}
             )
 
             _handle_download_mode(
@@ -167,7 +167,7 @@ class TestHandlersTokenRetrieval:
             mock_downloader_cls.return_value = mock_downloader
             mock_downloader.download_file = Mock(return_value=tmp_path / "diff.m4a")
             mock_downloader.download_transcripts_and_chat = Mock(
-                return_value={"vtt": None, "txt": None, "timeline": None}
+                return_value={"vtt": [], "txt": [], "timeline": [], "speakers": []}
             )
 
             _handle_download_mode(
@@ -243,7 +243,7 @@ class TestHandlersTokenRetrieval:
             mock_downloader_cls.return_value = mock_downloader
             mock_downloader.download_file = Mock(return_value=tmp_path / "test.m4a")
             mock_downloader.download_transcripts_and_chat = Mock(
-                return_value={"vtt": None, "txt": None, "timeline": None}
+                return_value={"vtt": [], "txt": [], "timeline": [], "speakers": []}
             )
 
             _handle_download_mode(

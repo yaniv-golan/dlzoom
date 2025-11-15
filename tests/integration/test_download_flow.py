@@ -106,7 +106,7 @@ class TestDownloadFlowIntegration:
             # Mock download_file to return a path
             mock_downloader_instance.download_file = Mock(return_value=tmp_path / "test.m4a")
             mock_downloader_instance.download_transcripts_and_chat = Mock(
-                return_value={"vtt": None, "txt": None, "timeline": None}
+                return_value={"vtt": [], "txt": [], "timeline": [], "speakers": []}
             )
 
             # Execute the handler
@@ -161,7 +161,7 @@ class TestDownloadFlowIntegration:
 
             mock_downloader_instance.download_file = Mock(return_value=tmp_path / "user_test.m4a")
             mock_downloader_instance.download_transcripts_and_chat = Mock(
-                return_value={"vtt": None, "txt": None, "timeline": None}
+                return_value={"vtt": [], "txt": [], "timeline": [], "speakers": []}
             )
 
             _handle_download_mode(
@@ -211,7 +211,12 @@ class TestDownloadFlowIntegration:
                 "dlzoom.handlers.Downloader.download_transcripts_and_chat"
             ) as mock_transcripts:
                 mock_download.return_value = tmp_path / "real_test.m4a"
-                mock_transcripts.return_value = {"vtt": None, "txt": None, "timeline": None}
+                mock_transcripts.return_value = {
+                    "vtt": [],
+                    "txt": [],
+                    "timeline": [],
+                    "speakers": [],
+                }
 
                 # This should NOT raise TypeError about wrong number of arguments
                 try:
