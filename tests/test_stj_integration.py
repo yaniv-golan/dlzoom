@@ -98,3 +98,40 @@ def test_downloader_skip_speakers(monkeypatch, tmp_path):
 
     assert wrote["called"] is False
     assert files["speakers"] == []
+
+
+def test_downloader_env_skip_speakers_case_insensitive(monkeypatch, tmp_path):
+    d = Downloader(output_dir=tmp_path, access_token="token", output_name="meeting")
+    timeline_path = _make_timeline_file(tmp_path)
+    monkeypatch.setattr(Downloader, "download_file", lambda *a, **k: timeline_path)
+
+    wrote = {"called": False}
+
+    def fake_writer(*a, **k):
+        wrote["called"] = True
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "dlzoom.stj_minimizer",
+        __import__("types").SimpleNamespace(write_minimal_stj_from_file=fake_writer),
+    )
+    monkeypatch.setenv("DLZOOM_SPEAKERS", "FALSE ")
+
+    files = d.download_transcripts_and_chat(
+        recording_files=[
+            {
+                "file_extension": "JSON",
+                "file_type": "TIMELINE",
+                "download_url": "https://zoom.us/rec/download/foo",
+            }
+        ],
+        meeting_topic="Topic",
+        instance_start=None,
+        show_progress=False,
+        skip_transcript=True,
+        skip_chat=True,
+        skip_timeline=False,
+    )
+
+    assert wrote["called"] is False
+    assert files["speakers"] == []

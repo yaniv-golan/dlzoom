@@ -693,8 +693,9 @@ class Downloader:
                         if skip_speakers is None:
                             import os as _os
 
-                            env_val = _os.getenv("DLZOOM_SPEAKERS", "1").strip()
-                            do_skip_speakers = env_val in ("0", "false", "False")
+                            env_val = _os.getenv("DLZOOM_SPEAKERS", "1")
+                            normalized = env_val.strip().lower()
+                            do_skip_speakers = normalized in ("0", "false", "no", "off")
                         else:
                             do_skip_speakers = bool(skip_speakers)
 
