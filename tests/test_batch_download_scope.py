@@ -34,6 +34,8 @@ def test_batch_download_account_scope_includes_metadata(monkeypatch, tmp_path, c
     client = ZoomClient("acct", "cid", "sec")
     selector = RecordingSelector()
 
+    log_path = tmp_path / "batch.log"
+
     _handle_batch_download(
         client=client,
         selector=selector,
@@ -58,12 +60,14 @@ def test_batch_download_account_scope_includes_metadata(monkeypatch, tmp_path, c
         stj_min_segment_sec=1.0,
         stj_merge_gap_sec=1.5,
         include_unknown=False,
+        log_file=log_path,
     )
 
     captured = capsys.readouterr().out
     data = json.loads(captured)
     assert data["scope"] == "account"
     assert data["account_id"] == "acct"
+    assert data["log_file"] == str(log_path.absolute())
     assert downloaded == ["123"]
     assert data["results"][0]["scope"] == "account"
     assert iter_calls  # ensure account iterator path taken
@@ -419,6 +423,46 @@ def test_batch_download_writes_log_file(monkeypatch, tmp_path):
     )
 
     assert emissions == [log_path]
+
+
+def test_batch_download_empty_json_includes_log_path(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(
+        "dlzoom.handlers._iterate_account_recordings", lambda *args, **kwargs: iter([])
+    )
+    client = ZoomClient("acct", "cid", "sec")
+    selector = RecordingSelector()
+    log_path = tmp_path / "empty.jsonl"
+
+    _handle_batch_download(
+        client=client,
+        selector=selector,
+        from_date="2024-08-05",
+        to_date="2024-08-06",
+        scope="account",
+        user_id=None,
+        page_size=300,
+        account_id="acct",
+        output_dir=Path(tmp_path),
+        skip_transcript=False,
+        skip_chat=False,
+        skip_timeline=False,
+        formatter=None,
+        verbose=False,
+        debug=False,
+        json_mode=True,
+        filename_template=None,
+        folder_template=None,
+        skip_speakers=None,
+        speakers_mode="first",
+        stj_min_segment_sec=1.0,
+        stj_merge_gap_sec=1.5,
+        include_unknown=False,
+        log_file=log_path,
+    )
+
+    data = json.loads(capsys.readouterr().out)
+    assert data["total_meetings"] == 0
+    assert data["log_file"] == str(log_path.absolute())
 
 
 def test_batch_check_availability_json(monkeypatch, capsys):

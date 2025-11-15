@@ -12,7 +12,7 @@ import json
 import logging
 import re
 import sys
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone as _timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -43,6 +43,7 @@ click.rich_click.SHOW_ARGUMENTS = True
 click.rich_click.GROUP_ARGUMENTS_OPTIONS = True
 
 console = Console()
+timezone = _timezone  # Back-compat for tests expecting module-level timezone
 
 
 def _autoload_dotenv() -> None:

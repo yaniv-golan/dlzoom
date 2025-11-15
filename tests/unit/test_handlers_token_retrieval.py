@@ -374,6 +374,7 @@ class TestHandlersTokenRetrieval:
             )
 
         output = json.loads(capfd.readouterr().out)
+        assert output["log_file"] == str(log_file.absolute())
         files = output["files"]
         assert files["audio"] == str(extracted_path)
         assert str(extracted_path) in files["audio_files"]

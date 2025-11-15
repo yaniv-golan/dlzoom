@@ -687,6 +687,9 @@ def _handle_batch_download(
         )
 
     items = list(meeting_iter)
+    sanitize_helper = TemplateParser()
+    log_path = log_file.expanduser() if log_file else None
+    log_path_str = str(log_path.absolute()) if log_path else None
 
     if not items:
         if json_mode:
@@ -703,6 +706,7 @@ def _handle_batch_download(
                         "page_size": min(page_size, 300),
                         "account_id": account_id if scope == "account" else None,
                         "results": [],
+                        "log_file": log_path_str,
                     }
                 )
             )
@@ -719,9 +723,6 @@ def _handle_batch_download(
             return 0.0
 
     items.sort(key=_parse_start_time, reverse=True)
-
-    sanitize_helper = TemplateParser()
-    log_path = log_file.expanduser() if log_file else None
 
     total_meetings = len(items)
     success_count = 0
@@ -827,6 +828,7 @@ def _handle_batch_download(
             "account_id": account_id if scope == "account" else None,
             "page_size": min(page_size, 300),
             "results": results,
+            "log_file": log_path_str,
         }
         print(_json.dumps(batch_result, indent=2))
     else:
@@ -1052,6 +1054,11 @@ def _handle_download_mode(
 
     # Initialize result dictionary for JSON output
     result: dict[str, Any] = {"status": "success", "meeting_id": meeting_id}
+    log_file_path: Path | None = None
+    log_file_str: str | None = None
+    if log_file:
+        log_file_path = Path(log_file).expanduser()
+        log_file_str = str(log_file_path.absolute())
 
     def _append_scope_fields(payload: dict[str, Any]) -> None:
         if not scope:
@@ -1202,6 +1209,8 @@ def _handle_download_mode(
                 "has_audio": has_audio,
                 "total_bytes": total_size,
             }
+            if log_file_str:
+                dry_run_result["log_file"] = log_file_str
             _append_scope_fields(dry_run_result)
             print(_json.dumps(dry_run_result, indent=2))
         else:
@@ -1435,9 +1444,9 @@ def _handle_download_mode(
     formatter.output_success(f"Metadata saved: {metadata_path}")
 
     # Write structured log if requested
-    if log_file:
+    if log_file_path:
         try:
-            log_path = Path(log_file)
+            log_path = log_file_path
             log_path.parent.mkdir(parents=True, exist_ok=True)
             with open(log_path, "a") as f:
                 for file_path in downloaded_files:
@@ -1505,6 +1514,8 @@ def _handle_download_mode(
         result["output_name"] = str(output_name)
         result["files"] = files_dict
         result["metadata_summary"] = metadata_summary
+        if log_file_str:
+            result["log_file"] = log_file_str
         _append_scope_fields(result)
 
         if len(meetings) > 1:
