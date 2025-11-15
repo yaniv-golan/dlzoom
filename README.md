@@ -457,7 +457,7 @@ Common errors and fixes:
 ## Security & Privacy
 
 - No secrets in logs; rigorous input validation; atomic file writes.
-- User OAuth tokens stored at `~/.dlzoom/` (0600). S2S credentials via env or config file.
+- User OAuth tokens stored under your OS config directory (0600): macOS `~/Library/Application Support/dlzoom/tokens.json`, Linux `~/.config/dlzoom/tokens.json`, Windows `%APPDATA%\dlzoom\tokens.json`. Override with `DLZOOM_TOKENS_PATH` if needed. S2S credentials via env or config file.
 - OAuth broker: restrict CORS with `ALLOWED_ORIGIN` in production. See `zoom-broker/README.md`.
 - If your working directory is cloud‑synced (iCloud/Dropbox/etc.), consider env vars instead of a `.env` file or place config outside the synced folder.
 

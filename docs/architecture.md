@@ -68,7 +68,7 @@ dlzoom/
 4. Zoom redirects to broker with authorization code
 5. Broker exchanges code for access/refresh tokens
 6. CLI polls broker and retrieves tokens
-7. CLI stores tokens locally in `~/.dlzoom/`
+7. CLI stores tokens locally in the platform config dir (e.g., macOS `~/Library/Application Support/dlzoom/tokens.json`, Linux `~/.config/dlzoom/tokens.json`, Windows `%APPDATA%\dlzoom\tokens.json`)
 8. CLI uses tokens to call Zoom APIs
 
 ### Server-to-Server (S2S) OAuth Flow
@@ -106,7 +106,7 @@ Direct authentication using account credentials (no broker needed).
 ## Security Architecture
 
 ### Credential Storage
-- **User OAuth tokens:** `~/.dlzoom/tokens.json` (mode 0600, user-only readable)
+- **User OAuth tokens:** Stored in the platform-specific config directory (macOS `~/Library/Application Support/dlzoom/tokens.json`, Linux `~/.config/dlzoom/tokens.json`, Windows `%APPDATA%\dlzoom\tokens.json`) with mode 0600. Override via `DLZOOM_TOKENS_PATH`.
 - **S2S credentials:** Environment variables or config file (never logged)
 
 ### Token Refresh
