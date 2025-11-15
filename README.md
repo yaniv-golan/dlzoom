@@ -72,12 +72,12 @@ Examples:
 # Download and name outputs
 dlzoom download 123456789 --output-name my_meeting
 
-# Resulting files include:
+# Resulting files include (when available from Zoom):
 #   my_meeting.m4a (or extracted from MP4 if audio-only not provided)
 #   my_meeting_transcript.vtt
 #   my_meeting_chat.txt
-#   my_meeting_timeline.json
-#   my_meeting_speakers.stjson  # diarization-only STJ
+#   my_meeting_timeline.json  # only when Zoom provides timeline blobs
+#   my_meeting_speakers.stjson  # generated when timelines exist
 ```
 
 Tuning diarization output:
