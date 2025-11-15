@@ -21,7 +21,11 @@ How we use it
 - Note: When hosted sign‑in is enabled, it uses Cloudflare Workers, which collects infrastructure-level metrics (request counts, errors, performance) for operational monitoring. This is standard infrastructure observability and does not track individual users or their data.
 
 Where it's stored and for how long
-- Sign‑in tokens are stored locally on your device in the standard OS config directory (`~/Library/Application Support/dlzoom/tokens.json` on macOS, `~/.config/dlzoom/tokens.json` on Linux, `%APPDATA%\\dlzoom\\tokens.json` on Windows) until you log out or they expire. You can override this path with `DLZOOM_TOKENS_PATH`.
+- Sign‑in tokens are stored locally on your device in the standard OS config directory until you log out or they expire:
+  - macOS: `~/Library/Application Support/dlzoom/tokens.json`
+  - Linux: `~/.config/dlzoom/tokens.json`
+  - Windows: `%APPDATA%\\dlzoom\\tokens.json`
+  - optional override: set `DLZOOM_TOKENS_PATH`
 - To finish sign‑in, the OAuth broker temporarily stores the full token response from Zoom (access token, refresh token, expiry data) in Cloudflare Workers KV. This copy lives for at most 10 minutes—and is usually deleted sooner once the CLI fetches it—so the CLI can download it exactly once and then remove it.
 - Downloaded recordings are saved only on your device and are under your control.
 
