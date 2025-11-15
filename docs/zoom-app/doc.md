@@ -9,7 +9,7 @@ dlzoom – Download your Zoom Cloud Recordings
 dlzoom is a simple command‑line tool that helps you list and download your Zoom Cloud Recordings to your computer.
 
 Note on availability
-- Hosted sign‑in will be available once Zoom publishes the app in the Marketplace. Until then, you can either self‑host the sign‑in broker or use Server‑to‑Server (S2S) OAuth.
+- The hosted sign‑in broker is live today, but until Zoom publishes the Marketplace listing you still need to create your own Zoom OAuth app (or self‑host the worker) before running `dlzoom login`. Server‑to‑Server (S2S) OAuth remains available for admins/automation.
 
 dlzoom is open‑source and free, and it will stay that way. We never sell any data.
 
@@ -22,16 +22,17 @@ What you can do
 - Keep everything local — we don’t upload your files anywhere.
 
 How sign‑in works
-- Hosted (coming soon): dlzoom will use a hosted sign‑in service to connect your Zoom account securely.
+- Hosted (available now, Marketplace review pending): `dlzoom login` uses the hosted broker at `https://zoom-broker.dlzoom.workers.dev`. Bring your own Zoom OAuth app until Zoom approves the Marketplace listing, then the hosted flow will be completely turnkey.
 - Self‑hosted (available now): You can host your own sign‑in service and point dlzoom to it. See developer docs at `zoom-broker/README.md`.
 
 Permissions requested (read‑only)
 - View your list of cloud recordings and their files. dlzoom does not request permission to change meetings or recordings.
 
 Signing in (user OAuth)
-1. If using a self‑hosted broker, run: `dlzoom login --auth-url https://<your-worker>.workers.dev`
-2. A browser window opens to Zoom. Approve access.
-3. Return to the terminal and continue.
+1. Create a user-managed OAuth app in Zoom (until Marketplace approval) and either configure the hosted broker or deploy your own (`zoom-broker/README.md` has step-by-step instructions).
+2. Run `dlzoom login` (or `dlzoom login --auth-url https://<your-worker>.workers.dev` if self-hosting).
+3. A browser window opens to Zoom. Approve access.
+4. Return to the terminal and continue.
 
 Where your data goes
 - Tokens: dlzoom saves tokens locally to a tokens.json file under your user config directory (permissions restricted best‑effort). Tokens are refreshed automatically.

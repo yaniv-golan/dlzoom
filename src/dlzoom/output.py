@@ -3,6 +3,8 @@ Output formatters for different output modes (JSON, TSV, human-readable)
 """
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from rich.console import Console
@@ -31,6 +33,18 @@ class OutputFormatter:
             silent: True to suppress output, False to allow it
         """
         self.silent = silent
+
+    @contextmanager
+    def capture_silent(self, enabled: bool = True) -> Iterator[None]:
+        """
+        Temporarily toggle silent mode and restore the previous state afterwards.
+        """
+        previous = self.silent
+        try:
+            self.silent = enabled
+            yield
+        finally:
+            self.silent = previous
 
     def output_recordings(self, recordings: list[dict[str, Any]]) -> None:
         """

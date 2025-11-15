@@ -6,7 +6,10 @@
 [![License: MIT](https://img.shields.io/github/license/yaniv-golan/dlzoom)](LICENSE)
 [![PyPI downloads](https://img.shields.io/pypi/dm/dlzoom)](https://pypi.org/project/dlzoom/)
 [![Docker pulls](https://img.shields.io/docker/pulls/yanivgolan1/dlzoom)](https://hub.docker.com/r/yanivgolan1/dlzoom)
+[![Zoom Marketplace](https://img.shields.io/badge/Zoom_Marketplace-Approval_Pending-yellow?logo=zoom&logoColor=white)](#authentication)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://pre-commit.com/)
+
+> **Marketplace status:** The dlzoom Zoom app is submitted and awaiting Marketplace approval. The hosted broker at `https://zoom-broker.dlzoom.workers.dev` is live today, but you must create your own Zoom OAuth app (or self-host the worker) until Zoom publishes the listing. Server-to-Server OAuth continues to work for admins/automation.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/yaniv-golan/dlzoom/main/assets/banner.png"
@@ -27,7 +30,7 @@ Built for power users and teams running custom transcription pipelines: get clea
 - 🧪 Comprehensive tests and CI
 
 > Authentication note
-> Hosted user sign‑in (`dlzoom login`) will be enabled after Zoom approves the app in the Marketplace. Until then, either self‑host the OAuth broker under `zoom-broker/` or use Server‑to‑Server (S2S) OAuth.
+> Hosted user sign‑in (`dlzoom login`) already uses the shared broker endpoint. Until Zoom finishes Marketplace review you still bring your own Zoom OAuth app (or self‑host) before running `dlzoom login`, or use Server‑to‑Server (S2S) OAuth.
 
 ## 60‑Second Quickstart
 
@@ -52,6 +55,7 @@ Outputs include audio (M4A), transcript (VTT), chat (TXT), timeline (JSON), meta
 
 - I'm downloading my own recordings → User OAuth
   - Run `dlzoom login` - uses our hosted OAuth broker by default (open source, auditable code in `zoom-broker/`)
+  - Until Zoom publishes the Marketplace listing, create your own Zoom OAuth app (or self-host the broker) before logging in so the hosted flow can exchange tokens.
   - Or self-host: deploy the Cloudflare Worker in `zoom-broker/` and run `dlzoom login --auth-url <your-worker-url>`
 - I'm an admin or running automation/CI → Server-to-Server (S2S) OAuth
   - Set `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` and run `dlzoom`.

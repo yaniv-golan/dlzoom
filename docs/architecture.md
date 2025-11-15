@@ -90,7 +90,7 @@ Direct authentication using account credentials (no broker needed).
 - Source: `git clone` + `pip install -e .`
 
 ### OAuth Broker
-- **Hosted (coming soon):** CLI will use a public broker instance when available
+- **Hosted (available, Marketplace review pending):** The CLI already defaults to the shared broker at `https://zoom-broker.dlzoom.workers.dev`. Until Zoom finishes Marketplace approval you still create your own user-managed OAuth app (or point the CLI at your self-hosted worker) before running `dlzoom login`.
 - **Self-hosted (available now):** Deploy `zoom-broker/` to your Cloudflare account
   ```bash
   cd zoom-broker

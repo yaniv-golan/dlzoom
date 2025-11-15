@@ -73,7 +73,7 @@ npx wrangler secret put ALLOWED_ORIGIN
 # (or your specific domain for production deployments)
 ```
 
-**Without `ALLOWED_ORIGIN` set**, the broker defaults to `Access-Control-Allow-Origin: *`, which allows **any website** to make requests to your token endpoints. This is **ONLY acceptable for development/testing**.
+**Without `ALLOWED_ORIGIN` set**, the Worker now refuses to start (HTTP 500) to prevent wildcard CORS. Always set a specific origin (e.g., `http://localhost` for CLI use) — a wildcard would allow any website to steal OAuth tokens via CSRF.
 
 ### 3. Key-Value Namespace
 
@@ -119,7 +119,7 @@ Deployed zoom-broker
 https://zoom-broker.<user>.workers.dev
 
 Environment tips:
-- To restrict CORS for token endpoints, set `ALLOWED_ORIGIN` in your Worker environment (e.g., your CLI's origin) to replace the default `*`.
+- Set `ALLOWED_ORIGIN` in your Worker environment (e.g., your CLI's origin). The Worker will fail fast without it to avoid wildcard CORS.
 ```
 
 ---

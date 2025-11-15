@@ -952,27 +952,6 @@ def download(
             raise
         sys.exit(1)
 
-    except ConfigError as e:
-        # Always log full traceback at DEBUG level for debugging
-        logging.getLogger(__name__).debug("ConfigError exception caught:", exc_info=True)
-
-        if json_mode:
-            error_result = {
-                "status": "error",
-                "error": {
-                    "code": "CONFIG_ERROR",
-                    "message": str(e),
-                    "details": "Check configuration file or environment variables",
-                },
-            }
-            print(json.dumps(error_result, indent=2))
-        else:
-            formatter.output_error(str(e))
-
-        if debug:
-            raise
-        sys.exit(1)
-
     except ZoomAPIError as e:
         # Always log full traceback at DEBUG level for debugging
         logging.getLogger(__name__).debug("ZoomAPIError exception caught:", exc_info=True)

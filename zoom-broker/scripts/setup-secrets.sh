@@ -55,7 +55,7 @@ echo "3️⃣  ALLOWED_ORIGIN"
 echo "Examples:"
 echo "  - Local development: http://localhost"
 echo "  - Production: https://your-domain.com"
-echo "  - Development only (⚠️  NOT recommended for production): * (allows any origin)"
+echo "  - ⚠️ Never use '*' in production. Wildcard CORS lets any site steal OAuth tokens, so the Worker now fails fast unless a specific origin is configured."
 npx wrangler secret put ALLOWED_ORIGIN
 
 echo ""

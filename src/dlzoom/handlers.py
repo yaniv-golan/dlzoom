@@ -28,6 +28,7 @@ import json as _json
 import time
 import urllib.parse
 from collections.abc import Callable, Iterator
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -470,164 +471,173 @@ def _handle_check_availability(
     capture_result: bool = False,
 ) -> dict[str, Any] | None:
     """Handle --check-availability mode: Check if recording is ready."""
-    if json_mode or capture_result:
-        formatter.set_silent(True)
-    else:
-        formatter.set_silent(False)
+    silent_ctx = formatter.capture_silent() if (json_mode or capture_result) else nullcontext()
 
-    if not capture_result:
-        formatter.output_info(f"Checking availability for meeting {meeting_id}...")
-
-    max_wait_seconds = (wait * 60) if wait else 0
-    start_time = time.time()
-    poll_interval = 30  # seconds
-
-    def _raise_availability_exception(payload: dict[str, Any]) -> None:
-        error = payload.get("error") or {}
-        code = str(error.get("code", "")).upper()
-        message = error.get("message", "Availability check failed")
-        details = payload.get("meeting_id") or ""
-        if code in {"RECORDING_NOT_FOUND", "INVALID_MEETING"}:
-            raise RecordingNotFoundError(message, details=details)
-        elif code in {"ZOOM_API_ERROR", "NETWORK_ERROR"}:
-            raise DownloadFailedError(message, details=details)
-        else:
-            raise DownloadFailedError(message, details=message)
-
-    def _emit_result(
-        result: dict[str, Any],
-        *,
-        human_success: str | None = None,
-        human_info: str | None = None,
-        human_error: str | None = None,
-    ) -> dict[str, Any]:
+    with silent_ctx:
         if not capture_result:
-            if json_mode:
-                print(_json.dumps(result, indent=2))
+            formatter.output_info(f"Checking availability for meeting {meeting_id}...")
+
+        max_wait_seconds = (wait * 60) if wait else 0
+        start_time = time.time()
+        poll_interval = 30  # seconds
+
+        def _raise_availability_exception(payload: dict[str, Any]) -> None:
+            error = payload.get("error") or {}
+            code = str(error.get("code", "")).upper()
+            message = error.get("message", "Availability check failed")
+            details = payload.get("meeting_id") or ""
+            if code in {"RECORDING_NOT_FOUND", "INVALID_MEETING"}:
+                raise RecordingNotFoundError(message, details=details)
+            elif code in {"ZOOM_API_ERROR", "NETWORK_ERROR"}:
+                raise DownloadFailedError(message, details=details)
             else:
-                if human_error:
-                    formatter.output_error(human_error)
-                elif human_success:
-                    formatter.output_success(human_success)
-                elif human_info:
-                    formatter.output_info(human_info)
-            if result.get("status") == "error":
-                _raise_availability_exception(result)
-        return result
+                raise DownloadFailedError(message, details=message)
 
-    while True:
-        try:
-            recordings = client.get_meeting_recordings(meeting_id)
-            meetings = recordings.get("meetings", [])
-
-            if not meetings and recordings.get("recording_files"):
-                meetings = [recordings]
-
-            if meetings:
-                if recording_id:
-                    instance = selector.filter_by_uuid(meetings, recording_id)
+        def _emit_result(
+            result: dict[str, Any],
+            *,
+            human_success: str | None = None,
+            human_info: str | None = None,
+            human_error: str | None = None,
+        ) -> dict[str, Any]:
+            if not capture_result:
+                if json_mode:
+                    print(_json.dumps(result, indent=2))
                 else:
-                    instance = selector.select_most_recent_instance(meetings)
+                    if human_error:
+                        formatter.output_error(human_error)
+                    elif human_success:
+                        formatter.output_success(human_success)
+                    elif human_info:
+                        formatter.output_info(human_info)
+                if result.get("status") == "error":
+                    _raise_availability_exception(result)
+            return result
 
-                if instance:
-                    recording_files = instance.get("recording_files", [])
-                    recording_uuid = instance.get("uuid")
+        while True:
+            try:
+                recordings = client.get_meeting_recordings(meeting_id)
+                meetings = recordings.get("meetings", [])
 
-                    all_completed = all(f.get("status") == "completed" for f in recording_files)
+                if not meetings and recordings.get("recording_files"):
+                    meetings = [recordings]
 
-                    audio_file = selector.select_best_audio(recording_files)
-                    has_audio = audio_file is not None
-                    audio_type = (
-                        audio_file.get("file_extension", "").upper() if audio_file else None
-                    )
-
-                    if all_completed:
-                        success_result = {
-                            "status": "success",
-                            "command": "check_availability",
-                            "meeting_id": meeting_id,
-                            "recording_uuid": recording_uuid,
-                            "available": True,
-                            "recording_status": "completed",
-                            "has_audio": has_audio,
-                            "audio_type": audio_type,
-                            "processing_time_remaining": 0,
-                            "ready_to_download": True,
-                        }
-                        return _emit_result(
-                            success_result,
-                            human_success=f"Recording is ready ({len(recording_files)} files)",
-                        )
+                if meetings:
+                    if recording_id:
+                        instance = selector.filter_by_uuid(meetings, recording_id)
                     else:
-                        if not wait:
-                            processing_result = {
+                        instance = selector.select_most_recent_instance(meetings)
+
+                    if instance:
+                        recording_files = instance.get("recording_files", [])
+                        recording_uuid = instance.get("uuid")
+
+                        all_completed = all(f.get("status") == "completed" for f in recording_files)
+
+                        audio_file = selector.select_best_audio(recording_files)
+                        has_audio = audio_file is not None
+                        audio_type = (
+                            audio_file.get("file_extension", "").upper() if audio_file else None
+                        )
+
+                        if all_completed:
+                            success_result = {
                                 "status": "success",
                                 "command": "check_availability",
                                 "meeting_id": meeting_id,
                                 "recording_uuid": recording_uuid,
-                                "available": False,
-                                "recording_status": "processing",
-                                "has_audio": has_audio,
-                                "audio_type": audio_type,
-                                "ready_to_download": False,
-                            }
-                            return _emit_result(
-                                processing_result,
-                                human_info=(
-                                    "Recording is still processing. "
-                                    "Use --wait to wait until it's ready."
-                                ),
-                            )
-
-                        elapsed = time.time() - start_time
-                        remaining = max(0, max_wait_seconds - int(elapsed))
-
-                        if elapsed >= max_wait_seconds:
-                            timeout_result = {
-                                "status": "success",
-                                "command": "check_availability",
-                                "meeting_id": meeting_id,
-                                "recording_uuid": recording_uuid,
-                                "available": False,
-                                "recording_status": "processing",
+                                "available": True,
+                                "recording_status": "completed",
                                 "has_audio": has_audio,
                                 "audio_type": audio_type,
                                 "processing_time_remaining": 0,
-                                "ready_to_download": False,
+                                "ready_to_download": True,
                             }
                             return _emit_result(
-                                timeout_result,
-                                human_info="Recording is still processing (wait timed out)",
+                                success_result,
+                                human_success=f"Recording is ready ({len(recording_files)} files)",
                             )
+                        else:
+                            if not wait:
+                                processing_result = {
+                                    "status": "success",
+                                    "command": "check_availability",
+                                    "meeting_id": meeting_id,
+                                    "recording_uuid": recording_uuid,
+                                    "available": False,
+                                    "recording_status": "processing",
+                                    "has_audio": has_audio,
+                                    "audio_type": audio_type,
+                                    "ready_to_download": False,
+                                }
+                                return _emit_result(
+                                    processing_result,
+                                    human_info=(
+                                        "Recording is still processing. "
+                                        "Use --wait to wait until it's ready."
+                                    ),
+                                )
 
-                        if not json_mode and not capture_result:
-                            formatter.output_info(
-                                "Recording is processing; checking again in "
-                                f"{poll_interval} seconds (time left: "
-                                f"{remaining // 60}m {remaining % 60}s)"
-                            )
-                        time.sleep(poll_interval)
-                        continue
+                            elapsed = time.time() - start_time
+                            remaining = max(0, max_wait_seconds - int(elapsed))
 
-            error_result = {
-                "status": "error",
-                "command": "check_availability",
-                "meeting_id": meeting_id,
-                "error": {
-                    "code": "RECORDING_NOT_FOUND",
-                    "message": "Recording not found",
-                },
-            }
-            return _emit_result(error_result, human_error="Recording not found")
+                            if elapsed >= max_wait_seconds:
+                                timeout_result = {
+                                    "status": "success",
+                                    "command": "check_availability",
+                                    "meeting_id": meeting_id,
+                                    "recording_uuid": recording_uuid,
+                                    "available": False,
+                                    "recording_status": "processing",
+                                    "has_audio": has_audio,
+                                    "audio_type": audio_type,
+                                    "processing_time_remaining": 0,
+                                    "ready_to_download": False,
+                                }
+                                return _emit_result(
+                                    timeout_result,
+                                    human_info="Recording is still processing (wait timed out)",
+                                )
 
-        except ZoomAPIError as e:
-            error_result = {
-                "status": "error",
-                "command": "check_availability",
-                "meeting_id": meeting_id,
-                "error": {"code": "ZOOM_API_ERROR", "message": str(e)},
-            }
-            return _emit_result(error_result, human_error=f"Zoom API error: {e}")
+                            if not json_mode and not capture_result:
+                                formatter.output_info(
+                                    "Recording is processing; checking again in "
+                                    f"{poll_interval} seconds (time left: "
+                                    f"{remaining // 60}m {remaining % 60}s)"
+                                )
+                            time.sleep(poll_interval)
+                            continue
+
+                error_result = {
+                    "status": "error",
+                    "command": "check_availability",
+                    "meeting_id": meeting_id,
+                    "error": {
+                        "code": "RECORDING_NOT_FOUND",
+                        "message": "Recording not found",
+                    },
+                }
+                return _emit_result(error_result, human_error="Recording not found")
+
+            except ZoomAPIError as e:
+                error_result = {
+                    "status": "error",
+                    "command": "check_availability",
+                    "meeting_id": meeting_id,
+                    "error": {"code": "ZOOM_API_ERROR", "message": str(e)},
+                }
+                return _emit_result(error_result, human_error=f"Zoom API error: {e}")
+            except DlzoomError as e:
+                error_payload: dict[str, Any] = {"code": e.code, "message": e.message}
+                if e.details:
+                    error_payload["details"] = e.details
+                error_result = {
+                    "status": "error",
+                    "command": "check_availability",
+                    "meeting_id": meeting_id,
+                    "error": error_payload,
+                }
+                return _emit_result(error_result, human_error=e.message)
 
 
 def _handle_batch_download(
