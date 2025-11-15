@@ -739,7 +739,7 @@ def download(
 
         # Override output dir if specified
         if output_dir:
-            cfg.output_dir = Path(output_dir)
+            cfg.output_dir = Path(output_dir).expanduser()
 
         user_supplied_output_name = output_name is not None
 
@@ -879,7 +879,7 @@ def download(
             skip_chat=skip_chat,
             skip_timeline=skip_timeline,
             dry_run=dry_run,
-            log_file=Path(log_file) if log_file else None,
+            log_file=Path(log_file).expanduser() if log_file else None,
             formatter=formatter,
             verbose=verbose,
             debug=debug,
