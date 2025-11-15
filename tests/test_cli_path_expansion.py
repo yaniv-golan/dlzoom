@@ -4,7 +4,7 @@ from click.testing import CliRunner
 
 from dlzoom.cli import cli as dlzoom_cli
 
-from .cli_test_utils import DummyUserClient, DummyConfig
+from .cli_test_utils import DummyConfig, DummyUserClient
 
 
 def setup_user_cli(monkeypatch, tmp_path: Path):

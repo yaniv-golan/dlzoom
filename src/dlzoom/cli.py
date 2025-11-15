@@ -799,8 +799,12 @@ def download(
                 account_identifier = getattr(client, "account_id", None)
 
         selector = RecordingSelector()
-        ctx = click.get_current_context()
-        skip_speakers_source = ctx.get_parameter_source("skip_speakers")
+        ctx = click.get_current_context(silent=True)
+        skip_speakers_source = (
+            ctx.get_parameter_source("skip_speakers")
+            if ctx is not None
+            else ParameterSource.DEFAULT
+        )
         resolved_skip_speakers: bool | None
         if skip_speakers_source in (ParameterSource.DEFAULT, None):
             resolved_skip_speakers = None
