@@ -21,13 +21,13 @@ How we use it
 - Note: When hosted sign‑in is enabled, it uses Cloudflare Workers, which collects infrastructure-level metrics (request counts, errors, performance) for operational monitoring. This is standard infrastructure observability and does not track individual users or their data.
 
 Where it's stored and for how long
-- Sign‑in tokens are stored locally on your device (in `~/.config/dlzoom/tokens.json`) until you log out or they expire.
-- To finish sign‑in, a small authorization code is stored briefly in the OAuth broker service and expires automatically after 10 minutes.
+- Sign‑in tokens are stored locally on your device in the standard OS config directory (`~/Library/Application Support/dlzoom/tokens.json` on macOS, `~/.config/dlzoom/tokens.json` on Linux, `%APPDATA%\\dlzoom\\tokens.json` on Windows) until you log out or they expire. You can override this path with `DLZOOM_TOKENS_PATH`.
+- To finish sign‑in, the OAuth broker temporarily stores the full token response from Zoom (access token, refresh token, expiry data) in Cloudflare Workers KV. This copy lives for at most 10 minutes—and is usually deleted sooner once the CLI fetches it—so the CLI can download it exactly once and then remove it.
 - Downloaded recordings are saved only on your device and are under your control.
 
 OAuth broker (authentication service)
 - **Default**: dlzoom uses a hosted OAuth broker at `https://zoom-broker.dlzoom.workers.dev` to handle the sign-in flow.
-- **What it does**: Temporarily stores session data (max 10 minutes) to complete the OAuth flow. Does not log, persist, or have access to your Zoom recordings or account data beyond what's needed for authentication.
+- **What it does**: Temporarily stores session data and the OAuth token payload (max 10 minutes) so the CLI can pick up the tokens once. It does not log, persist, or have access to your Zoom recordings or account data beyond what's needed for authentication, and the tokens are deleted immediately after retrieval or when the TTL expires.
 - **Open source**: All broker code is available in the `zoom-broker/` directory of the repository and can be audited.
 - **Generic**: The broker works with any Zoom OAuth app. You create your own app in Zoom Marketplace with your own credentials.
 - **Infrastructure monitoring**: The broker runs on Cloudflare Workers, which collects standard infrastructure metrics (request counts, errors, performance) for operational monitoring. This does not track individual users or their data.
