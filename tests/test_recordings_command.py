@@ -5,6 +5,12 @@ from click.testing import CliRunner
 from dlzoom.cli import cli as dlzoom_cli
 
 
+def _prep_user_tokens(monkeypatch, tmp_path):
+    tokens_file = tmp_path / "tokens.json"
+    tokens_file.write_text("{}")
+    monkeypatch.setenv("DLZOOM_TOKENS_PATH", str(tokens_file))
+
+
 class FakeUserClient:
     def __init__(self, tokens, tokens_path):
         pass
@@ -102,7 +108,7 @@ class FakeS2SClient:
         }
 
 
-def test_recordings_user_wide_json(monkeypatch):
+def test_recordings_user_wide_json(monkeypatch, tmp_path):
     # Disable .env autoload for test isolation
     monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
     # Ensure S2S is not used
@@ -110,6 +116,8 @@ def test_recordings_user_wide_json(monkeypatch):
     monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)
 
+    monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(tmp_path))
+    _prep_user_tokens(monkeypatch, tmp_path)
     # Patch token loader to pretend we have user tokens
     monkeypatch.setattr("dlzoom.cli.load_tokens", lambda path: object())
     # Patch client to use fake
@@ -166,13 +174,15 @@ def test_recordings_meeting_scoped_json(monkeypatch):
     assert data["total_instances"] == 2
 
 
-def test_recordings_mutual_exclusivity_error(monkeypatch):
+def test_recordings_mutual_exclusivity_error(monkeypatch, tmp_path):
     # Disable .env autoload for test isolation
     monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
     # Tokens to avoid auth error
     monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(tmp_path))
+    _prep_user_tokens(monkeypatch, tmp_path)
     monkeypatch.setattr("dlzoom.cli.load_tokens", lambda path: object())
     monkeypatch.setattr("dlzoom.cli.ZoomUserClient", FakeUserClient)
 
@@ -185,12 +195,14 @@ def test_recordings_mutual_exclusivity_error(monkeypatch):
     assert "cannot be used with" in result.output
 
 
-def test_recordings_invalid_date_rejected(monkeypatch):
+def test_recordings_invalid_date_rejected(monkeypatch, tmp_path):
     # Disable .env autoload for test isolation
     monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
     monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(tmp_path))
+    _prep_user_tokens(monkeypatch, tmp_path)
     monkeypatch.setattr("dlzoom.cli.load_tokens", lambda path: object())
     monkeypatch.setattr("dlzoom.cli.ZoomUserClient", FakeUserClient)
 
@@ -219,12 +231,14 @@ def test_recordings_from_gt_to_error(monkeypatch):
     assert "before or equal" in result.output
 
 
-def test_recordings_limit_zero_fetches_all(monkeypatch):
+def test_recordings_limit_zero_fetches_all(monkeypatch, tmp_path):
     # Disable .env autoload for test isolation
     monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
     monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)
+    _prep_user_tokens(monkeypatch, tmp_path)
+    monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(tmp_path))
     monkeypatch.setattr("dlzoom.cli.load_tokens", lambda path: object())
     monkeypatch.setattr("dlzoom.cli.ZoomUserClient", FakeUserClient)
 
@@ -235,7 +249,7 @@ def test_recordings_limit_zero_fetches_all(monkeypatch):
     assert data["total_meetings"] == 2
 
 
-def test_recordings_empty_results(monkeypatch):
+def test_recordings_empty_results(monkeypatch, tmp_path):
     class EmptyClient(FakeUserClient):
         def get_user_recordings(self, *a, **k):
             return {"meetings": []}
@@ -245,6 +259,8 @@ def test_recordings_empty_results(monkeypatch):
     monkeypatch.delenv("ZOOM_ACCOUNT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_ID", raising=False)
     monkeypatch.delenv("ZOOM_CLIENT_SECRET", raising=False)
+    monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(tmp_path))
+    _prep_user_tokens(monkeypatch, tmp_path)
     monkeypatch.setattr("dlzoom.cli.load_tokens", lambda path: object())
     monkeypatch.setattr("dlzoom.cli.ZoomUserClient", EmptyClient)
 

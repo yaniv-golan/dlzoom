@@ -13,6 +13,10 @@ class DummyConfig:
         self.zoom_oauth_token_url = None
         self.s2s_default_user = None
         self.auth_url = ""
+        self.config_dir = output_dir
+
+    def get_auth_mode(self) -> str:
+        return "oauth"
 
 
 class DummyUserClient:
