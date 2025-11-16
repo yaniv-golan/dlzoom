@@ -47,6 +47,17 @@ console = Console()
 timezone = _timezone  # Back-compat for tests expecting module-level timezone
 
 
+def _missing_credentials_message(cfg: Config) -> str:
+    """Return a detailed guidance string for missing credentials."""
+    default_config_path = cfg.config_dir / "config.json"
+    return (
+        "Not authenticated.\n"
+        "• For user OAuth: run 'dlzoom login'\n"
+        f"• For S2S OAuth: set ZOOM_ACCOUNT_ID/ZOOM_CLIENT_ID/ZOOM_CLIENT_SECRET or create "
+        f"{default_config_path}"
+    )
+
+
 def _autoload_dotenv() -> None:
     """Automatically load a local .env file for CLI usage.
 
@@ -75,7 +86,7 @@ logger = logging.getLogger(__name__)
 
 
 def validate_meeting_id(
-    ctx: click.Context, param: click.Parameter, value: str | None
+    ctx: click.Context, param: click.Parameter, value: str | tuple[str, ...] | None
 ) -> str | None:
     """
     Validate meeting ID format to prevent injection attacks
@@ -87,7 +98,7 @@ def validate_meeting_id(
     Args:
         ctx: Click context
         param: Parameter object
-        value: Meeting ID value to validate
+        value: Meeting ID value to validate (can be a tuple if nargs=-1)
 
     Returns:
         Validated meeting ID or None if value is None
@@ -96,10 +107,15 @@ def validate_meeting_id(
         click.BadParameter: If meeting ID format is invalid
     """
     # Normalize: remove whitespace, strip URL fragments, and decode percent-encoding
-    if value is None:
+    if value is None or (isinstance(value, tuple) and len(value) == 0):
         # Allow None for optional option usage; required arguments should not pass None.
         return None
-    raw = str(value).strip()
+
+    # If value is a tuple (from nargs=-1), join the parts
+    if isinstance(value, tuple):
+        raw = " ".join(str(v) for v in value).strip()
+    else:
+        raw = str(value).strip()
 
     # If user pasted a URL or an encoded UUID, strip fragment/query and decode
     # Examples handled:
@@ -332,12 +348,13 @@ def recordings(
 
     # Load config and choose client
     cfg = Config(env_file=config) if config else Config()
-    use_s2s = bool(cfg.zoom_account_id and cfg.zoom_client_id and cfg.zoom_client_secret)
+    auth_mode = cfg.get_auth_mode()
+    use_s2s = auth_mode == "s2s"
     tokens = None if use_s2s else load_tokens(cfg.tokens_path)
     if not use_s2s and tokens is None:
-        raise ConfigError(
-            "Not signed in. Run 'dlzoom login' or configure S2S credentials in your environment."
-        )
+        raise ConfigError(_missing_credentials_message(cfg))
+    if debug or verbose:
+        console.print(f"[dim]Using {auth_mode.upper()} authentication[/dim]")
 
     if page_size <= 0:
         raise click.BadParameter("--page-size must be greater than zero.")
@@ -578,7 +595,7 @@ def recordings(
 
 
 @cli.command(name="download", help="Download Zoom cloud recordings")
-@click.argument("meeting_id", callback=validate_meeting_id, required=False)
+@click.argument("meeting_id", nargs=-1, callback=validate_meeting_id, required=False)
 @click.option(
     "--output-dir",
     "-o",
@@ -756,15 +773,12 @@ def download(
         cfg = Config(env_file=config) if config else Config()
 
         # Choose auth mode: S2S takes precedence if configured
-        use_s2s = bool(cfg.zoom_account_id and cfg.zoom_client_id and cfg.zoom_client_secret)
+        auth_mode = cfg.get_auth_mode()
+        use_s2s = auth_mode == "s2s"
         user_tokens = None if use_s2s else load_tokens(cfg.tokens_path)
         if not use_s2s and user_tokens is None:
             # If neither S2S nor user tokens are available, raise config error
-            raise ConfigError(
-                "Missing Zoom credentials. Either set S2S env vars "
-                "(ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET) or sign in with: "
-                "dlzoom login"
-            )
+            raise ConfigError(_missing_credentials_message(cfg))
 
         # Override output dir if specified
         if output_dir:
@@ -795,6 +809,9 @@ def download(
 
         # Initialize client per auth mode
         client: ZoomClient | ZoomUserClient
+        if debug or verbose:
+            console.print(f"[dim]Using {auth_mode.upper()} authentication[/dim]")
+
         if use_s2s:
             cfg.validate()
             client = ZoomClient(

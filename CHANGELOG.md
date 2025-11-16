@@ -5,7 +5,17 @@ All notable changes to dlzoom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - Unreleased
+## [0.3.1] - Unreleased
+
+### Added
+
+#### Meeting ID Input Enhancement
+- Space-separated meeting IDs now work without quotes
+  - Users can type `dlzoom download 123 4567 1111` instead of `"123 4567 1111"`
+  - CLI automatically joins space-separated numeric parts into a single meeting ID
+  - Maintains backward compatibility with quoted IDs and UUIDs
+
+## [0.3.0] - 2025-11-16
 
 ### Added
 
@@ -22,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--stj-merge-gap-sec` (default 1.5) to merge small gaps
   - `--include-unknown` to include segments with unknown speaker
 - Env toggle: `DLZOOM_SPEAKERS=0` disables generation (default is enabled)
+
+#### S2S Configuration Storage
+- Added automatic discovery of `config.json`/`config.yaml`/`config.yml` under the platform config directory (macOS `~/Library/Application Support/dlzoom/`, Linux `~/.config/dlzoom/`, Windows `%APPDATA%\dlzoom\`) so Server-to-Server credentials work from any folder.
+- Environment variables continue to work and now override the discovered config file unless an explicit `--config` path is provided.
+- CLI debug output and error messages now report the active auth mode (S2S vs OAuth) and point to the exact config path users should populate.
 
 #### Recording Scope System (S2S OAuth)
 - New `--scope` option for batch downloads: `auto` (default), `account`, or `user`
