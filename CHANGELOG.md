@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - Unreleased
 
 ### Added
+
+#### STJ Diarization Support
 - Minimal STJ diarization file generation (default ON) after timeline download
   - Emits `{output_name}_speakers.stjson` in STJ v0.6 format
   - Diarization-only segments (start/end/speaker_id, empty text)
@@ -21,23 +23,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--include-unknown` to include segments with unknown speaker
 - Env toggle: `DLZOOM_SPEAKERS=0` disables generation (default is enabled)
 
+#### Recording Scope System (S2S OAuth)
+- New `--scope` option for batch downloads: `auto` (default), `account`, or `user`
+  - `account` scope: Download all account recordings (requires admin permissions)
+  - `user` scope: Download specific user's recordings
+  - `auto` scope: Automatically detect based on OAuth token type
+- New `--user-id` option: Specify Zoom user email or UUID for user-scoped downloads (S2S mode)
+- New `--page-size` option: Control API pagination (default 300, max 300)
+- Scope validation: CLI now validates that S2S tokens have required scopes for account-level access
+- Metadata enhancement: Recording scope and user ID now included in JSON outputs
+
+#### OAuth Broker Infrastructure
+- **Automated Cloudflare Workers deployment** via GitHub Actions
+  - Automatic deployment on push to `main`
+  - Preview deployments for pull requests
+  - Environment variable injection from GitHub secrets
+- **Comprehensive broker documentation:**
+  - `zoom-broker/CLOUDFLARE_SETUP.md` - Step-by-step Cloudflare integration guide
+  - `zoom-broker/DEPLOYMENT.md` - Full deployment instructions
+  - `zoom-broker/DEPLOYMENT_COMPARISON.md` - Manual vs automated deployment comparison
+  - `zoom-broker/QUICKSTART_CICD.md` - Quick CI/CD setup guide
+- **Setup automation scripts:**
+  - `scripts/setup-secrets.sh` - Interactive secret configuration
+  - `scripts/setup-kv.sh` - KV namespace creation and binding
+  - `scripts/wrangler-local.sh` - Local development environment
+  - `scripts/apply-kv-placeholders.mjs` - CI/CD wrangler config generation
+- Enhanced broker security: CORS configuration validation and clearer error messages
+
 ### Changed
-- Respect skip cascade: `--skip-timeline` also prevents STJ generation
-- Deterministic STJ output (rounded to 3 decimals) and idempotent regeneration
+
+#### Batch Download Improvements
 - Batch downloads now honor `--output-name`; when omitted they auto-append UTC timestamps (or recording UUIDs) per meeting to prevent filename collisions
 - Batch downloads once again respect `--dry-run`, letting operators preview large date windows without pulling files
 - Batch downloads now pass through `--wait`, so operators can pause until recordings finish processing before the download loop starts
 - Batch downloads now honor `--log-file`, writing structured JSONL entries for every meeting in the range
+- Batch downloads exit non-zero when any meeting fails, allowing CI/CD jobs to detect partial failures
+
+#### Check Availability Improvements
 - `--check-availability` works with `--from-date/--to-date`, returning a summary across the date window instead of silently exiting
 - `--wait` failures now abort before download attempts, surfacing a clear error instead of re-fetching recordings that are still processing
 - `dlzoom download --check-availability` now raises errors (non-zero exit) when Zoom cannot find the recording or the API call fails
-- Batch downloads exit non-zero when any meeting fails, allowing CI/CD jobs to detect partial failures
+
+#### Output & Metadata
 - Transcript/chat/timeline downloads now avoid filename collisions and JSON output enumerates all audio/video/transcript/chat/timeline/speaker files for automation
 - Metadata summaries now report the actual delivered audio file size (post-extraction) instead of the source MP4 size
+- JSON outputs now include log file path when `--log-file` is specified
+- Deterministic STJ output (rounded to 3 decimals) and idempotent regeneration
+
+#### Date & Time Handling
+- Date shortcuts in `dlzoom recordings --range` now use UTC consistently (previously used local timezone)
+- Recording date range queries properly handle timezone boundaries
+
+#### Other Improvements
+- Respect skip cascade: `--skip-timeline` also prevents STJ generation
+- Config file validation: Missing config file path now raises clear error instead of being silently ignored
+
+### Fixed
+- **Path expansion**: Tilde (`~`) in paths now properly expands on all platforms (Windows, macOS, Linux)
+  - Affects `--output-dir`, `--log-file`, and config file paths
+- **Audio file tracking**: Metadata now reflects extracted audio size, not source MP4 size
+- **Cross-platform compatibility**: Resolved test failures and path handling issues on Windows
 
 ### Documentation
+- Added repository banner image at top of README
 - Added design plan: `docs/internal/stj-minimal-json-plan.md`
-- README: documented STJ feature, CLI flags, and env toggle
+- Added STJ specification link and feature documentation
+- Clarified hosted login status and security considerations
+- Documented platform-specific token storage locations (macOS/Linux/Windows)
+- Consolidated OAuth broker CI/CD guidance across documentation
+- Updated architecture documentation with scope system details
+
+### Infrastructure
+- Added GitHub Actions workflow for automatic Cloudflare Workers deployment
+- Updated SARIF upload actions to v4
+- Enhanced CI testing for cross-platform compatibility
+- Added environment variable configuration for broker unit tests
+
+### Testing
+- Added comprehensive test coverage for scope system (~700 lines)
+- Added tests for recordings iteration and date chunking
+- Added CLI check-availability test coverage
+- Improved cross-platform test reliability
+- Added test utilities for CLI testing (`tests/cli_test_utils.py`)
 
 
 ## [0.2.1] - 2025-11-13
@@ -291,3 +358,5 @@ Report issues at: <https://github.com/yaniv-golan/dlzoom/issues>
 
 [0.1.0]: https://github.com/yaniv-golan/dlzoom/releases/tag/v0.1.0
 [0.2.0]: https://github.com/yaniv-golan/dlzoom/compare/v0.1.0...v0.2.0
+[0.2.1]: https://github.com/yaniv-golan/dlzoom/compare/v0.2.0...v0.2.1
+[0.3.0]: https://github.com/yaniv-golan/dlzoom/compare/v0.2.1...v0.3.0
