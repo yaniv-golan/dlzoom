@@ -110,6 +110,20 @@ class Downloader:
             return f"_{safe.lower()}"
         return ""
 
+    def _ensure_unique_path(self, desired_path: Path) -> Path:
+        """Return a unique path by appending a numeric suffix when needed."""
+        if self.overwrite or not desired_path.exists():
+            return desired_path
+
+        stem = desired_path.stem
+        suffix = desired_path.suffix
+        counter = 2
+        while True:
+            candidate = desired_path.with_name(f"{stem}_{counter}{suffix}")
+            if not candidate.exists():
+                return candidate
+            counter += 1
+
     def generate_filename(
         self, file_info: dict[str, Any], meeting_topic: str, instance_start: str | None = None
     ) -> str:
@@ -702,12 +716,15 @@ class Downloader:
                         if not do_skip_speakers:
                             from dlzoom.stj_minimizer import write_minimal_stj_from_file
 
-                            # Compute output base name
-                            stj_base = self.output_name or Path(path).stem
-                            speaker_suffix = self._unique_suffix(file_info)
-                            stj_path = (
-                                self.output_dir / f"{stj_base}_speakers{speaker_suffix}.stjson"
-                            )
+                            # Compute output path using template-driven base name when available
+                            if self.output_name:
+                                stj_filename = f"{self.output_name}_speakers.stjson"
+                            else:
+                                stj_base = Path(path).stem
+                                speaker_suffix = self._unique_suffix(file_info)
+                                stj_filename = f"{stj_base}_speakers{speaker_suffix}.stjson"
+
+                            stj_path = self._ensure_unique_path(self.output_dir / stj_filename)
 
                             self.logger.info(
                                 f"Generating minimal STJ speakers file: {stj_path.name}"

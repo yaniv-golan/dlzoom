@@ -5,6 +5,7 @@ These tests verify the critical path: client -> token retrieval -> Downloader ->
 """
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -333,6 +334,62 @@ class TestDownloadFlowIntegration:
         # Token should NOT be retrieved in dry run mode
         # (returns early before downloader construction)
         mock_zoom_client._get_access_token.assert_not_called()
+
+    def test_summary_reports_created_files(self, mock_zoom_client: Mock, tmp_path: Path) -> None:
+        """Final summary should include count of generated files."""
+
+        selector = RecordingSelector()
+        formatter = OutputFormatter("human")
+        captured_messages: list[str] = []
+
+        def capture_success(message: str) -> None:
+            captured_messages.append(message)
+
+        formatter.output_success = capture_success  # type: ignore[assignment]
+
+        class FakeDownloader:
+            def __init__(self, output_dir: Path, access_token: str, output_name: str, **_: Any):
+                self.output_dir = output_dir
+                self.output_name = output_name
+
+            def download_file(self, *args: Any, **kwargs: Any) -> Path:
+                audio_path = self.output_dir / "summary_audio.m4a"
+                audio_path.write_bytes(b"audio")
+                return audio_path
+
+            def download_transcripts_and_chat(
+                self, *args: Any, **kwargs: Any
+            ) -> dict[str, list[Path]]:
+                speaker_path = self.output_dir / "summary_speakers.stjson"
+                speaker_path.write_text("{}")
+                return {"vtt": [], "txt": [], "timeline": [], "speakers": [speaker_path]}
+
+        with patch("dlzoom.handlers.Downloader", FakeDownloader):
+            _handle_download_mode(
+                client=mock_zoom_client,
+                selector=selector,
+                meeting_id="created-files-test",
+                recording_id=None,
+                output_dir=tmp_path,
+                output_name="created_files",
+                skip_transcript=True,
+                skip_chat=True,
+                skip_timeline=False,
+                dry_run=False,
+                log_file=None,
+                formatter=formatter,
+                verbose=False,
+                debug=False,
+                json_mode=False,
+                wait=None,
+                filename_template=None,
+                folder_template=None,
+            )
+
+        assert captured_messages, "Expected success messages to be recorded"
+        final_message = captured_messages[-1]
+        assert "Downloaded 1 file(s)" in final_message
+        assert "created 2 file(s)" in final_message
 
 
 class TestDownloaderConstructorSignature:

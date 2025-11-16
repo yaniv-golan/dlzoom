@@ -1242,10 +1242,29 @@ def _handle_download_mode(
     downloader = Downloader(output_dir, access_token, output_name, stj_context=stj_context)
     extractor = AudioExtractor()
     downloaded_files: list[Path] = []
+    generated_files: list[Path] = []
     delivered_audio_files: list[Path] = []
     retained_video_files: list[Path] = []
+    _downloaded_index: set[str] = set()
+    _generated_index: set[str] = set()
     _delivered_audio_index: set[str] = set()
     _retained_video_index: set[str] = set()
+
+    def _track_downloaded_file(path: Path | None) -> None:
+        if not path:
+            return
+        normalized = str(path)
+        if normalized not in _downloaded_index:
+            downloaded_files.append(path)
+            _downloaded_index.add(normalized)
+
+    def _track_generated_file(path: Path | None) -> None:
+        if not path:
+            return
+        normalized = str(path)
+        if normalized not in _generated_index:
+            generated_files.append(path)
+            _generated_index.add(normalized)
 
     def _track_audio_file(path: Path | None) -> None:
         if not path:
@@ -1301,7 +1320,7 @@ def _handle_download_mode(
         instance_start,
         show_progress=not json_mode,
     )
-    downloaded_files.append(audio_path)
+    _track_downloaded_file(audio_path)
     delivered_audio_path = audio_path
 
     if audio_path.suffix.lower() == ".mp4":
@@ -1319,7 +1338,7 @@ def _handle_download_mode(
         formatter.output_success(f"Audio extracted: {audio_m4a_path}")
         formatter.output_info(f"MP4 file retained: {audio_path}")
         audio_extracted_from_video = True
-        downloaded_files.append(audio_m4a_path)
+        _track_generated_file(audio_m4a_path)
         delivered_audio_path = audio_m4a_path
         _track_audio_file(audio_m4a_path)
     else:
@@ -1327,8 +1346,6 @@ def _handle_download_mode(
 
     if delivered_audio_path:
         _track_audio_file(delivered_audio_path)
-        if delivered_audio_path not in downloaded_files:
-            downloaded_files.append(delivered_audio_path)
 
     if not skip_transcript or not skip_chat or not skip_timeline:
         transcript_files = downloader.download_transcripts_and_chat(
@@ -1345,8 +1362,10 @@ def _handle_download_mode(
             stj_merge_gap_sec=stj_merge_gap_sec,
             include_unknown=include_unknown,
         )
-        for paths in transcript_files.values():
-            downloaded_files.extend(paths)
+        for category, paths in transcript_files.items():
+            tracker = _track_generated_file if category == "speakers" else _track_downloaded_file
+            for path in paths:
+                tracker(path)
 
     participants: list[dict[str, Any]] = []
     if meeting_uuid and isinstance(client, ZoomClient):
@@ -1453,6 +1472,7 @@ def _handle_download_mode(
     metadata_path = output_dir / f"{metadata_basename}_metadata.json"
     with open(metadata_path, "w") as f:
         _json.dump(metadata, f, indent=2)
+    _track_generated_file(metadata_path)
     formatter.output_success(f"Metadata saved: {metadata_path}")
 
     # Write structured log if requested
@@ -1461,7 +1481,7 @@ def _handle_download_mode(
             log_path = log_file_path
             log_path.parent.mkdir(parents=True, exist_ok=True)
             with open(log_path, "a") as f:
-                for file_path in downloaded_files:
+                for file_path in downloaded_files + generated_files:
                     log_entry = {
                         "meeting_id": meeting_id,
                         "meeting_uuid": meeting_uuid,
@@ -1474,10 +1494,34 @@ def _handle_download_mode(
         except OSError as e:
             warnings.append(f"Could not write log file: {e}")
 
-    formatter.output_success(f"Downloaded {len(downloaded_files)} file(s) to {output_dir}")
+    download_count = len(downloaded_files)
+    created_count = len(generated_files)
+    summary_message = f"Downloaded {download_count} file(s)"
+    if created_count:
+        summary_message += f" and created {created_count} file(s)"
+    summary_message += f" to {output_dir}"
+    formatter.output_success(summary_message)
+
+    if not json_mode:
+
+        def _display_path(path: Path) -> str:
+            try:
+                return str(path.relative_to(output_dir))
+            except ValueError:
+                return str(path)
+
+        if downloaded_files:
+            formatter.output_info("Downloaded files:")
+            for path in downloaded_files:
+                formatter.output_info(f"  - {_display_path(path)}")
+        if generated_files:
+            formatter.output_info("Created files:")
+            for path in generated_files:
+                formatter.output_info(f"  - {_display_path(path)}")
 
     if json_mode:
         files_dict: dict[str, Any] = {"metadata": str(metadata_path.absolute())}
+        all_file_paths = downloaded_files + generated_files
         audio_files = delivered_audio_files or [
             f for f in downloaded_files if f.suffix.lower() == ".m4a"
         ]
@@ -1500,7 +1544,7 @@ def _handle_download_mode(
         if timeline_files:
             files_dict["timeline"] = str(timeline_files[0].absolute())
             files_dict["timelines"] = [str(f.absolute()) for f in timeline_files]
-        speaker_files = [f for f in downloaded_files if f.suffix.lower().endswith("stjson")]
+        speaker_files = [f for f in all_file_paths if f.suffix.lower().endswith("stjson")]
         if speaker_files:
             files_dict["speakers"] = [str(f.absolute()) for f in speaker_files]
         video_files = retained_video_files or [
@@ -1526,6 +1570,11 @@ def _handle_download_mode(
         result["output_name"] = str(output_name)
         result["files"] = files_dict
         result["metadata_summary"] = metadata_summary
+        result["downloaded_file_count"] = len(downloaded_files)
+        result["created_file_count"] = len(generated_files)
+        result["downloaded_files"] = [str(f.absolute()) for f in downloaded_files]
+        if generated_files:
+            result["created_files"] = [str(f.absolute()) for f in generated_files]
         if log_file_str:
             result["log_file"] = log_file_str
         _append_scope_fields(result)

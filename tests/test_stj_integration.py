@@ -57,10 +57,84 @@ def test_downloader_generates_stj_by_default(monkeypatch, tmp_path):
     )
 
     assert files["timeline"][0] == timeline_path
-    assert "_speakers" in files["speakers"][0].name
+    assert files["speakers"][0].name == "meeting_speakers.stjson"
     # Ensure STJ was written with expected base name
-    assert calls["output_path"].name.startswith("meeting_speakers")
+    assert calls["output_path"].name == "meeting_speakers.stjson"
     assert calls["output_path"].exists()
+
+
+def test_downloader_stj_without_output_name_uses_unique_suffix(monkeypatch, tmp_path):
+    d = Downloader(output_dir=tmp_path, access_token="token")
+    timeline_path = _make_timeline_file(tmp_path)
+    monkeypatch.setattr(Downloader, "download_file", lambda *a, **k: timeline_path)
+
+    def fake_writer(timeline_path, output_path, **opts):
+        Path(output_path).write_text("{}\n")
+        return output_path
+
+    monkeypatch.setenv("DLZOOM_SPEAKERS", "1")
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "dlzoom.stj_minimizer",
+        __import__("types").SimpleNamespace(write_minimal_stj_from_file=fake_writer),
+    )
+
+    files = d.download_transcripts_and_chat(
+        recording_files=[
+            {
+                "file_extension": "JSON",
+                "file_type": "TIMELINE",
+                "download_url": "https://zoom.us/rec/download/foo",
+                "id": "abc123",
+            }
+        ],
+        meeting_topic="Topic",
+        instance_start=None,
+        show_progress=False,
+        skip_transcript=True,
+        skip_chat=True,
+        skip_timeline=False,
+    )
+
+    assert files["speakers"][0].name == "timeline_speakers_abc123.stjson"
+
+
+def test_downloader_stj_template_name_dedupes(monkeypatch, tmp_path):
+    existing = tmp_path / "meeting_speakers.stjson"
+    existing.write_text("{}")
+
+    d = Downloader(output_dir=tmp_path, access_token="token", output_name="meeting")
+    timeline_path = _make_timeline_file(tmp_path)
+    monkeypatch.setattr(Downloader, "download_file", lambda *a, **k: timeline_path)
+
+    def fake_writer(timeline_path, output_path, **opts):
+        Path(output_path).write_text("{}\n")
+        return output_path
+
+    monkeypatch.setenv("DLZOOM_SPEAKERS", "1")
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "dlzoom.stj_minimizer",
+        __import__("types").SimpleNamespace(write_minimal_stj_from_file=fake_writer),
+    )
+
+    files = d.download_transcripts_and_chat(
+        recording_files=[
+            {
+                "file_extension": "JSON",
+                "file_type": "TIMELINE",
+                "download_url": "https://zoom.us/rec/download/foo",
+            }
+        ],
+        meeting_topic="Topic",
+        instance_start=None,
+        show_progress=False,
+        skip_transcript=True,
+        skip_chat=True,
+        skip_timeline=False,
+    )
+
+    assert files["speakers"][0].name == "meeting_speakers_2.stjson"
 
 
 def test_downloader_skip_speakers(monkeypatch, tmp_path):
