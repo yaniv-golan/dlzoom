@@ -5,7 +5,17 @@ All notable changes to dlzoom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - Unreleased
+## [0.3.1] - Unreleased
+
+### Added
+
+#### Meeting ID Input Enhancement
+- Space-separated meeting IDs now work without quotes
+  - Users can type `dlzoom download 123 4567 1111` instead of `"123 4567 1111"`
+  - CLI automatically joins space-separated numeric parts into a single meeting ID
+  - Maintains backward compatibility with quoted IDs and UUIDs
+
+## [0.3.0] - 2025-11-16
 
 ### Added
 

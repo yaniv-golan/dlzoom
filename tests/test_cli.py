@@ -31,6 +31,16 @@ class TestValidateMeetingId:
         # Mixed whitespace
         assert validate_meeting_id(ctx, param, "882\n9060\t9309") == "88290609309"
 
+    def test_validate_meeting_id_tuple_input(self):
+        ctx, param = self._ctx_param()
+
+        # Tuple input (from nargs=-1)
+        assert validate_meeting_id(ctx, param, ("852", "9282", "6718")) == "85292826718"
+        assert validate_meeting_id(ctx, param, ("882", "9060", "9309")) == "88290609309"
+
+        # Empty tuple
+        assert validate_meeting_id(ctx, param, ()) is None
+
     def test_validate_meeting_id_uuid_with_spaces(self):
         ctx, param = self._ctx_param()
 

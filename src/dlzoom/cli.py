@@ -75,7 +75,7 @@ logger = logging.getLogger(__name__)
 
 
 def validate_meeting_id(
-    ctx: click.Context, param: click.Parameter, value: str | None
+    ctx: click.Context, param: click.Parameter, value: str | tuple[str, ...] | None
 ) -> str | None:
     """
     Validate meeting ID format to prevent injection attacks
@@ -87,7 +87,7 @@ def validate_meeting_id(
     Args:
         ctx: Click context
         param: Parameter object
-        value: Meeting ID value to validate
+        value: Meeting ID value to validate (can be a tuple if nargs=-1)
 
     Returns:
         Validated meeting ID or None if value is None
@@ -96,10 +96,15 @@ def validate_meeting_id(
         click.BadParameter: If meeting ID format is invalid
     """
     # Normalize: remove whitespace, strip URL fragments, and decode percent-encoding
-    if value is None:
+    if value is None or (isinstance(value, tuple) and len(value) == 0):
         # Allow None for optional option usage; required arguments should not pass None.
         return None
-    raw = str(value).strip()
+
+    # If value is a tuple (from nargs=-1), join the parts
+    if isinstance(value, tuple):
+        raw = " ".join(str(v) for v in value).strip()
+    else:
+        raw = str(value).strip()
 
     # If user pasted a URL or an encoded UUID, strip fragment/query and decode
     # Examples handled:
@@ -578,7 +583,7 @@ def recordings(
 
 
 @cli.command(name="download", help="Download Zoom cloud recordings")
-@click.argument("meeting_id", callback=validate_meeting_id, required=False)
+@click.argument("meeting_id", nargs=-1, callback=validate_meeting_id, required=False)
 @click.option(
     "--output-dir",
     "-o",
