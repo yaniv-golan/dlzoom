@@ -7,19 +7,26 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
 from pathlib import Path
+from typing import Any, cast
 
 import requests
 
-from dlzoom.token_store import Tokens, load as load_tokens, save as save_tokens
+from dlzoom.token_store import Tokens
+from dlzoom.token_store import save as save_tokens
 
 
 class ZoomUserClient:
-    def __init__(self, tokens: Tokens, tokens_path: str | None = None):
-        self.base_url = "https://api.zoom.us/v2"
-        self._tokens = tokens
-        self._tokens_path = tokens_path
+    def __init__(
+        self,
+        tokens: Tokens,
+        tokens_path: str | None = None,
+        *,
+        base_url: str = "https://api.zoom.us/v2",
+    ):
+        self.base_url = base_url.rstrip("/")
+        self._tokens: Tokens = tokens
+        self._tokens_path: str | None = tokens_path
         # In-process simple lock for refresh single-flight
         from threading import Lock
 
@@ -37,7 +44,7 @@ class ZoomUserClient:
     def _get_access_token(self) -> str:
         """Provide current access token (refresh if needed) for downloader compatibility."""
         self._maybe_refresh()
-        return self._tokens.access_token
+        return str(self._tokens.access_token)
 
     def _refresh_tokens(self) -> None:
         url = f"{self._tokens.auth_url.rstrip('/')}/zoom/token/refresh"
@@ -72,15 +79,32 @@ class ZoomUserClient:
         try:
             if self._tokens_path:
                 save_tokens(Path(self._tokens_path), self._tokens)
-        except Exception:
-            # Non-fatal
-            pass
+        except Exception as e:
+            # Non-fatal, but log warning
+            import logging
 
-    def _auth_headers(self) -> dict[str, str]:
-        return {
+            logging.warning(
+                f"Failed to persist refreshed tokens to {self._tokens_path}: {e}. "
+                "You may need to re-authenticate sooner than expected."
+            )
+
+    def _auth_headers(self, include_content_type: bool = False) -> dict[str, str]:
+        """
+        Build authentication headers.
+
+        Args:
+            include_content_type: Only set Content-Type for methods with body (POST, PUT, PATCH)
+        """
+        from dlzoom import __version__
+
+        headers = {
             "Authorization": f"Bearer {self._tokens.access_token}",
-            "Content-Type": "application/json",
+            "User-Agent": f"dlzoom/{__version__} (https://github.com/yaniv-golan/dlzoom)",
+            "Accept": "application/json",
         }
+        if include_content_type:
+            headers["Content-Type"] = "application/json"
+        return headers
 
     def _request(
         self,
@@ -99,12 +123,15 @@ class ZoomUserClient:
             url,
             {k: v for k, v in (params or {}).items()},
         )
+        # Only include Content-Type for methods with body
+        include_content_type = method.upper() in ("POST", "PUT", "PATCH")
+
         for attempt in range(retry_count):
             try:
                 resp = requests.request(
                     method,
                     url,
-                    headers=self._auth_headers(),
+                    headers=self._auth_headers(include_content_type=include_content_type),
                     params=params,
                     timeout=30,
                 )
@@ -114,9 +141,7 @@ class ZoomUserClient:
                 if resp.status_code in (429, 500, 502, 503, 504):
                     if attempt < retry_count - 1:
                         wait_time = backoff_factor * (2**attempt)
-                        status_name = (
-                            "Rate limit" if resp.status_code == 429 else "Server error"
-                        )
+                        status_name = "Rate limit" if resp.status_code == 429 else "Server error"
                         logging.warning(
                             f"{status_name} (HTTP {resp.status_code}), retrying in {wait_time}s "
                             f"(attempt {attempt + 1}/{retry_count})"
@@ -136,14 +161,17 @@ class ZoomUserClient:
                     resp = requests.request(
                         method,
                         url,
-                        headers=self._auth_headers(),
+                        headers=self._auth_headers(include_content_type=include_content_type),
                         params=params,
                         timeout=30,
                     )
                     logging.debug("Zoom API response after refresh: HTTP %s", resp.status_code)
                 resp.raise_for_status()
-                data = resp.json()
-                logging.debug("Zoom API ok: keys=%s", list(data.keys()) if isinstance(data, dict) else type(data).__name__)
+                data = cast(dict[str, Any], resp.json())
+                logging.debug(
+                    "Zoom API ok: keys=%s",
+                    (list(data.keys()) if isinstance(data, dict) else type(data).__name__),
+                )
                 return data
             except requests.exceptions.HTTPError as e:
                 raise ZoomUserAPIError(f"Zoom API error: {e}") from e

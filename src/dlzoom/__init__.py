@@ -3,7 +3,7 @@ dlzoom - Download Zoom cloud recordings via API
 """
 
 try:
-    from importlib.metadata import PackageNotFoundError, version
+    from importlib.metadata import version
 
     __version__ = version("dlzoom")
 except Exception:

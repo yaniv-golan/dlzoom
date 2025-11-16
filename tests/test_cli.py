@@ -1,7 +1,12 @@
+import json
+
 import click
 import pytest
+from click.testing import CliRunner
 
+from dlzoom.cli import cli as dlzoom_cli
 from dlzoom.cli import validate_meeting_id
+from dlzoom.exceptions import ConfigError
 from dlzoom.templates import TemplateParser
 
 
@@ -100,7 +105,23 @@ class TestOutputNameSanitization:
         parser = TemplateParser()
 
         # UUIDs with slashes should be sanitized
-        assert parser._sanitize_filename("/abc123") == "abc123"
-        assert parser._sanitize_filename("abc/def") == "abc_def"
-        assert parser._sanitize_filename("//abc//def//") == "abc_def"
+        assert parser.sanitize_filename("/abc123") == "abc123"
+        assert parser.sanitize_filename("abc/def") == "abc_def"
+        assert parser.sanitize_filename("//abc//def//") == "abc_def"
 
+
+class TestCliConfigErrors:
+    def test_download_json_config_error_uses_invalid_config_code(self, monkeypatch):
+        runner = CliRunner()
+
+        def fake_config(*args, **kwargs):
+            raise ConfigError("Missing Zoom credentials", details="set env vars")
+
+        monkeypatch.setattr("dlzoom.cli.Config", fake_config)
+
+        result = runner.invoke(dlzoom_cli, ["download", "123456789", "--json"])
+        assert result.exit_code != 0
+
+        payload = json.loads(result.output)
+        assert payload["error"]["code"] == "INVALID_CONFIG"
+        assert "Missing Zoom credentials" in payload["error"]["message"]

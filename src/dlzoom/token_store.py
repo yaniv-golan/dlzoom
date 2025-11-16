@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
 VERSION = 1
 
 
@@ -41,23 +40,48 @@ def exists(path: Path) -> bool:
 
 
 def load(path: Path) -> Tokens | None:
+    """Load tokens from file. Returns None if file doesn't exist or is invalid."""
     if not path.exists():
         return None
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        # Return None for invalid/unreadable files - caller will prompt for login
+        import logging
+
+        logging.warning(f"Could not load tokens from {path}: {e}")
+        return None
+
+    # Validate required fields
+    required_fields = ["access_token", "refresh_token", "expires_at", "auth_url"]
+    if not all(field in data for field in required_fields):
+        import logging
+
+        logging.warning(f"Token file missing required fields: {path}")
+        return None
+
     # Minimal validation
     if data.get("version") != VERSION:
         # Allow forward compatibility if keys exist
         pass
-    return Tokens(
-        token_type=str(data.get("token_type", "Bearer")),
-        access_token=str(data["access_token"]),
-        refresh_token=str(data["refresh_token"]),
-        expires_at=int(data["expires_at"]),
-        issued_at=int(data.get("issued_at", int(time.time()))),
-        scope=data.get("scope"),
-        auth_url=str(data["auth_url"]),
-    )
+
+    try:
+        return Tokens(
+            token_type=str(data.get("token_type", "Bearer")),
+            access_token=str(data["access_token"]),
+            refresh_token=str(data["refresh_token"]),
+            expires_at=int(data["expires_at"]),
+            issued_at=int(data.get("issued_at", int(time.time()))),
+            scope=data.get("scope"),
+            auth_url=str(data["auth_url"]),
+        )
+    except (KeyError, ValueError, TypeError) as e:
+        import logging
+
+        logging.warning(f"Invalid token data in {path}: {e}")
+        return None
 
 
 def save(path: Path, tokens: Tokens) -> None:

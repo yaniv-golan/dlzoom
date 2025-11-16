@@ -15,7 +15,7 @@ How to get help
 Helpful details to include
 - Your OS (macOS/Windows/Linux) and dlzoom version.
 - The command you ran and the full output (remove any tokens).
-- Whether you used the default hosted sign‑in or your own.
+- Whether you used the hosted sign‑in (when enabled) or your own.
 
 Security
 - If you think you found a security issue, email us at yaniv+dlzoom@golan.name. Don’t post details publicly. We aim to acknowledge within 72 hours.
@@ -24,7 +24,7 @@ Service level
 - dlzoom is a community, open‑source project with no SLA. We provide best‑effort support.
 
 Check service status
-- Using the default hosted sign‑in? We’ll note incidents on GitHub issues.
+- Using the hosted sign‑in (when enabled)? We’ll note incidents on GitHub issues.
 - Hosting your own sign‑in? Check your cloud provider’s status/dashboard.
 
 Uninstall / revoke access

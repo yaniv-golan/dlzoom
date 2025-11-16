@@ -6,7 +6,6 @@ tokens saved by `dlzoom login`.
 """
 
 import json
-import logging
 from typing import Any
 
 import rich_click as click
@@ -14,11 +13,11 @@ from rich.console import Console
 
 from dlzoom.config import Config, ConfigError
 from dlzoom.exceptions import DlzoomError
+from dlzoom.logger import setup_logging
 from dlzoom.output import OutputFormatter
+from dlzoom.token_store import load as load_tokens
 from dlzoom.zoom_client import ZoomAPIError, ZoomClient
 from dlzoom.zoom_user_client import ZoomUserClient
-from dlzoom.token_store import load as load_tokens
-
 
 console = Console()
 
@@ -33,7 +32,7 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
     """
     # Setup logging level
     log_level = "DEBUG" if debug else ("INFO" if verbose else "WARNING")
-    logging.basicConfig(level=getattr(logging, log_level))
+    setup_logging(level=log_level, verbose=debug or verbose)
 
     formatter = OutputFormatter("json" if json_mode else "human")
 
@@ -44,26 +43,31 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
         use_s2s = bool(cfg.zoom_account_id and cfg.zoom_client_id and cfg.zoom_client_secret)
         if use_s2s:
             client: Any = ZoomClient(
-                str(cfg.zoom_account_id), str(cfg.zoom_client_id), str(cfg.zoom_client_secret)
+                str(cfg.zoom_account_id),
+                str(cfg.zoom_client_id),
+                str(cfg.zoom_client_secret),
             )
+            client.base_url = cfg.zoom_api_base_url.rstrip("/")
+            client.token_url = cfg.zoom_oauth_token_url or client.token_url
             mode = "Server-to-Server OAuth"
         else:
             tokens = load_tokens(cfg.tokens_path)
             if not tokens:
                 raise ConfigError(
-                    "Not signed in. Run 'dlzoom login' or configure S2S credentials in your environment."
+                    "Not signed in. Run 'dlzoom login' or configure S2S "
+                    "credentials in your environment."
                 )
             client = ZoomUserClient(tokens, str(cfg.tokens_path))
+            if hasattr(client, "base_url"):
+                client.base_url = cfg.zoom_api_base_url.rstrip("/")
             mode = "User OAuth"
 
         user = None
-        profile_supported = True
         try:
             user = client.get_current_user()
         except Exception:
             # Some tokens (e.g., our user OAuth scopes) may not include profile-read scopes.
             # Fall back to a capability check using recordings (within granted scopes).
-            profile_supported = False
             try:
                 # Minimal sanity call: list 1 recording page to validate token works
                 _ = client.get_user_recordings(user_id="me", page_size=1)
@@ -76,9 +80,8 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
                 out["user"] = user
             else:
                 out["user"] = None
-                out["note"] = (
-                    "Token valid, but profile endpoint not permitted by current scopes"
-                )
+                out["error_code"] = "scope_insufficient"
+                out["note"] = "Token valid, but profile endpoint not permitted by current scopes"
             print(json.dumps(out, indent=2))
             return
 
@@ -89,10 +92,14 @@ def main(json_mode: bool, verbose: bool, debug: bool) -> None:
             console.print(f"[bold]Email:[/bold] {user.get('email', 'N/A')}")
             console.print(f"[bold]User ID:[/bold] {user.get('id', 'N/A')}")
             if use_s2s:
-                console.print(f"[bold]Account ID:[/bold] {user.get('account_id', 'N/A')}")
+                console.print(
+                    f"[bold]Account ID (API):[/bold] {user.get('account_id', 'N/A')} "
+                    "[dim](Note: This is the API account ID, not your Zoom account number)[/dim]"
+                )
         else:
             console.print(
-                "Token is valid (recordings accessible), but profile details are not available with current scopes."
+                "Token is valid (recordings accessible), but profile details are not "
+                "available with current scopes."
             )
 
     except ConfigError as e:

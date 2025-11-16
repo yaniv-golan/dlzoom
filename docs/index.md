@@ -12,4 +12,3 @@ permalink: /
 - Zoom App: [Support]({{ '/zoom-app/support/' | relative_url }})
 
 Project repository: [github.com/yaniv-golan/dlzoom](https://github.com/yaniv-golan/dlzoom)
-
