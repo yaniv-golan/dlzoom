@@ -135,3 +135,57 @@ class TestCliConfigErrors:
         payload = json.loads(result.output)
         assert payload["error"]["code"] == "INVALID_CONFIG"
         assert "Missing Zoom credentials" in payload["error"]["message"]
+
+
+class TestCliUserConfigDiscovery:
+    def test_download_uses_user_config_file(self, tmp_path, monkeypatch):
+        config_dir = tmp_path / "dlzoom"
+        config_dir.mkdir()
+        (config_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "zoom_account_id": "file_account",
+                    "zoom_client_id": "file_client",
+                    "zoom_client_secret": "file_secret",
+                }
+            )
+        )
+
+        # Point platformdirs to our temp config dir and clear env vars
+        monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(config_dir))
+        for key in ("ZOOM_ACCOUNT_ID", "ZOOM_CLIENT_ID", "ZOOM_CLIENT_SECRET"):
+            monkeypatch.delenv(key, raising=False)
+
+        captured: dict[str, object] = {}
+
+        class DummyZoomClient:
+            def __init__(self, account_id: str, client_id: str, client_secret: str):
+                captured["creds"] = (account_id, client_id, client_secret)
+                self.base_url = ""
+                self.token_url = ""
+
+        def fake_handle_download_mode(**kwargs):
+            captured["handled"] = True
+            captured["scope"] = kwargs.get("scope")
+            captured["client"] = kwargs.get("client")
+
+        monkeypatch.setattr("dlzoom.cli.ZoomClient", DummyZoomClient)
+        monkeypatch.setattr("dlzoom.cli._h._handle_download_mode", fake_handle_download_mode)
+        monkeypatch.setattr("dlzoom.cli.load_tokens", lambda path: None)
+        monkeypatch.setenv("DLZOOM_NO_DOTENV", "1")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            dlzoom_cli,
+            [
+                "download",
+                "123456789",
+                "--skip-transcript",
+                "--skip-chat",
+                "--skip-timeline",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured.get("handled") is True
+        assert captured.get("creds") == ("file_account", "file_client", "file_secret")

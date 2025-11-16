@@ -314,7 +314,41 @@ The Worker supports automatic CI/CD via Cloudflare's Git integration (pushes to 
 
 ### Server‑to‑Server (S2S) OAuth (admins/automation)
 
-Create a `.env` or export environment variables:
+#### Option 1: User config file (recommended for humans)
+
+dlzoom now auto-loads S2S credentials from your platform config directory, so S2S works from any folder (just like OAuth tokens). Create **one** config file and be done:
+
+| Platform | Config directory | Example path |
+| --- | --- | --- |
+| Linux / WSL / other Unix | `~/.config/dlzoom/` | `~/.config/dlzoom/config.json` |
+| macOS | `~/Library/Application Support/dlzoom/` | `~/Library/Application Support/dlzoom/config.json` |
+| Windows | `%APPDATA%\dlzoom\` | `%APPDATA%\dlzoom\config.json` |
+
+The CLI looks for `config.json`, `config.yaml`, or `config.yml` (in that order). Example JSON:
+
+```json
+{
+  "zoom_account_id": "your_account_id",
+  "zoom_client_id": "your_client_id",
+  "zoom_client_secret": "your_client_secret",
+  "zoom_s2s_default_user": "host@example.com"  // optional
+}
+```
+
+Example YAML:
+
+```yaml
+zoom_account_id: your_account_id
+zoom_client_id: your_client_id
+zoom_client_secret: your_client_secret
+```
+
+Tips:
+- Create the directory if it doesn’t exist and set restrictive permissions (`chmod 600` on macOS/Linux).
+- Use JSON/YAML interchangeably—fields match their environment variable counterparts.
+- Add optional defaults like `log_level`, `output_dir`, or `zoom_s2s_default_user`.
+
+#### Option 2: Environment variables (automation / CI)
 
 ```bash
 export ZOOM_ACCOUNT_ID="your_account_id"
@@ -322,20 +356,13 @@ export ZOOM_CLIENT_ID="your_client_id"
 export ZOOM_CLIENT_SECRET="your_client_secret"
 ```
 
-Or use a config file:
+This is ideal for CI/CD. Env vars override the user config file (unless you pass an explicit `--config` path).
 
-```yaml
-# config.yaml
-zoom_account_id: "your_account_id"
-zoom_client_id: "your_client_id"
-zoom_client_secret: "your_client_secret"
-log_level: "INFO"
-```
+#### Option 3: Project overrides (.env or `--config`)
 
-Automatic .env loading:
-
-- dlzoom searches upward from your CWD and loads the first `.env` it finds (does not override existing env vars).
-- Opt out by setting `DLZOOM_NO_DOTENV=1` (useful in CI or deterministic scripts).
+- dlzoom automatically loads the first `.env` file it finds when walking up from the current directory (without clobbering existing env vars). Set `DLZOOM_NO_DOTENV=1` to skip this behavior.
+- For multiple Zoom accounts, point commands at explicit files: `dlzoom download --config ./account-b.yaml 123456789`
+- Priority (highest → lowest): explicit `--config`, environment variables, user config file, project `.env`, defaults.
 
 Optional scopes for User OAuth (improve fidelity):
 
@@ -459,7 +486,7 @@ Common options:
 
 Common errors and fixes:
 
-- Authentication failed → Check `.env` or environment variables.
+- Authentication failed → Ensure your platform config file (`~/.config/dlzoom/config.json`, `~/Library/Application Support/dlzoom/config.json`, or `%APPDATA%\dlzoom\config.json`) or env vars contain `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`.
 - Invalid meeting ID → Paste only the ID/UUID. Spaces are fine; they’re removed automatically.
 - ffmpeg not found → Install ffmpeg (or use Docker image). Needed when audio-only is unavailable and dlzoom extracts audio from MP4.
 

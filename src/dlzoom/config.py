@@ -5,7 +5,7 @@ Configuration management for dlzoom
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit, urlunsplit
 
 from dotenv import load_dotenv
@@ -47,25 +47,35 @@ class Config:
         # 3. .env file
         # 4. Defaults
 
+        self.config_dir = Path(user_config_dir("dlzoom"))
         config_data = {}
 
         # Load from config file if provided
         if env_file is not None:
             config_data = self._load_config_file(env_file)
         else:
+            default_config = self._find_default_config()
+            if default_config:
+                config_data = self._load_config_file(str(default_config))
             # Do not implicitly load .env here to allow tests and callers
             # to control configuration via environment variables explicitly.
             # If a .env-style file path is passed explicitly to env_file or
             # via CLI, _load_config_file() will handle load_dotenv(config_path).
-            pass
 
-        # Required Zoom credentials (prioritize config file, fall back to env)
+        prefer_env_over_file = env_file is None
+
+        def _resolve_s2s_field(config_key: str, env_key: str) -> str | None:
+            config_value = config_data.get(config_key)
+            env_value = os.getenv(env_key)
+            if prefer_env_over_file:
+                return env_value if env_value is not None else config_value
+            return config_value if config_value is not None else env_value
+
+        # Required Zoom credentials (prioritize per source order)
         # Store in private variables to prevent accidental exposure in logs/tracebacks
-        self._zoom_account_id = config_data.get("zoom_account_id") or os.getenv("ZOOM_ACCOUNT_ID")
-        self._zoom_client_id = config_data.get("zoom_client_id") or os.getenv("ZOOM_CLIENT_ID")
-        self._zoom_client_secret = config_data.get("zoom_client_secret") or os.getenv(
-            "ZOOM_CLIENT_SECRET"
-        )
+        self._zoom_account_id = _resolve_s2s_field("zoom_account_id", "ZOOM_ACCOUNT_ID")
+        self._zoom_client_id = _resolve_s2s_field("zoom_client_id", "ZOOM_CLIENT_ID")
+        self._zoom_client_secret = _resolve_s2s_field("zoom_client_secret", "ZOOM_CLIENT_SECRET")
 
         # Optional settings
         output_dir_val = config_data.get("output_dir") or os.getenv("OUTPUT_DIR", ".")
@@ -97,8 +107,7 @@ class Config:
         if configured_tokens_path:
             self.tokens_path = Path(str(configured_tokens_path))
         else:
-            base_dir = Path(user_config_dir("dlzoom"))
-            self.tokens_path = base_dir / "tokens.json"
+            self.tokens_path = self.config_dir / "tokens.json"
 
         # Optional default user for S2S --scope=user fallback
         raw_config_default = config_data.get("zoom_s2s_default_user")
@@ -256,6 +265,19 @@ class Config:
         except yaml.YAMLError as e:
             raise ConfigError(f"Invalid YAML: {e}")
 
+    def _find_default_config(self) -> Path | None:
+        """
+        Locate the default config file in the user config directory.
+
+        Returns:
+            Path to the discovered config file or None if not present.
+        """
+        for filename in ("config.json", "config.yaml", "config.yml"):
+            candidate = self.config_dir / filename
+            if candidate.exists():
+                return candidate
+        return None
+
     def _validate_schema(self, data: dict[str, Any], path: Path) -> None:
         """
         Validate configuration schema
@@ -320,6 +342,18 @@ class Config:
             return True
         except ConfigError:
             return False
+
+    def get_auth_mode(self) -> Literal["s2s", "oauth", "none"]:
+        """Return the active authentication mode based on available credentials."""
+        if self.zoom_account_id and self.zoom_client_id and self.zoom_client_secret:
+            return "s2s"
+        try:
+            if self.tokens_path.exists():
+                return "oauth"
+        except Exception:
+            # If tokens_path points to inaccessible location, treat as none.
+            pass
+        return "none"
 
 
 def _derive_token_url(api_base_url: str) -> str:

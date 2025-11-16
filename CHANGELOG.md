@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--include-unknown` to include segments with unknown speaker
 - Env toggle: `DLZOOM_SPEAKERS=0` disables generation (default is enabled)
 
+#### S2S Configuration Storage
+- Added automatic discovery of `config.json`/`config.yaml`/`config.yml` under the platform config directory (macOS `~/Library/Application Support/dlzoom/`, Linux `~/.config/dlzoom/`, Windows `%APPDATA%\dlzoom\`) so Server-to-Server credentials work from any folder.
+- Environment variables continue to work and now override the discovered config file unless an explicit `--config` path is provided.
+- CLI debug output and error messages now report the active auth mode (S2S vs OAuth) and point to the exact config path users should populate.
+
 #### Recording Scope System (S2S OAuth)
 - New `--scope` option for batch downloads: `auto` (default), `account`, or `user`
   - `account` scope: Download all account recordings (requires admin permissions)

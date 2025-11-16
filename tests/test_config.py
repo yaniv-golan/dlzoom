@@ -192,3 +192,133 @@ def test_yaml_dependency_check_json_works_without_yaml(tmp_path, monkeypatch):
     finally:
         # Restore original state
         dlzoom.config.YAML_AVAILABLE = original_yaml_available
+
+
+def test_config_discovers_user_config_json(tmp_path, monkeypatch):
+    """Config should load credentials from default user config directory."""
+    config_dir = tmp_path / "dlzoom"
+    config_dir.mkdir()
+    config_file = config_dir / "config.json"
+    config_file.write_text(
+        '{"zoom_account_id": "file_account", "zoom_client_id": "file_client", '
+        '"zoom_client_secret": "file_secret"}'
+    )
+
+    monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(config_dir))
+    for key in ["ZOOM_ACCOUNT_ID", "ZOOM_CLIENT_ID", "ZOOM_CLIENT_SECRET"]:
+        monkeypatch.delenv(key, raising=False)
+
+    cfg = Config()
+    assert cfg.zoom_account_id == "file_account"
+    assert cfg.zoom_client_id == "file_client"
+    assert cfg.zoom_client_secret == "file_secret"
+
+
+def test_env_vars_override_user_config(tmp_path, monkeypatch):
+    """Environment variables should override values from user config file."""
+    config_dir = tmp_path / "dlzoom"
+    config_dir.mkdir()
+    (config_dir / "config.json").write_text(
+        '{"zoom_account_id": "file_account", "zoom_client_id": "file_client", '
+        '"zoom_client_secret": "file_secret"}'
+    )
+
+    monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(config_dir))
+    monkeypatch.setenv("ZOOM_ACCOUNT_ID", "env_account")
+    monkeypatch.setenv("ZOOM_CLIENT_ID", "env_client")
+    monkeypatch.setenv("ZOOM_CLIENT_SECRET", "env_secret")
+
+    cfg = Config()
+    assert cfg.zoom_account_id == "env_account"
+    assert cfg.zoom_client_id == "env_client"
+    assert cfg.zoom_client_secret == "env_secret"
+
+
+def test_config_discovers_user_config_yaml(tmp_path, monkeypatch):
+    """YAML config files in user config dir should be discovered."""
+    pytest.importorskip("yaml")
+    config_dir = tmp_path / "dlzoom"
+    config_dir.mkdir()
+    (config_dir / "config.yaml").write_text(
+        "zoom_account_id: yaml_account\n"
+        "zoom_client_id: yaml_client\n"
+        "zoom_client_secret: yaml_secret\n"
+    )
+
+    monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(config_dir))
+    for key in ["ZOOM_ACCOUNT_ID", "ZOOM_CLIENT_ID", "ZOOM_CLIENT_SECRET"]:
+        monkeypatch.delenv(key, raising=False)
+
+    cfg = Config()
+    assert cfg.zoom_account_id == "yaml_account"
+    assert cfg.zoom_client_id == "yaml_client"
+    assert cfg.zoom_client_secret == "yaml_secret"
+
+
+def test_config_discovers_user_config_yml(tmp_path, monkeypatch):
+    """config.yml should also be detected when higher-priority files absent."""
+    pytest.importorskip("yaml")
+    config_dir = tmp_path / "dlzoom"
+    config_dir.mkdir()
+    (config_dir / "config.yml").write_text(
+        "zoom_account_id: yml_account\n"
+        "zoom_client_id: yml_client\n"
+        "zoom_client_secret: yml_secret\n"
+    )
+
+    monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(config_dir))
+    for key in ["ZOOM_ACCOUNT_ID", "ZOOM_CLIENT_ID", "ZOOM_CLIENT_SECRET"]:
+        monkeypatch.delenv(key, raising=False)
+
+    cfg = Config()
+    assert cfg.zoom_account_id == "yml_account"
+    assert cfg.zoom_client_id == "yml_client"
+    assert cfg.zoom_client_secret == "yml_secret"
+
+
+def test_explicit_config_overrides_user_config(tmp_path, monkeypatch):
+    """Explicit --config path should take precedence over discovered config."""
+    default_dir = tmp_path / "dlzoom_default"
+    default_dir.mkdir()
+    default_file = default_dir / "config.json"
+    default_file.write_text(
+        '{"zoom_account_id": "default_account", "zoom_client_id": "default_client", '
+        '"zoom_client_secret": "default_secret"}'
+    )
+
+    explicit_file = tmp_path / "explicit.json"
+    explicit_file.write_text(
+        '{"zoom_account_id": "explicit_account", "zoom_client_id": "explicit_client", '
+        '"zoom_client_secret": "explicit_secret"}'
+    )
+
+    monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(default_dir))
+
+    cfg = Config(env_file=str(explicit_file))
+    assert cfg.zoom_account_id == "explicit_account"
+    assert cfg.zoom_client_id == "explicit_client"
+    assert cfg.zoom_client_secret == "explicit_secret"
+
+
+def test_get_auth_mode(tmp_path, monkeypatch):
+    """get_auth_mode should reflect configured credentials."""
+    config_dir = tmp_path / "dlzoom"
+    config_dir.mkdir()
+    monkeypatch.setattr("dlzoom.config.user_config_dir", lambda _: str(config_dir))
+
+    # No credentials defaults to "none"
+    cfg = Config(env_file=os.devnull)
+    assert cfg.get_auth_mode() == "none"
+
+    # Tokens path present should return oauth
+    tokens_file = cfg.tokens_path
+    tokens_file.parent.mkdir(parents=True, exist_ok=True)
+    tokens_file.write_text("{}")
+    assert cfg.get_auth_mode() == "oauth"
+
+    # S2S credentials should take precedence
+    monkeypatch.setenv("ZOOM_ACCOUNT_ID", "acct")
+    monkeypatch.setenv("ZOOM_CLIENT_ID", "client")
+    monkeypatch.setenv("ZOOM_CLIENT_SECRET", "secret")
+    cfg_with_s2s = Config(env_file=os.devnull)
+    assert cfg_with_s2s.get_auth_mode() == "s2s"
