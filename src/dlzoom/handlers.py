@@ -696,12 +696,23 @@ def _handle_batch_download(
             debug=debug,
         )
 
-    items = list(meeting_iter)
     sanitize_helper = TemplateParser()
     log_path = log_file.expanduser() if log_file else None
     log_path_str = str(log_path.absolute()) if log_path else None
 
-    if not items:
+    meetings: list[dict[str, Any]] = []
+    for raw in meeting_iter:
+        meeting_id = raw.get("id") or raw.get("meeting_id")
+        normalized = {
+            "meeting_id": str(meeting_id) if meeting_id is not None else None,
+            "meeting_topic": raw.get("topic", "Zoom Recording"),
+            "start_time": raw.get("start_time"),
+            "meeting_uuid": raw.get("uuid"),
+            "recording_count": len(raw.get("recording_files", [])),
+        }
+        meetings.append(normalized)
+
+    if not meetings:
         if json_mode:
             print(
                 json_dumps(
@@ -724,28 +735,50 @@ def _handle_batch_download(
         formatter.output_info("No recordings found in the specified date range")
         return
 
-    # Sort items by start time (newest first)
-    def _parse_start_time(rec: dict[str, Any]) -> float:
+    def _parse_start_time(entry: dict[str, Any]) -> float:
         try:
-            start = rec.get("start_time", "")
+            start = entry.get("start_time", "")
             return datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp()
         except Exception:
             return 0.0
 
-    items.sort(key=_parse_start_time, reverse=True)
+    meetings.sort(key=_parse_start_time, reverse=True)
 
-    total_meetings = len(items)
+    total_meetings = len(meetings)
     success_count = 0
     failed_count = 0
     results: list[dict[str, Any]] = []
 
-    for m in items:
-        meeting_id = m.get("id") or m.get("meeting_id")
-        meeting_topic = m.get("topic", "Zoom Recording")
-        start_time = m.get("start_time")
-        meeting_uuid = m.get("uuid")
+    for entry in meetings:
+        meeting_id = entry.get("meeting_id")
+        meeting_topic = entry.get("meeting_topic", "Zoom Recording")
+        start_time = entry.get("start_time")
+        meeting_uuid = entry.get("meeting_uuid")
+
+        if not meeting_id:
+            failed_count += 1
+            if json_mode:
+                results.append(
+                    {
+                        "meeting_id": None,
+                        "meeting_topic": meeting_topic,
+                        "start_time": start_time,
+                        "status": "error",
+                        "scope": scope,
+                        "user_id": user_id if scope == "user" else None,
+                        "account_id": account_id if scope == "account" else None,
+                        "error": {
+                            "code": "INVALID_MEETING",
+                            "message": "Meeting entry missing identifier",
+                        },
+                    }
+                )
+            else:
+                formatter.output_error("Encountered meeting without an ID; skipping")
+            continue
+
         per_meeting_output_name = _derive_batch_output_name(
-            meeting_id=str(meeting_id) if meeting_id else None,
+            meeting_id=meeting_id,
             start_time=start_time,
             meeting_uuid=meeting_uuid,
             base_output_name=base_output_name,
@@ -785,7 +818,7 @@ def _handle_batch_download(
             if json_mode:
                 results.append(
                     {
-                        "meeting_id": str(meeting_id),
+                        "meeting_id": meeting_id,
                         "meeting_topic": meeting_topic,
                         "start_time": start_time,
                         "status": "success",
@@ -893,8 +926,19 @@ def _handle_batch_check_availability(
             debug=debug,
         )
 
-    items = list(meeting_iter)
-    if not items:
+    meetings: list[dict[str, Any]] = []
+    for raw in meeting_iter:
+        meeting_id = raw.get("id") or raw.get("meeting_id")
+        meetings.append(
+            {
+                "meeting_id": str(meeting_id) if meeting_id is not None else None,
+                "meeting_topic": raw.get("topic", "Zoom Recording"),
+                "start_time": raw.get("start_time"),
+                "meeting_uuid": raw.get("uuid"),
+            }
+        )
+
+    if not meetings:
         if json_mode:
             print(
                 json_dumps(
@@ -916,25 +960,25 @@ def _handle_batch_check_availability(
         formatter.output_info("No recordings found in the specified date range")
         return
 
-    def _parse_start_time(rec: dict[str, Any]) -> float:
+    def _parse_start_time(entry: dict[str, Any]) -> float:
         try:
-            start = rec.get("start_time", "")
+            start = entry.get("start_time", "")
             return datetime.fromisoformat(start.replace("Z", "+00:00")).timestamp()
         except Exception:
             return 0.0
 
-    items.sort(key=_parse_start_time, reverse=True)
+    meetings.sort(key=_parse_start_time, reverse=True)
 
-    total_meetings = len(items)
+    total_meetings = len(meetings)
     success_count = 0
     ready_count = 0
     processing_count = 0
     failed_count = 0
     results: list[dict[str, Any]] = []
 
-    for meeting in items:
-        meeting_id = meeting.get("id") or meeting.get("meeting_id")
-        meeting_topic = meeting.get("topic", "Zoom Recording")
+    for meeting in meetings:
+        meeting_id = meeting.get("meeting_id")
+        meeting_topic = meeting.get("meeting_topic", "Zoom Recording")
         if meeting_id is None:
             failed_count += 1
             results.append(

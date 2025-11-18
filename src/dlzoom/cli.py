@@ -346,252 +346,295 @@ def recordings(
         )
         console.print(msg)
 
-    # Load config and choose client
-    cfg = Config(env_file=config) if config else Config()
-    auth_mode = cfg.get_auth_mode()
-    use_s2s = auth_mode == "s2s"
-    tokens = None if use_s2s else load_tokens(cfg.tokens_path)
-    if not use_s2s and tokens is None:
-        raise ConfigError(_missing_credentials_message(cfg))
-    if debug or verbose:
-        console.print(f"[dim]Using {auth_mode.upper()} authentication[/dim]")
-
-    if page_size <= 0:
-        raise click.BadParameter("--page-size must be greater than zero.")
-
-    if page_size > 300:
-        logging.warning("page_size %s exceeds Zoom API limit of 300, capping to 300", page_size)
-        page_size = 300
-
-    client: ZoomClient | ZoomUserClient
-    if use_s2s:
-        client = ZoomClient(
-            str(cfg.zoom_account_id),
-            str(cfg.zoom_client_id),
-            str(cfg.zoom_client_secret),
-        )
-        client.base_url = cfg.zoom_api_base_url.rstrip("/")
-        client.token_url = cfg.zoom_oauth_token_url or client.token_url
-    else:
-        client = ZoomUserClient(tokens, str(cfg.tokens_path))  # type: ignore[arg-type]
-        if hasattr(client, "base_url"):
-            client.base_url = cfg.zoom_api_base_url.rstrip("/")
-
-    scope_ctx: _h.ScopeContext | None = None
-    if not meeting_id:
-        # See docs/internal/s2s-recordings-plan.md (§1-2) for scope rules.
-        scope_ctx = _h._resolve_scope(
-            use_s2s=use_s2s,
-            scope_flag=scope_opt,
-            user_id=user_id_opt,
-            default_s2s_user=cfg.s2s_default_user,
-        )
+    def _run_recordings_workflow() -> None:
+        # Load config and choose client
+        cfg = Config(env_file=config) if config else Config()
+        auth_mode = cfg.get_auth_mode()
+        use_s2s = auth_mode == "s2s"
+        tokens = None if use_s2s else load_tokens(cfg.tokens_path)
+        if not use_s2s and tokens is None:
+            raise ConfigError(_missing_credentials_message(cfg))
         if debug or verbose:
-            scope_debug_user = scope_ctx.user_id or "-"
-            console.print(
-                f"[dim]Scope resolved to {scope_ctx.scope} "
-                f"(source={scope_ctx.reason}, user={scope_debug_user})[/dim]"
+            console.print(f"[dim]Using {auth_mode.upper()} authentication[/dim]")
+
+        effective_page_size = page_size
+        if effective_page_size <= 0:
+            raise click.BadParameter("--page-size must be greater than zero.")
+
+        if effective_page_size > 300:
+            logging.warning(
+                "page_size %s exceeds Zoom API limit of 300, capping to 300", effective_page_size
             )
+            effective_page_size = 300
 
-    # Meeting-scoped mode
-    if meeting_id:
-        try:
-            result = client.get_meeting_recordings(meeting_id)
-        except (ZoomAPIError, ZoomUserAPIError) as e:
-            if json_mode:
-                print(
-                    _h.json_dumps(
-                        {
-                            "status": "error",
-                            "error": {
-                                "code": "MEETING_LOOKUP_FAILED",
-                                "message": str(e),
-                            },
-                        }
-                    )
+        client: ZoomClient | ZoomUserClient
+        if use_s2s:
+            client = ZoomClient(
+                str(cfg.zoom_account_id),
+                str(cfg.zoom_client_id),
+                str(cfg.zoom_client_secret),
+            )
+            client.base_url = cfg.zoom_api_base_url.rstrip("/")
+            client.token_url = cfg.zoom_oauth_token_url or client.token_url
+        else:
+            client = ZoomUserClient(tokens, str(cfg.tokens_path))  # type: ignore[arg-type]
+            if hasattr(client, "base_url"):
+                client.base_url = cfg.zoom_api_base_url.rstrip("/")
+
+        scope_ctx: _h.ScopeContext | None = None
+        if not meeting_id:
+            # See docs/internal/s2s-recordings-plan.md (§1-2) for scope rules.
+            scope_ctx = _h._resolve_scope(
+                use_s2s=use_s2s,
+                scope_flag=scope_opt,
+                user_id=user_id_opt,
+                default_s2s_user=cfg.s2s_default_user,
+            )
+            if debug or verbose:
+                scope_debug_user = scope_ctx.user_id or "-"
+                console.print(
+                    f"[dim]Scope resolved to {scope_ctx.scope} "
+                    f"(source={scope_ctx.reason}, user={scope_debug_user})[/dim]"
                 )
-                return
-            formatter.output_error(f"Failed to fetch recordings: {e}")
-            raise SystemExit(1)
 
-        meetings = result.get("meetings", [])
-        if not meetings and result.get("recording_files"):
-            meetings = [result]
-        if not meetings:
-            payload = {
-                "status": "success",
-                "command": "recordings-instances",
-                "meeting_id": meeting_id,
-                "total_instances": 0,
-                "instances": [],
-            }
+        # Meeting-scoped mode
+        if meeting_id:
+            try:
+                result = client.get_meeting_recordings(meeting_id)
+            except (ZoomAPIError, ZoomUserAPIError) as e:
+                if json_mode:
+                    print(
+                        _h.json_dumps(
+                            {
+                                "status": "error",
+                                "error": {
+                                    "code": "MEETING_LOOKUP_FAILED",
+                                    "message": str(e),
+                                },
+                            }
+                        )
+                    )
+                    return
+                formatter.output_error(f"Failed to fetch recordings: {e}")
+                raise SystemExit(1)
+
+            meetings = result.get("meetings", [])
+            if not meetings and result.get("recording_files"):
+                meetings = [result]
+            if not meetings:
+                payload = {
+                    "status": "success",
+                    "command": "recordings-instances",
+                    "meeting_id": meeting_id,
+                    "total_instances": 0,
+                    "instances": [],
+                }
+                if json_mode:
+                    print(_h.json_dumps(payload))
+                    return
+                formatter.output_info("No recordings found")
+                return
+
             if json_mode:
+                payload = {
+                    "status": "success",
+                    "command": "recordings-instances",
+                    "meeting_id": meeting_id,
+                    "total_instances": len(meetings),
+                    "instances": [
+                        {
+                            "uuid": m.get("uuid"),
+                            "start_time": m.get("start_time"),
+                            "duration": m.get("duration"),
+                            "recording_files": [
+                                f.get("recording_type") or f.get("file_type")
+                                for f in m.get("recording_files", [])
+                            ],
+                        }
+                        for m in meetings
+                    ],
+                }
                 print(_h.json_dumps(payload))
                 return
-            formatter.output_info("No recordings found")
+
+            console.print(f"\n[bold]Recordings for Meeting {meeting_id}[/bold]")
+            console.print(f"Total instances: {len(meetings)}\n")
+            for idx, m in enumerate(meetings, 1):
+                console.print(f"[cyan]{idx}.[/cyan] {m.get('topic', 'N/A')}")
+                console.print(f"   UUID: {m.get('uuid', 'N/A')}")
+                console.print(f"   Start: {m.get('start_time', 'N/A')}")
+                console.print(f"   Duration: {m.get('duration', 0)} minutes")
+                console.print(f"   Files: {len(m.get('recording_files', []))}")
+                console.print()
             return
+
+        # Account-/user-wide mode
+        if scope_ctx is None:
+            raise ConfigError("Missing scope resolution for recordings command")
+
+        resolved_scope = scope_ctx.scope
+        resolved_user_id = scope_ctx.user_id
+
+        items: list[dict[str, Any]] = []
+        fetched = 0
+
+        account_client: ZoomClient | None = None
+        if resolved_scope == "account":
+            account_client = cast(ZoomClient, client)
+            meeting_iter = _h._iterate_account_recordings(
+                account_client,
+                from_date=from_date,
+                to_date=to_date,
+                page_size=effective_page_size,
+                debug=debug,
+            )
+        else:
+            if not resolved_user_id:
+                raise ConfigError("--scope=user requires a user identifier")
+            meeting_iter = _h._iterate_user_recordings(
+                client,
+                user_id=resolved_user_id,
+                from_date=from_date,
+                to_date=to_date,
+                page_size=effective_page_size,
+                debug=debug,
+            )
+
+        for m in meeting_iter:
+            if topic and topic.lower() not in str(m.get("topic", "")).lower():
+                continue
+            items.append(m)
+            fetched += 1
+            if limit and limit > 0 and fetched >= limit:
+                break
+
+        # Recurring indicator (heuristic)
+        from collections import Counter
+
+        id_counts = Counter(m.get("id") for m in items)
+
+        # Optional enrichment via meeting:read or S2S (gate to avoid excess calls)
+        enrichment_budget = 50  # cap number of meeting lookups per command
+
+        def _is_recurring_definitive(mid: Any) -> bool | None:
+            try:
+                if not mid:
+                    return None
+                # Only enrich if heuristic would be false (single occurrence) and budget remains
+                if id_counts.get(mid, 0) > 1:
+                    return None
+                nonlocal enrichment_budget
+                if enrichment_budget <= 0:
+                    return None
+                enrichment_budget -= 1
+                details = client.get_meeting(str(mid))
+                mtype = details.get("type")
+                if isinstance(mtype, int) and mtype in (3, 8):
+                    return True
+                if isinstance(mtype, int):
+                    return False
+                return None
+            except Exception:
+                return None
+
+        enriched: list[dict[str, Any]] = []
+        for m in items:
+            mid = m.get("id")
+            rec = _is_recurring_definitive(mid)
+            if rec is None:
+                rec_flag = id_counts.get(mid, 0) > 1
+            else:
+                rec_flag = rec
+            m2 = {
+                "id": m.get("id"),
+                "uuid": m.get("uuid"),
+                "topic": m.get("topic"),
+                "start_time": m.get("start_time"),
+                "duration": m.get("duration"),
+                "recording_count": len(m.get("recording_files", [])),
+                "recurring": rec_flag,
+            }
+            enriched.append(m2)
 
         if json_mode:
             payload = {
                 "status": "success",
-                "command": "recordings-instances",
-                "meeting_id": meeting_id,
-                "total_instances": len(meetings),
-                "instances": [
-                    {
-                        "uuid": m.get("uuid"),
-                        "start_time": m.get("start_time"),
-                        "duration": m.get("duration"),
-                        "recording_files": [
-                            f.get("recording_type") or f.get("file_type")
-                            for f in m.get("recording_files", [])
-                        ],
-                    }
-                    for m in meetings
-                ],
+                "command": "recordings",
+                "from_date": from_date,
+                "to_date": to_date,
+                "total_meetings": len(enriched),
+                "page_size": effective_page_size,
+                "scope": resolved_scope,
+                "user_id": resolved_user_id if resolved_scope == "user" else None,
+                "account_id": account_client.account_id if account_client else None,
+                "meetings": enriched,
             }
             print(_h.json_dumps(payload))
             return
 
-        console.print(f"\n[bold]Recordings for Meeting {meeting_id}[/bold]")
-        console.print(f"Total instances: {len(meetings)}\n")
-        for idx, m in enumerate(meetings, 1):
-            console.print(f"[cyan]{idx}.[/cyan] {m.get('topic', 'N/A')}")
-            console.print(f"   UUID: {m.get('uuid', 'N/A')}")
-            console.print(f"   Start: {m.get('start_time', 'N/A')}")
-            console.print(f"   Duration: {m.get('duration', 0)} minutes")
-            console.print(f"   Files: {len(m.get('recording_files', []))}")
-            console.print()
-        return
+        from rich.table import Table
 
-    # Account-/user-wide mode
-    if scope_ctx is None:
-        raise ConfigError("Missing scope resolution for recordings command")
-
-    resolved_scope = scope_ctx.scope
-    resolved_user_id = scope_ctx.user_id
-
-    items: list[dict[str, Any]] = []
-    fetched = 0
-
-    account_client: ZoomClient | None = None
-    if resolved_scope == "account":
-        account_client = cast(ZoomClient, client)
-        meeting_iter = _h._iterate_account_recordings(
-            account_client,
-            from_date=from_date,
-            to_date=to_date,
-            page_size=page_size,
-            debug=debug,
-        )
-    else:
-        if not resolved_user_id:
-            raise ConfigError("--scope=user requires a user identifier")
-        meeting_iter = _h._iterate_user_recordings(
-            client,
-            user_id=resolved_user_id,
-            from_date=from_date,
-            to_date=to_date,
-            page_size=page_size,
-            debug=debug,
-        )
-
-    for m in meeting_iter:
-        if topic and topic.lower() not in str(m.get("topic", "")).lower():
-            continue
-        items.append(m)
-        fetched += 1
-        if limit and limit > 0 and fetched >= limit:
-            break
-
-    # Recurring indicator (heuristic)
-    from collections import Counter
-
-    id_counts = Counter(m.get("id") for m in items)
-
-    # Optional enrichment via meeting:read or S2S (gate to avoid excess calls)
-    enrichment_budget = 50  # cap number of meeting lookups per command
-
-    def _is_recurring_definitive(mid: Any) -> bool | None:
-        try:
-            if not mid:
-                return None
-            # Only enrich if heuristic would be false (single occurrence) and budget remains
-            if id_counts.get(mid, 0) > 1:
-                return None
-            nonlocal enrichment_budget
-            if enrichment_budget <= 0:
-                return None
-            enrichment_budget -= 1
-            details = client.get_meeting(str(mid))
-            mtype = details.get("type")
-            if isinstance(mtype, int) and mtype in (3, 8):
-                return True
-            if isinstance(mtype, int):
-                return False
-            return None
-        except Exception:
-            return None
-
-    enriched: list[dict[str, Any]] = []
-    for m in items:
-        mid = m.get("id")
-        rec = _is_recurring_definitive(mid)
-        if rec is None:
-            rec_flag = id_counts.get(mid, 0) > 1
-        else:
-            rec_flag = rec
-        m2 = {
-            "id": m.get("id"),
-            "uuid": m.get("uuid"),
-            "topic": m.get("topic"),
-            "start_time": m.get("start_time"),
-            "duration": m.get("duration"),
-            "recording_count": len(m.get("recording_files", [])),
-            "recurring": rec_flag,
-        }
-        enriched.append(m2)
-
-    if json_mode:
-        payload = {
-            "status": "success",
-            "command": "recordings",
-            "from_date": from_date,
-            "to_date": to_date,
-            "total_meetings": len(enriched),
-            "page_size": page_size,
-            "scope": resolved_scope,
-            "user_id": resolved_user_id if resolved_scope == "user" else None,
-            "account_id": account_client.account_id if account_client else None,
-            "meetings": enriched,
-        }
-        print(_h.json_dumps(payload))
-        return
-
-    from rich.table import Table
-
-    table = Table(title="Zoom Recordings")
-    table.add_column("Topic", style="green")
-    table.add_column("Start Time", style="blue")
-    table.add_column("Duration", style="magenta")
-    table.add_column("Meeting ID", style="cyan")
-    table.add_column("Recurring", style="yellow")
-    verbose_flag = verbose or debug
-    if verbose_flag:
-        table.add_column("UUID", style="white")
-        table.add_column("Files", style="white")
-    for r in enriched:
-        row = [
-            str(r.get("topic", "N/A")),
-            str(r.get("start_time", "N/A")),
-            str(r.get("duration", 0)),
-            str(r.get("id", "")),
-            "yes" if r.get("recurring") else "no",
-        ]
+        table = Table(title="Zoom Recordings")
+        table.add_column("Topic", style="green")
+        table.add_column("Start Time", style="blue")
+        table.add_column("Duration", style="magenta")
+        table.add_column("Meeting ID", style="cyan")
+        table.add_column("Recurring", style="yellow")
+        verbose_flag = verbose or debug
         if verbose_flag:
-            row.extend([str(r.get("uuid", "")), str(r.get("recording_count", 0))])
-        table.add_row(*row)
-    console.print(table)
+            table.add_column("UUID", style="white")
+            table.add_column("Files", style="white")
+        for r in enriched:
+            row = [
+                str(r.get("topic", "N/A")),
+                str(r.get("start_time", "N/A")),
+                str(r.get("duration", 0)),
+                str(r.get("id", "")),
+                "yes" if r.get("recurring") else "no",
+            ]
+            if verbose_flag:
+                row.extend([str(r.get("uuid", "")), str(r.get("recording_count", 0))])
+            table.add_row(*row)
+        console.print(table)
+
+    try:
+        _run_recordings_workflow()
+    except DlzoomError as e:
+        logging.getLogger(__name__).debug("DlzoomError in recordings command:", exc_info=True)
+        if json_mode:
+            error_result = {
+                "status": "error",
+                "command": "recordings",
+                "error": e.to_dict(),
+            }
+            print(json.dumps(error_result, indent=2))
+        else:
+            formatter.output_error(f"{e.code}: {e.message}")
+            if e.details:
+                formatter.output_info(e.details)
+        if debug:
+            raise
+        raise SystemExit(1)
+    except Exception as e:
+        logging.getLogger(__name__).debug(
+            "Unexpected exception in recordings command:", exc_info=True
+        )
+        if json_mode:
+            error_result = {
+                "status": "error",
+                "command": "recordings",
+                "error": {
+                    "code": "UNEXPECTED_ERROR",
+                    "message": str(e),
+                    "details": "",
+                },
+            }
+            print(json.dumps(error_result, indent=2))
+        else:
+            formatter.output_error(f"Unexpected error: {e}")
+        if debug or verbose:
+            raise
+        raise SystemExit(1)
 
 
 @cli.command(name="download", help="Download Zoom cloud recordings")

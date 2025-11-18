@@ -15,6 +15,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - CLI automatically joins space-separated numeric parts into a single meeting ID
   - Maintains backward compatibility with quoted IDs and UUIDs
 
+
+#### S2S Configuration Storage
+- Added automatic discovery of `config.json`/`config.yaml`/`config.yml` under the platform config directory (macOS `~/Library/Application Support/dlzoom/`, Linux `~/.config/dlzoom/`, Windows `%APPDATA%\dlzoom\`) so Server-to-Server credentials work from any folder.
+- Environment variables continue to work and now override the discovered config file unless an explicit `--config` path is provided.
+- CLI debug output and error messages now report the active auth mode (S2S vs OAuth) and point to the exact config path users should populate.
+
+### Fixed
+
+- Batch download and availability workflows now stream meetings directly from the Zoom API instead of materializing entire ranges in memory, preventing OOM crashes on large date spans.
+- Audio extraction improvements:
+  - Verbose mode streams `ffmpeg` output through the logger and still captures it for error reporting.
+  - Non-verbose runs continue to suppress progress noise but now attach the complete stderr/stdout blob to any failure message.
+  - Temporary extraction files use unique names so concurrent `dlzoom` processes do not clobber each other.
+- The `dlzoom recordings` command now wraps configuration/authentication setup in the same error handling as `download`, so missing credentials produce friendly CLI/JSON errors instead of raw tracebacks.
+
 ## [0.3.0] - 2025-11-16
 
 ### Added
@@ -33,10 +48,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--include-unknown` to include segments with unknown speaker
 - Env toggle: `DLZOOM_SPEAKERS=0` disables generation (default is enabled)
 
-#### S2S Configuration Storage
-- Added automatic discovery of `config.json`/`config.yaml`/`config.yml` under the platform config directory (macOS `~/Library/Application Support/dlzoom/`, Linux `~/.config/dlzoom/`, Windows `%APPDATA%\dlzoom\`) so Server-to-Server credentials work from any folder.
-- Environment variables continue to work and now override the discovered config file unless an explicit `--config` path is provided.
-- CLI debug output and error messages now report the active auth mode (S2S vs OAuth) and point to the exact config path users should populate.
 
 #### Recording Scope System (S2S OAuth)
 - New `--scope` option for batch downloads: `auto` (default), `account`, or `user`
