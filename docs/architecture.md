@@ -107,7 +107,7 @@ Direct authentication using account credentials (no broker needed).
 
 ### Credential Storage
 - **User OAuth tokens:** Stored in the platform-specific config directory (macOS `~/Library/Application Support/dlzoom/tokens.json`, Linux `~/.config/dlzoom/tokens.json`, Windows `%APPDATA%\dlzoom\tokens.json`) with mode 0600. Override via `DLZOOM_TOKENS_PATH`.
-- **S2S credentials:** The CLI now discovers `config.json`, `config.yaml`, or `config.yml` in the same platform config directory. Fields mirror the environment variables (`zoom_account_id`, `zoom_client_id`, `zoom_client_secret`, etc.). Priority: explicit `--config` > environment variables > user config file > project `.env`. Files live under the same per-platform directory (e.g., `~/.config/dlzoom/config.json`) so S2S works from any working directory. Never logged.
+- **S2S credentials:** The CLI discovers `config.json`, `config.yaml`, or `config.yml` in the same platform config directory. Fields mirror the environment variables (`zoom_account_id`, `zoom_client_id`, `zoom_client_secret`, etc.). Priority: explicit `--config` > environment variables > user config file > project `.env`. Files live under the same per-platform directory (e.g., `~/.config/dlzoom/config.json`) so S2S works from any working directory. Never logged.
 
 ### Token Refresh
 - Broker handles token refresh transparently
