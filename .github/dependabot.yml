@@ -23,4 +23,3 @@ updates:
         patterns: ["*"]
         update-types: ["minor", "patch"]
     rebase-strategy: disabled
-

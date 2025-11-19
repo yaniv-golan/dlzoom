@@ -5,9 +5,179 @@ All notable changes to dlzoom will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.1] - Unreleased
 
----
+### Added
+
+#### Meeting ID Input Enhancement
+- Space-separated meeting IDs now work without quotes
+  - Users can type `dlzoom download 123 4567 1111` instead of `"123 4567 1111"`
+  - CLI automatically joins space-separated numeric parts into a single meeting ID
+  - Maintains backward compatibility with quoted IDs and UUIDs
+
+
+#### S2S Configuration Storage
+- Added automatic discovery of `config.json`/`config.yaml`/`config.yml` under the platform config directory (macOS `~/Library/Application Support/dlzoom/`, Linux `~/.config/dlzoom/`, Windows `%APPDATA%\dlzoom\`) so Server-to-Server credentials work from any folder.
+- Environment variables continue to work and now override the discovered config file unless an explicit `--config` path is provided.
+- CLI debug output and error messages now report the active auth mode (S2S vs OAuth) and point to the exact config path users should populate.
+
+### Fixed
+
+- Batch download and availability workflows now stream meetings directly from the Zoom API instead of materializing entire ranges in memory, preventing OOM crashes on large date spans.
+- Audio extraction improvements:
+  - Verbose mode streams `ffmpeg` output through the logger and still captures it for error reporting.
+  - Non-verbose runs continue to suppress progress noise but now attach the complete stderr/stdout blob to any failure message.
+  - Temporary extraction files use unique names so concurrent `dlzoom` processes do not clobber each other.
+- The `dlzoom recordings` command now wraps configuration/authentication setup in the same error handling as `download`, so missing credentials produce friendly CLI/JSON errors instead of raw tracebacks.
+
+## [0.3.0] - 2025-11-16
+
+### Added
+
+#### STJ Diarization Support
+- Minimal STJ diarization file generation (default ON) after timeline download
+  - Emits `{output_name}_speakers.stjson` in STJ v0.6 format
+  - Diarization-only segments (start/end/speaker_id, empty text)
+  - Prefers `timeline_refine` over `timeline` when available
+  - Privacy by default: includes only stable speaker id + display name
+- CLI controls:
+  - `--skip-speakers` to disable generation
+  - `--speakers-mode [first|multiple]` to handle multi-user timestamps
+  - `--stj-min-seg-sec` (default 1.0) to drop very short segments
+  - `--stj-merge-gap-sec` (default 1.5) to merge small gaps
+  - `--include-unknown` to include segments with unknown speaker
+- Env toggle: `DLZOOM_SPEAKERS=0` disables generation (default is enabled)
+
+
+#### Recording Scope System (S2S OAuth)
+- New `--scope` option for batch downloads: `auto` (default), `account`, or `user`
+  - `account` scope: Download all account recordings (requires admin permissions)
+  - `user` scope: Download specific user's recordings
+  - `auto` scope: Automatically detect based on OAuth token type
+- New `--user-id` option: Specify Zoom user email or UUID for user-scoped downloads (S2S mode)
+- New `--page-size` option: Control API pagination (default 300, max 300)
+- Scope validation: CLI now validates that S2S tokens have required scopes for account-level access
+- Metadata enhancement: Recording scope and user ID now included in JSON outputs
+
+#### OAuth Broker Infrastructure
+- **Automated Cloudflare Workers deployment** via GitHub Actions
+  - Automatic deployment on push to `main`
+  - Preview deployments for pull requests
+  - Environment variable injection from GitHub secrets
+- **Comprehensive broker documentation:**
+  - `zoom-broker/CLOUDFLARE_SETUP.md` - Step-by-step Cloudflare integration guide
+  - `zoom-broker/DEPLOYMENT.md` - Full deployment instructions
+  - `zoom-broker/DEPLOYMENT_COMPARISON.md` - Manual vs automated deployment comparison
+  - `zoom-broker/QUICKSTART_CICD.md` - Quick CI/CD setup guide
+- **Setup automation scripts:**
+  - `scripts/setup-secrets.sh` - Interactive secret configuration
+  - `scripts/setup-kv.sh` - KV namespace creation and binding
+  - `scripts/wrangler-local.sh` - Local development environment
+  - `scripts/apply-kv-placeholders.mjs` - CI/CD wrangler config generation
+- Enhanced broker security: CORS configuration validation and clearer error messages
+
+### Changed
+
+#### Batch Download Improvements
+- Batch downloads now honor `--output-name`; when omitted they auto-append UTC timestamps (or recording UUIDs) per meeting to prevent filename collisions
+- Batch downloads once again respect `--dry-run`, letting operators preview large date windows without pulling files
+- Batch downloads now pass through `--wait`, so operators can pause until recordings finish processing before the download loop starts
+- Batch downloads now honor `--log-file`, writing structured JSONL entries for every meeting in the range
+- Batch downloads exit non-zero when any meeting fails, allowing CI/CD jobs to detect partial failures
+
+#### Check Availability Improvements
+- `--check-availability` works with `--from-date/--to-date`, returning a summary across the date window instead of silently exiting
+- `--wait` failures now abort before download attempts, surfacing a clear error instead of re-fetching recordings that are still processing
+- `dlzoom download --check-availability` now raises errors (non-zero exit) when Zoom cannot find the recording or the API call fails
+
+#### Output & Metadata
+- Transcript/chat/timeline downloads now avoid filename collisions and JSON output enumerates all audio/video/transcript/chat/timeline/speaker files for automation
+- Metadata summaries now report the actual delivered audio file size (post-extraction) instead of the source MP4 size
+- JSON outputs now include log file path when `--log-file` is specified
+- Deterministic STJ output (rounded to 3 decimals) and idempotent regeneration
+
+#### Date & Time Handling
+- Date shortcuts in `dlzoom recordings --range` now use UTC consistently (previously used local timezone)
+- Recording date range queries properly handle timezone boundaries
+
+#### Other Improvements
+- Respect skip cascade: `--skip-timeline` also prevents STJ generation
+- Config file validation: Missing config file path now raises clear error instead of being silently ignored
+
+### Fixed
+- **Path expansion**: Tilde (`~`) in paths now properly expands on all platforms (Windows, macOS, Linux)
+  - Affects `--output-dir`, `--log-file`, and config file paths
+- **Audio file tracking**: Metadata now reflects extracted audio size, not source MP4 size
+- **Cross-platform compatibility**: Resolved test failures and path handling issues on Windows
+
+### Documentation
+- Added repository banner image at top of README
+- Added design plan: `docs/internal/stj-minimal-json-plan.md`
+- Added STJ specification link and feature documentation
+- Clarified hosted login status and security considerations
+- Documented platform-specific token storage locations (macOS/Linux/Windows)
+- Consolidated OAuth broker CI/CD guidance across documentation
+- Updated architecture documentation with scope system details
+
+### Infrastructure
+- Added GitHub Actions workflow for automatic Cloudflare Workers deployment
+- Updated SARIF upload actions to v4
+- Enhanced CI testing for cross-platform compatibility
+- Added environment variable configuration for broker unit tests
+
+### Testing
+- Added comprehensive test coverage for scope system (~700 lines)
+- Added tests for recordings iteration and date chunking
+- Added CLI check-availability test coverage
+- Improved cross-platform test reliability
+- Added test utilities for CLI testing (`tests/cli_test_utils.py`)
+
+
+## [0.2.1] - 2025-11-13
+
+Hotfix release.
+
+### Changed
+- docs(readme): add Shields badges for CI, PyPI, Docker, license, and downloads
+- docs(auth): clarify hosted sign-in availability and provide self-host/S2S alternatives
+- refactor(cli): add `main()` entrypoint for console script
+- chore(zoom-broker): update `zoom-broker/wrangler.jsonc`
+
+
+## [0.2.0] - 2025-11-13
+
+User‑facing release focused on a clearer CLI, optional user OAuth, and safer downloads.
+
+### Breaking
+- Removed: `dlzoom download --list`.
+  - Use: `dlzoom recordings --meeting-id <id_or_uuid>` to list instances for a meeting.
+- Removed Auto-deletion of MP4 files after audio extraction
+
+### New
+- Unified CLI with subcommands: `dlzoom [recordings|download|login|logout|whoami]`.
+- User OAuth login/logout using a minimal hosted broker (`dlzoom login`, `dlzoom logout`). **Note** This is inactive at the the time of the release - pending approval of the Zoom App by Zoom.
+- `dlzoom recordings` command:
+  - Browse by date: `--range` (today, yesterday, last-7-days, last-30-days) or `--from-date/--to-date`.
+  - Meeting‑scoped listing: `--meeting-id <id_or_uuid>` with instance count and file types.
+  - JSON output (`--json`), topic filter (`--topic`), and result limits (`--limit`, `--page-size`).
+- Batch by date window: `dlzoom download --from-date YYYY-MM-DD --to-date YYYY-MM-DD`.
+- `dlzoom whoami` to confirm auth mode (S2S vs user OAuth) and token validity.
+
+### Improvements
+- Safer download host allow‑list (HTTPS, Zoom domains only) and clearer errors.
+- Stricter meeting ID/UUID normalization (handles URL/percent‑encoded UUIDs; blocks traversal).
+- More robust networking (retries/backoff), filename sanitization, and structured JSON errors.
+- Local metadata JSON saved with each download (meeting details, selected instance, files, notes).
+
+### Changed
+- **Behavior Change**: MP4 files are now **retained** after audio extraction (previously auto-deleted)
+- Optimized `Content-Type` header - only included for POST/PUT/PATCH requests (not GET)
+
+### Docs
+- New Privacy/Terms/Support pages; expanded README and architecture overview.
+
+### Migration
+- Replace any `dlzoom download <id> --list` usage with `dlzoom recordings --meeting-id <id>`.
 
 ## [0.1.0] - 2025-10-02
 
@@ -182,7 +352,7 @@ pip install dlzoom
 ### With uvx (no installation)
 
 ```bash
-uvx dlzoom 123456789 --check-availability
+uvx dlzoom download 123456789 --check-availability
 ```
 
 ### Docker
@@ -213,22 +383,6 @@ This is the first stable release of dlzoom. The tool is production-ready for:
 Report issues at: <https://github.com/yaniv-golan/dlzoom/issues>
 
 [0.1.0]: https://github.com/yaniv-golan/dlzoom/releases/tag/v0.1.0
-## [0.2.0] - 2025-11-12
-
-### Breaking Changes
-- Removed: `dlzoom download --list`. Use `dlzoom recordings --meeting-id <id_or_uuid>` to list instances for a specific meeting.
-
-### Added
-- New `dlzoom recordings` command:
-  - User-wide browse with `--range` (today|yesterday|last-7-days|last-30-days) or `--from-date/--to-date`.
-  - Meeting-scoped mode with `--meeting-id <id_or_uuid>` (replaces `download --list`).
-  - `--limit` cap (default 1000; `0` = unlimited), `--page-size` (advanced, default 300).
-  - Recurring indicator via heuristic; optional enrichment when additional scopes are available.
-- Retry/backoff parity for user-token client (429/5xx) and `get_meeting()` support in both clients.
-
-### Optional Permissions (Advanced)
-- `meeting:read`: enables definitive recurring detection in recordings listing.
-- `user:read`: enables `whoami` to show name/email with user tokens.
-
-### Migration
-- Replace `dlzoom download <id> --list` with `dlzoom recordings --meeting-id <id>`.
+[0.2.0]: https://github.com/yaniv-golan/dlzoom/compare/v0.1.0...v0.2.0
+[0.2.1]: https://github.com/yaniv-golan/dlzoom/compare/v0.2.0...v0.2.1
+[0.3.0]: https://github.com/yaniv-golan/dlzoom/compare/v0.2.1...v0.3.0

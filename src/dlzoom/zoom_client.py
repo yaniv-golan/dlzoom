@@ -22,12 +22,20 @@ from dlzoom.exceptions import (
 class ZoomClient:
     """Client for Zoom API with Server-to-Server OAuth and token caching"""
 
-    def __init__(self, account_id: str, client_id: str, client_secret: str):
+    def __init__(
+        self,
+        account_id: str,
+        client_id: str,
+        client_secret: str,
+        *,
+        base_url: str = "https://api.zoom.us/v2",
+        token_url: str | None = None,
+    ):
         self.account_id = account_id
         self.client_id = client_id
         self.client_secret = client_secret
-        self.base_url = "https://api.zoom.us/v2"
-        self.token_url = "https://zoom.us/oauth/token"
+        self.base_url = base_url.rstrip("/")
+        self.token_url = token_url.rstrip("/") if token_url else self._derive_token_url(base_url)
 
         # Token caching (in memory during execution)
         self._access_token: str | None = None
@@ -48,16 +56,26 @@ class ZoomClient:
             f")"
         )
 
+    def clear_credentials(self) -> None:
+        """
+        Clear sensitive credentials from memory.
+
+        Note: Due to Python's memory management and string immutability,
+        this provides best-effort cleanup but cannot guarantee complete
+        memory erasure. Credentials may remain in memory until garbage
+        collection or process termination.
+        """
+        self.account_id = ""
+        self.client_id = ""
+        self.client_secret = ""
+        self._access_token = None
+
     def __del__(self) -> None:
-        """Zero out sensitive credentials when object is destroyed"""
-        if hasattr(self, "account_id"):
-            self.account_id = ""
-        if hasattr(self, "client_id"):
-            self.client_id = ""
-        if hasattr(self, "client_secret"):
-            self.client_secret = ""
-        if hasattr(self, "_access_token"):
-            self._access_token = None
+        """Attempt to clear credentials when object is destroyed (best-effort only)"""
+        try:
+            self.clear_credentials()
+        except Exception:
+            pass  # Ignore errors during finalization
 
     def _get_access_token(self) -> str:
         """Get access token with caching (refresh only when expired)"""
@@ -93,13 +111,62 @@ class ZoomClient:
                 "Authentication timeout",
                 details="Zoom OAuth server did not respond within 30 seconds",
             )
+        except requests.exceptions.ConnectionError as e:
+            from dlzoom.exceptions import AuthenticationError
 
-        token_data = response.json()
+            raise AuthenticationError(
+                "Connection error during authentication",
+                details=f"Could not connect to Zoom OAuth server: {e}",
+            ) from e
+        except requests.exceptions.HTTPError as e:
+            from dlzoom.exceptions import AuthenticationError
+
+            status_code = e.response.status_code if e.response else "unknown"
+            raise AuthenticationError(
+                f"OAuth token request failed (HTTP {status_code})",
+                details=f"Zoom OAuth server returned an error: {e}",
+            ) from e
+        except requests.exceptions.RequestException as e:
+            from dlzoom.exceptions import AuthenticationError
+
+            raise AuthenticationError(
+                "OAuth token request failed",
+                details=f"Request error: {e}",
+            ) from e
+
+        try:
+            token_data = response.json()
+        except ValueError as e:
+            from dlzoom.exceptions import AuthenticationError
+
+            raise AuthenticationError(
+                "Invalid OAuth response",
+                details=f"Could not parse JSON response from Zoom OAuth server: {e}",
+            ) from e
+
+        if "access_token" not in token_data:
+            from dlzoom.exceptions import AuthenticationError
+
+            raise AuthenticationError(
+                "Invalid OAuth token response",
+                details="Response did not contain required 'access_token' field",
+            )
+
         self._access_token = token_data["access_token"]
         expires_in = token_data.get("expires_in", 3600)
         self._token_expires_at = current_time + expires_in
 
         return str(self._access_token)
+
+    @staticmethod
+    def _derive_token_url(api_base: str) -> str:
+        """Infer the OAuth token endpoint from the API base host (Zoom vs ZoomGov)."""
+        parsed = urllib.parse.urlsplit(api_base)
+        host = parsed.netloc
+        if host.startswith("api."):
+            host = host[4:]
+        scheme = parsed.scheme or "https"
+        return f"{scheme}://{host}/oauth/token"
 
     @staticmethod
     def encode_uuid(uuid: str) -> str:
@@ -115,11 +182,17 @@ class ZoomClient:
         backoff_factor: float = 1.0,
     ) -> dict[str, Any]:
         """Make authenticated API request with retry logic"""
-        url = f"{self.base_url}/{endpoint}"
+        url = f"{self.base_url.rstrip('/')}/{endpoint}"
+        from dlzoom import __version__
+
         headers = {
             "Authorization": f"Bearer {self._get_access_token()}",
-            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": f"dlzoom/{__version__} (https://github.com/yaniv-golan/dlzoom)",
         }
+        # Add Content-Type only for methods that send a body
+        if method.upper() in ("POST", "PUT", "PATCH"):
+            headers["Content-Type"] = "application/json"
 
         for attempt in range(retry_count):
             try:
@@ -134,14 +207,39 @@ class ZoomClient:
                 # Handle rate limiting and server errors with exponential backoff
                 if response.status_code in (429, 500, 502, 503, 504):
                     if attempt < retry_count - 1:
-                        wait_time = backoff_factor * (2**attempt)
-                        status_name = (
-                            "Rate limit" if response.status_code == 429 else "Server error"
-                        )
-                        logging.warning(
-                            f"{status_name} (HTTP {response.status_code}), "
-                            f"retrying in {wait_time}s (attempt {attempt + 1}/{retry_count})"
-                        )
+                        # For rate limits, use Retry-After header if provided
+                        if response.status_code == 429:
+                            wait_time = backoff_factor * (2**attempt)
+                            retry_after_val = None
+                            try:
+                                hdrs = getattr(response, "headers", None)
+                                if hdrs:
+                                    retry_after_val = hdrs.get("Retry-After")
+                            except Exception:
+                                retry_after_val = None
+
+                            if isinstance(retry_after_val, str | bytes):
+                                try:
+                                    s = (
+                                        retry_after_val.decode()
+                                        if isinstance(retry_after_val, bytes)
+                                        else retry_after_val
+                                    ).strip()
+                                    if s.isdigit():
+                                        wait_time = int(s)
+                                except Exception:
+                                    # Ignore parse errors; keep exponential backoff
+                                    pass
+                            logging.warning(
+                                f"Rate limit (HTTP 429), retrying in {wait_time}s "
+                                f"(attempt {attempt + 1}/{retry_count})"
+                            )
+                        else:
+                            wait_time = backoff_factor * (2**attempt)
+                            logging.warning(
+                                f"Server error (HTTP {response.status_code}), "
+                                f"retrying in {wait_time}s (attempt {attempt + 1}/{retry_count})"
+                            )
                         time.sleep(wait_time)
                         continue
                     else:
@@ -197,6 +295,7 @@ class ZoomClient:
 
                 # Raise specific exceptions based on status code
                 if status_code == 401:
+                    self._access_token = None
                     raise AuthenticationError(
                         "Authentication failed",
                         details="Check ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET",
@@ -206,8 +305,16 @@ class ZoomClient:
                         "Permission denied", details="Check OAuth scopes for your Zoom app"
                     )
                 elif status_code == 404:
-                    # Determine if it's a meeting or recording not found based on endpoint
-                    if "meeting" in endpoint and "recording" not in endpoint:
+                    # Determine if it's a meeting or recording not found based on endpoint structure
+                    # Meetings API: /meetings/{meetingId}
+                    # Recordings API: /meetings/{meetingId}/recordings or /recordings/*
+                    endpoint_lower = endpoint.lower()
+                    is_meeting_endpoint = (
+                        endpoint_lower.startswith("meetings/")
+                        and "/recordings" not in endpoint_lower
+                    )
+
+                    if is_meeting_endpoint:
                         raise MeetingNotFoundError(
                             "Meeting not found",
                             details=f"Meeting ID or UUID may be incorrect: {zoom_message}",
@@ -313,6 +420,26 @@ class ZoomClient:
     ) -> dict[str, Any]:
         """Get user recordings with date filtering"""
         endpoint = f"users/{user_id}/recordings"
+
+        params: dict[str, Any] = {"page_size": page_size}
+        if from_date:
+            params["from"] = from_date
+        if to_date:
+            params["to"] = to_date
+        if next_page_token:
+            params["next_page_token"] = next_page_token
+
+        return self._make_request("GET", endpoint, params=params)
+
+    def get_account_recordings(
+        self,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        page_size: int = 300,
+        next_page_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Get account-wide recordings via /accounts/me/recordings."""
+        endpoint = "accounts/me/recordings"
 
         params: dict[str, Any] = {"page_size": page_size}
         if from_date:

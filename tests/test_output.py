@@ -109,6 +109,37 @@ class TestOtherOutputMethods:
         assert not mock_console.print.called
 
 
+class TestSilentContextManager:
+    """Tests for OutputFormatter.capture_silent context manager"""
+
+    def test_capture_silent_restores_state(self):
+        formatter = OutputFormatter()
+        formatter.set_silent(False)
+
+        with formatter.capture_silent():
+            assert formatter.silent is True
+
+        assert formatter.silent is False
+
+    def test_capture_silent_respects_previous_true(self):
+        formatter = OutputFormatter()
+        formatter.set_silent(True)
+
+        with formatter.capture_silent():
+            assert formatter.silent is True
+
+        assert formatter.silent is True
+
+    def test_capture_silent_custom_flag(self):
+        formatter = OutputFormatter()
+        formatter.set_silent(True)
+
+        with formatter.capture_silent(enabled=False):
+            assert formatter.silent is False
+
+        assert formatter.silent is True
+
+
 class TestJSONMode:
     """Test JSON output mode"""
 

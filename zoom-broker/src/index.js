@@ -3,7 +3,19 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     // CORS for CLI (optionally restrict via ALLOWED_ORIGIN)
-    const allowedOrigin = env.ALLOWED_ORIGIN || "*";
+    const allowedOrigin = env.ALLOWED_ORIGIN;
+    if (!allowedOrigin) {
+      return new Response(
+        JSON.stringify({
+          error: "ALLOWED_ORIGIN not configured",
+          message: "Set ALLOWED_ORIGIN to the CLI origin before deploying the OAuth broker.",
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
     const cors = {
       "Access-Control-Allow-Origin": allowedOrigin,
       "Access-Control-Allow-Headers": "content-type",
@@ -11,6 +23,21 @@ export default {
       "Vary": "Origin",
     };
     if (request.method === "OPTIONS") return new Response("", { headers: cors });
+
+    // Enforce required secrets early to provide deterministic errors
+    const missingSecrets = [];
+    if (!env.ZOOM_CLIENT_ID) missingSecrets.push("ZOOM_CLIENT_ID");
+    if (!env.ZOOM_CLIENT_SECRET) missingSecrets.push("ZOOM_CLIENT_SECRET");
+    if (missingSecrets.length > 0) {
+      return json(
+        {
+          error: "missing_configuration",
+          message: `Missing required secrets: ${missingSecrets.join(", ")}`,
+        },
+        500,
+        cors,
+      );
+    }
 
     // 1) Start auth: returns { auth_url, session_id }
     if (url.pathname === "/zoom/auth/start" && request.method === "POST") {
@@ -91,8 +118,11 @@ export default {
       const tok = await env.AUTH.get(`tok:${id}`);
       if (!tok) return json({ status: "pending" }, 200, cors);
 
-      // One-time read: delete after serving
+      // One-time read: delete before serving to prevent replay
+      // Note: If network drops after delete but before client receives response,
+      // client will see "pending" on retry. This is acceptable - user can re-auth.
       await env.AUTH.delete(`tok:${id}`);
+      await env.AUTH.delete(`sess:${id}`);
       return new Response(tok, { status: 200, headers: { "content-type": "application/json", ...cors } });
     }
 
@@ -120,8 +150,8 @@ export default {
 };
 
 function callbackUrl(u) {
-  // Build the exact callback URL of this worker regardless of hostname
-  return `${u.protocol}//${u.host}/callback`;
+  // Build the exact callback URL preserving any subpath routing
+  return new URL('/callback', u).toString();
 }
 async function safeJson(req) { try { return await req.json(); } catch { return null; } }
 function json(obj, status = 200, headers = {}) { return new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", ...headers } }); }

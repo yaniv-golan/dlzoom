@@ -267,6 +267,16 @@ class TestFilenameGeneration:
         filename = downloader.generate_filename(file_info, "Meeting Topic")
         assert filename == "my_recording.m4a"
 
+    def test_generate_filename_transcript_unique(self, tmp_path):
+        downloader = Downloader(output_dir=tmp_path, access_token="token", output_name="session")
+        file_info = {
+            "file_type": "TRANSCRIPT",
+            "file_extension": "VTT",
+            "id": "en-US",
+        }
+        filename = downloader.generate_filename(file_info, "Topic")
+        assert filename == "session_transcript_en_US.vtt"
+
     def test_generate_filename_sanitizes_topic(self, tmp_path):
         """Should sanitize meeting topic for filename"""
         downloader = Downloader(output_dir=tmp_path, access_token="test_token")
@@ -282,3 +292,78 @@ class TestFilenameGeneration:
         assert "@" not in filename
         assert "!" not in filename
         assert "_" in filename or "-" in filename
+
+
+class TestTranscriptDownloadLists:
+    def test_download_transcripts_returns_multiple(self, monkeypatch, tmp_path):
+        downloader = Downloader(output_dir=tmp_path, access_token="token", output_name="session")
+
+        def fake_download(
+            self,
+            download_url,
+            file_info,
+            meeting_topic,
+            instance_start,
+            show_progress,
+            *args,
+            **kwargs,
+        ):
+            name = downloader.generate_filename(file_info, meeting_topic, instance_start)
+            path = tmp_path / name
+            path.write_text("dummy")
+            return path
+
+        monkeypatch.setattr(Downloader, "download_file", fake_download)
+
+        files = downloader.download_transcripts_and_chat(
+            recording_files=[
+                {
+                    "file_extension": "VTT",
+                    "file_type": "TRANSCRIPT",
+                    "download_url": "https://example.com/vtt1",
+                    "id": "en",
+                },
+                {
+                    "file_extension": "VTT",
+                    "file_type": "TRANSCRIPT",
+                    "download_url": "https://example.com/vtt2",
+                    "id": "es",
+                },
+            ],
+            meeting_topic="Topic",
+            instance_start=None,
+            show_progress=False,
+            skip_transcript=False,
+            skip_chat=True,
+            skip_timeline=True,
+        )
+
+        vtts = [p.name for p in files["vtt"]]
+        assert len(vtts) == 2
+        assert vtts[0] != vtts[1]
+
+    def test_download_transcripts_skips_non_timeline_json(self, monkeypatch, tmp_path):
+        downloader = Downloader(output_dir=tmp_path, access_token="token", output_name="session")
+
+        def fail_download(*args, **kwargs):
+            raise AssertionError("Should not download non-timeline JSON")
+
+        monkeypatch.setattr(Downloader, "download_file", fail_download)
+
+        files = downloader.download_transcripts_and_chat(
+            recording_files=[
+                {
+                    "file_extension": "JSON",
+                    "file_type": "SUMMARY",
+                    "download_url": "https://example.com/poll.json",
+                }
+            ],
+            meeting_topic="Topic",
+            instance_start=None,
+            show_progress=False,
+            skip_transcript=True,
+            skip_chat=True,
+            skip_timeline=False,
+        )
+
+        assert files["timeline"] == []
