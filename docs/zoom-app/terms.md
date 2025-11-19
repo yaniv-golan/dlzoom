@@ -11,7 +11,7 @@ Effective date: 2025‑01‑01
 Please read these terms before using dlzoom. By using the tool, you agree to them.
 
 What dlzoom does
-- dlzoom helps you list and download your own Zoom Cloud Recordings. It can also connect through a hosted sign‑in service, or one you host yourself.
+- dlzoom helps you list and download your own Zoom Cloud Recordings. It can also connect through a hosted sign‑in service (when enabled), or one you host yourself.
  - dlzoom is open‑source and free, and it will stay that way. We never sell any data.
 
 Using dlzoom

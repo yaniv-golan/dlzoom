@@ -5,7 +5,8 @@ Configuration management for dlzoom
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+from urllib.parse import urlsplit, urlunsplit
 
 from dotenv import load_dotenv
 from platformdirs import user_config_dir
@@ -30,7 +31,10 @@ class Config:
         "output_dir": ".",
         "log_level": "INFO",
         "zoom_api_base_url": "https://api.zoom.us/v2",
-        # End-user auth via hosted service
+        "zoom_oauth_token_url": None,
+        "zoom_s2s_default_user": None,
+        # End-user auth via hosted OAuth broker (open source, auditable code in zoom-broker/)
+        # Users can override with DLZOOM_AUTH_URL env var or --auth-url flag, or self-host
         "auth_url": "https://zoom-broker.dlzoom.workers.dev",
         # Token storage path (resolved at runtime using platformdirs)
         "tokens_path": None,
@@ -43,43 +47,78 @@ class Config:
         # 3. .env file
         # 4. Defaults
 
+        self.config_dir = Path(user_config_dir("dlzoom"))
         config_data = {}
 
         # Load from config file if provided
         if env_file is not None:
             config_data = self._load_config_file(env_file)
         else:
-            # Only load .env file if no config file was specified
-            load_dotenv()
+            default_config = self._find_default_config()
+            if default_config:
+                config_data = self._load_config_file(str(default_config))
+            # Do not implicitly load .env here to allow tests and callers
+            # to control configuration via environment variables explicitly.
+            # If a .env-style file path is passed explicitly to env_file or
+            # via CLI, _load_config_file() will handle load_dotenv(config_path).
 
-        # Required Zoom credentials (prioritize config file, fall back to env)
+        prefer_env_over_file = env_file is None
+
+        def _resolve_s2s_field(config_key: str, env_key: str) -> str | None:
+            config_value = config_data.get(config_key)
+            env_value = os.getenv(env_key)
+            if prefer_env_over_file:
+                return env_value if env_value is not None else config_value
+            return config_value if config_value is not None else env_value
+
+        # Required Zoom credentials (prioritize per source order)
         # Store in private variables to prevent accidental exposure in logs/tracebacks
-        self._zoom_account_id = config_data.get("zoom_account_id") or os.getenv("ZOOM_ACCOUNT_ID")
-        self._zoom_client_id = config_data.get("zoom_client_id") or os.getenv("ZOOM_CLIENT_ID")
-        self._zoom_client_secret = config_data.get("zoom_client_secret") or os.getenv(
-            "ZOOM_CLIENT_SECRET"
-        )
+        self._zoom_account_id = _resolve_s2s_field("zoom_account_id", "ZOOM_ACCOUNT_ID")
+        self._zoom_client_id = _resolve_s2s_field("zoom_client_id", "ZOOM_CLIENT_ID")
+        self._zoom_client_secret = _resolve_s2s_field("zoom_client_secret", "ZOOM_CLIENT_SECRET")
 
         # Optional settings
         output_dir_val = config_data.get("output_dir") or os.getenv("OUTPUT_DIR", ".")
         self.output_dir = Path(str(output_dir_val))
         self.log_level = config_data.get("log_level") or os.getenv("LOG_LEVEL", "INFO")
-        self.zoom_api_base_url = config_data.get("zoom_api_base_url") or os.getenv(
-            "ZOOM_API_BASE_URL", "https://api.zoom.us/v2"
+        api_base = config_data.get("zoom_api_base_url") or os.getenv(
+            "ZOOM_API_BASE_URL", self.OPTIONAL_FIELDS["zoom_api_base_url"]
+        )
+        self.zoom_api_base_url = str(api_base).rstrip("/")
+        token_override = config_data.get("zoom_oauth_token_url") or os.getenv(
+            "ZOOM_OAUTH_TOKEN_URL"
+        )
+        self.zoom_oauth_token_url = (
+            str(token_override).strip()
+            if token_override
+            else _derive_token_url(self.zoom_api_base_url)
         )
 
         # Hosted auth service URL (flag/env/config/default precedence handled in CLI commands)
-        self.auth_url = config_data.get("auth_url") or os.getenv(
-            "DLZOOM_AUTH_URL", self.OPTIONAL_FIELDS["auth_url"]
+        raw_auth_url = (
+            config_data.get("auth_url")
+            or os.getenv("DLZOOM_AUTH_URL")
+            or self.OPTIONAL_FIELDS["auth_url"]
         )
+        self.auth_url = str(raw_auth_url).strip()
 
         # Token file path: default under platform-specific user config directory
         configured_tokens_path = config_data.get("tokens_path") or os.getenv("DLZOOM_TOKENS_PATH")
         if configured_tokens_path:
             self.tokens_path = Path(str(configured_tokens_path))
         else:
-            base_dir = Path(user_config_dir("dlzoom"))
-            self.tokens_path = base_dir / "tokens.json"
+            self.tokens_path = self.config_dir / "tokens.json"
+
+        # Optional default user for S2S --scope=user fallback
+        raw_config_default = config_data.get("zoom_s2s_default_user")
+        s2s_default_source: str
+        if raw_config_default is not None:
+            s2s_default_source = str(raw_config_default)
+        else:
+            env_default = os.getenv("ZOOM_S2S_DEFAULT_USER")
+            s2s_default_source = env_default if env_default is not None else ""
+        cleaned_default = s2s_default_source.strip()
+        self.s2s_default_user = cleaned_default or None
 
     @property
     def zoom_account_id(self) -> str | None:
@@ -102,23 +141,53 @@ class Config:
 
         Prevents accidental credential exposure in logs, tracebacks, and debugging
         """
+        # Check all three credentials for S2S auth
+        s2s_configured = bool(
+            self._zoom_account_id and self._zoom_client_id and self._zoom_client_secret
+        )
         return (
             f"Config("
             f"output_dir={self.output_dir!r}, "
             f"log_level={self.log_level!r}, "
             f"zoom_api_base_url={self.zoom_api_base_url!r}, "
-            f"credentials={'configured' if self._zoom_account_id else 'missing'}"
+            f"credentials={'configured' if s2s_configured else 'missing'}"
             f")"
         )
 
+    def clear_credentials(self) -> None:
+        """
+        Clear sensitive credentials from memory.
+
+        Note: Due to Python's memory management and string immutability,
+        this provides best-effort cleanup but cannot guarantee complete
+        memory erasure. Credentials may remain in memory until garbage
+        collection or process termination.
+        """
+        self._zoom_account_id = None
+        self._zoom_client_id = None
+        self._zoom_client_secret = None
+
     def __del__(self) -> None:
-        """Zero out credentials when object is destroyed"""
-        if hasattr(self, "_zoom_account_id"):
-            self._zoom_account_id = None
-        if hasattr(self, "_zoom_client_id"):
-            self._zoom_client_id = None
-        if hasattr(self, "_zoom_client_secret"):
-            self._zoom_client_secret = None
+        """Attempt to clear credentials when object is destroyed (best-effort only)"""
+        try:
+            self.clear_credentials()
+        except Exception:
+            pass  # Ignore errors during finalization
+
+    @staticmethod
+    def _is_null_device(path_str: str) -> bool:
+        """Return True when the provided path represents the OS null device."""
+        normalized = path_str.strip().lower()
+        normalized = normalized.replace("\\", "/")
+
+        null_candidates = {"/dev/null", "nul", "nul:"}
+        try:
+            null_candidates.add(os.devnull.lower())
+            null_candidates.add(Path(os.devnull).as_posix().lower())
+        except Exception:
+            pass
+
+        return normalized in null_candidates
 
     def _load_config_file(self, config_path: str) -> dict[str, Any]:
         """
@@ -133,12 +202,18 @@ class Config:
         Raises:
             ConfigError: If file cannot be loaded or parsed
         """
+        if self._is_null_device(config_path):
+            # Allow callers/tests to opt-out from config file loading
+            # via special null-device paths such as /dev/null or nul.
+            return {}
+
         path = Path(config_path)
 
         if not path.exists():
-            # If file doesn't exist, assume it's a .env file path
-            load_dotenv(config_path)
-            return {}
+            raise ConfigError(
+                f"Config file '{config_path}' does not exist. "
+                "Provide an existing JSON/YAML/.env file or remove the --config flag."
+            )
 
         # Check YAML availability early if trying to load YAML file
         if path.suffix.lower() in [".yaml", ".yml"] and not YAML_AVAILABLE:
@@ -189,6 +264,19 @@ class Config:
             raise ConfigError("PyYAML not installed. Install with: pip install pyyaml")
         except yaml.YAMLError as e:
             raise ConfigError(f"Invalid YAML: {e}")
+
+    def _find_default_config(self) -> Path | None:
+        """
+        Locate the default config file in the user config directory.
+
+        Returns:
+            Path to the discovered config file or None if not present.
+        """
+        for filename in ("config.json", "config.yaml", "config.yml"):
+            candidate = self.config_dir / filename
+            if candidate.exists():
+                return candidate
+        return None
 
     def _validate_schema(self, data: dict[str, Any], path: Path) -> None:
         """
@@ -254,3 +342,25 @@ class Config:
             return True
         except ConfigError:
             return False
+
+    def get_auth_mode(self) -> Literal["s2s", "oauth", "none"]:
+        """Return the active authentication mode based on available credentials."""
+        if self.zoom_account_id and self.zoom_client_id and self.zoom_client_secret:
+            return "s2s"
+        try:
+            if self.tokens_path.exists():
+                return "oauth"
+        except Exception:
+            # If tokens_path points to inaccessible location, treat as none.
+            pass
+        return "none"
+
+
+def _derive_token_url(api_base_url: str) -> str:
+    """Infer the OAuth token URL from the API base host (Zoom vs ZoomGov, etc.)."""
+    parsed = urlsplit(api_base_url)
+    host = parsed.netloc
+    if host.startswith("api."):
+        host = host[4:]
+    scheme = parsed.scheme or "https"
+    return urlunsplit((scheme, host, "/oauth/token", "", ""))

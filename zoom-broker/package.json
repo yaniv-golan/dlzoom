@@ -3,14 +3,15 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
+		"postinstall": "node ./scripts/apply-kv-placeholders.mjs",
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
 		"test": "vitest"
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.10.6",
-		"vitest": "~3.2.0",
+		"@cloudflare/vitest-pool-workers": "^0.8.19",
+		"vitest": "3.2.4",
 		"wrangler": "^4.46.0"
 	},
 	"engines": {
