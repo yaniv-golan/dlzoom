@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 
 from dlzoom.exceptions import AudioExtractionError
@@ -60,8 +61,9 @@ class AudioExtractor:
         if output_path is None:
             output_path = input_path.with_suffix(".m4a")
 
-        # Create temp file for extraction (use .tmp prefix instead of suffix)
-        temp_output = output_path.parent / f".tmp.{output_path.name}"
+        # Create temp file for extraction with a unique suffix to avoid collisions
+        unique_suffix = uuid.uuid4().hex
+        temp_output = output_path.parent / f".tmp.{unique_suffix}.{output_path.name}"
 
         try:
             # Build ffmpeg command
@@ -112,10 +114,9 @@ class AudioExtractor:
             # Run ffmpeg
             if verbose:
                 self.logger.info(f"Extracting audio: {input_path.name} -> {output_path.name}")
-                # Show ffmpeg output
-                subprocess.run(cmd, check=True, capture_output=False)
+                self._run_ffmpeg_verbose(cmd)
             else:
-                # Suppress ffmpeg output
+                # Suppress ffmpeg output but capture stderr for diagnostics
                 subprocess.run(cmd, check=True, capture_output=True, text=True)
 
             # Move temp file to final location (atomic operation)
@@ -135,8 +136,13 @@ class AudioExtractor:
                 temp_output.unlink()
 
             error_msg = f"ffmpeg extraction failed: {e}"
+            ffmpeg_details = ""
             if hasattr(e, "stderr") and e.stderr:
-                error_msg += f"\nffmpeg error: {e.stderr}"
+                ffmpeg_details = e.stderr
+            elif hasattr(e, "output") and e.output:
+                ffmpeg_details = e.output
+            if ffmpeg_details:
+                error_msg += f"\nffmpeg output:\n{ffmpeg_details}"
 
             self.logger.error(error_msg)
             raise AudioExtractionError(error_msg) from e
@@ -147,6 +153,31 @@ class AudioExtractor:
                 temp_output.unlink()
 
             raise AudioExtractionError(f"Audio extraction failed: {e}") from e
+
+    def _run_ffmpeg_verbose(self, cmd: list[str]) -> None:
+        """Stream ffmpeg output to the logger while capturing it for errors."""
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        output_lines: list[str] = []
+        try:
+            assert process.stdout is not None
+            for line in process.stdout:
+                output_lines.append(line)
+                self.logger.info(line.rstrip())
+        except Exception:
+            process.kill()
+            process.wait()
+            raise
+        finally:
+            if process.stdout:
+                process.stdout.close()
+        retcode = process.wait()
+        if retcode != 0:
+            raise subprocess.CalledProcessError(retcode, cmd, output="".join(output_lines))
 
     def extract_audio_if_needed(self, file_path: Path, verbose: bool = False) -> Path:
         """

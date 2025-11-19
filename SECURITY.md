@@ -216,7 +216,8 @@ docker run --rm \
   -v $(pwd)/config.yaml:/app/config.yaml:ro \
   -v $(pwd)/downloads:/app/downloads \
   -e ZOOM_ACCOUNT_ID="$ZOOM_ACCOUNT_ID" \
-  yanivgolan1/dlzoom:0.1.0 123456789```
+  yanivgolan1/dlzoom:0.1.0 download 123456789
+```
 
 ### Network Security
 

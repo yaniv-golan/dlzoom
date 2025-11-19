@@ -86,10 +86,10 @@ class TemplateParser:
                     formatted = dt.strftime(format_str)
                     result = result.replace(match.group(0), formatted)
                 except (ValueError, TypeError) as e:
-                    # Expected parse errors - log warning and use empty string
+                    # Parse error - log and fall back to empty string (expected by tests)
                     self.logger.warning(
-                        f"Failed to parse date '{start_time}' with format '{format_str}' "
-                        f"in template: {e}. Using empty string for {match.group(0)}"
+                        f"Failed to parse date '{start_time}' with format "
+                        f"'{format_str}' in template: {e}. Using empty string."
                     )
                     result = result.replace(match.group(0), "")
                 except Exception as e:
@@ -112,14 +112,14 @@ class TemplateParser:
         for placeholder, value in simple_placeholders.items():
             if placeholder in result:
                 # Sanitize value for filenames
-                safe_value = self._sanitize_filename(str(value))
+                safe_value = self.sanitize_filename(str(value))
                 result = result.replace(placeholder, safe_value)
 
         return result
 
-    def _sanitize_filename(self, name: str) -> str:
+    def sanitize_filename(self, name: str) -> str:
         """
-        Sanitize string for use in filenames
+        Sanitize string for use in filenames (public API)
 
         Args:
             name: String to sanitize
@@ -138,6 +138,10 @@ class TemplateParser:
         safe_name = safe_name.strip("_. ")
 
         return safe_name
+
+    # Backward-compatible alias (kept for tests and integrations)
+    def _sanitize_filename(self, name: str) -> str:  # pragma: no cover - thin wrapper
+        return self.sanitize_filename(name)
 
 
 class TemplateError(Exception):

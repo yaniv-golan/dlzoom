@@ -17,16 +17,25 @@ What we access
 
 How we use it
 - To sign you in to Zoom and show/download your recordings.
-- We don’t use your data for ads or analytics.
+- We don't use your data for ads or user-tracking analytics.
+- Note: When hosted sign‑in is enabled, it uses Cloudflare Workers, which collects infrastructure-level metrics (request counts, errors, performance) for operational monitoring. This is standard infrastructure observability and does not track individual users or their data.
 
-Where it’s stored and for how long
-- The tool keeps sign‑in tokens only while you use it.
-- To finish sign‑in, a small code is stored briefly and then expires automatically.
+Where it's stored and for how long
+- Sign‑in tokens are stored locally on your device in the standard OS config directory until you log out or they expire:
+  - macOS: `~/Library/Application Support/dlzoom/tokens.json`
+  - Linux: `~/.config/dlzoom/tokens.json`
+  - Windows: `%APPDATA%\\dlzoom\\tokens.json`
+  - optional override: set `DLZOOM_TOKENS_PATH`
+- To finish sign‑in, the OAuth broker temporarily stores the full token response from Zoom (access token, refresh token, expiry data) in Cloudflare Workers KV. This copy lives for at most 10 minutes—and is usually deleted sooner once the CLI fetches it—so the CLI can download it exactly once and then remove it.
 - Downloaded recordings are saved only on your device and are under your control.
 
-Hosted vs self‑hosted sign‑in
-- Default: If you use our hosted sign‑in, the short‑lived code is handled by our service only to complete sign‑in, then it expires.
-- Self‑hosted: If you host your own sign‑in, that short‑lived code is handled by your service instead.
+OAuth broker (authentication service)
+- **Default**: dlzoom uses a hosted OAuth broker at `https://zoom-broker.dlzoom.workers.dev` to handle the sign-in flow.
+- **What it does**: Temporarily stores session data and the OAuth token payload (max 10 minutes) so the CLI can pick up the tokens once. It does not log, persist, or have access to your Zoom recordings or account data beyond what's needed for authentication, and the tokens are deleted immediately after retrieval or when the TTL expires.
+- **Open source**: All broker code is available in the `zoom-broker/` directory of the repository and can be audited.
+- **Generic**: The broker works with any Zoom OAuth app. You create your own app in Zoom Marketplace with your own credentials.
+- **Infrastructure monitoring**: The broker runs on Cloudflare Workers, which collects standard infrastructure metrics (request counts, errors, performance) for operational monitoring. This does not track individual users or their data.
+- **Self‑hosting option**: If you prefer, you can deploy your own instance of the broker and configure dlzoom to use it with `--auth-url` or the `DLZOOM_AUTH_URL` environment variable. See `zoom-broker/README.md` for instructions.
 
 Sharing
 - We don’t sell your information or share it with advertisers. No selling of any data, ever.
