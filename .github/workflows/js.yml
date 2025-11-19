@@ -3,14 +3,8 @@ name: JS CI
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'zoom-broker/**'
-      - '.github/workflows/js.yml'
   pull_request:
     branches: [ main ]
-    paths:
-      - 'zoom-broker/**'
-      - '.github/workflows/js.yml'
 
 permissions:
   contents: read
